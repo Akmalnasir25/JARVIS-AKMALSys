@@ -68,7 +68,7 @@ statik masih nampak betul. Dua sebab, dua-dua dah dibetulkan:
 Sekarang hidup: telemetri 2 s, sembilan panel, MEDIA (senarai + main), FAIL (tree + pratonton),
 ANALISIS (kad, graf bar, poin bernarasi), terminal mirror, chat + `onClaude` stream, TTS, orb.
 
-**Panel yang masih placeholder:** EDITOR (CodeMirror 6), WEB, DOK, APP. Fasa 5–7.
+**Panel yang masih placeholder:** WEB, DOK, APP. Fasa 6–7. (EDITOR siap.)
 
 ---
 
@@ -126,8 +126,19 @@ chrome --headless=new --allow-file-access-from-files --window-size=1600,900 \
   "file:///C:/Users/akmal/jarvis-desktop/ui/_shoot.html#ana"
 ```
 
-`--dump-dom` pada iframe tak boleh baca dalaman, jadi kedua-dua harness tulis hasil ke
+```bash
+# ujian EDITOR — bundle sebenar, bukan stub
+chrome --headless=new --allow-file-access-from-files --virtual-time-budget=25000   --dump-dom "file:///C:/Users/akmal/jarvis-desktop/ui/_ed.html" | grep -o '<div id="R">[^<]*'
+```
+
+`--dump-dom` pada iframe tak boleh baca dalaman, jadi ketiga-tiga harness tulis hasil ke
 elemen dalam dokumen **ibu**, bukan `console.log`.
+
+**Perangkap harness:** jangan guna `f.addEventListener('load', …)`. Untuk fail `file://`
+sebaka ia kerap tak menyala langsung, dan bila menyala pun boleh mendahului skrip anak.
+Guna gelung `poll()` yang tunggu `contentDocument.readyState === 'complete'` **dan**
+`contentWindow.stageShow` wujud. Dua-dua `_smoke.html` dan `_shoot.html` pernah senyap
+sebab ini.
 
 ---
 
@@ -138,8 +149,8 @@ elemen dalam dokumen **ibu**, bukan `console.log`.
 | Projek | `C:\Users\akmal\jarvis-desktop` |
 | Versi berjalan | v1.1 stage (`main.py` → `ui/stage.html`) |
 | Git | **dah `git init`**, commit pertama `33fccb5`, `secrets.json` dilindungi |
-| Fasa selesai | 0 (git), 1 (antara muka + sambungan Python), sistem warna gabung |
-| Fasa seterusnya | **Fasa 2** — `media_server.py` dah wujud, kena sahkan seek betul dalam WebView2 |
+| Fasa selesai | 0 (git), 1 (antara muka + Python), warna gabung, 5 (EDITOR) |
+| Fasa seterusnya | **Fasa 6 WEB**, atau sahkan MEDIA dalam WebView2 betul-betul |
 | TTS aktif | Google Cloud, `ms-MY-Wavenet-D` |
 
 ---
@@ -167,11 +178,40 @@ Yang tinggal cuma **kaki WebView2**: letak satu mp4 sebenar dalam `media/`, jala
 Dua-dua fail dalam `media/` sekarang berawalan `_` dan bukan video betul — jangan
 guna untuk ujian ini.
 
-### 2. EDITOR (Fasa 5) — CodeMirror 6
+### 2. EDITOR (Fasa 5) — SIAP
 
-Placeholder dah ada, kontrak dah ada. Lazy-load sahaja, jangan bundle masuk `stage.html`.
-Guna `fs_read`/`fs_write`; `_safe_path()` dah hadkan skop ke workdir. Belum ada `fs_write`
-dalam `main.py` — itu kerja pertama.
+CodeMirror 6, bundle `ui/vendor/editor.js` (633 KB, di-commit, tiada CDN — HUD jalan offline).
+Lazy-load pada buka pertama; boot tak bayar apa-apa.
+
+| bahagian | fail |
+|---|---|
+| build | `ui/vendor/_build/entry.js` → esbuild → `ui/vendor/editor.js` |
+| Python | `Api.fs_write(path, text, expected_size)` dalam `main.py` |
+| stage | modul EDITOR dalam `ui/stage.html`, `window.stageEditor` |
+
+**Bina semula bundle** (kalau tukar tema atau bahasa):
+
+```bash
+cd ui/vendor/_build
+npm install          # sekali sahaja
+node_modules/.bin/esbuild entry.js --bundle --format=iife \
+  --global-name=JarvisEditor --minify --target=chrome110 \
+  --legal-comments=none --outfile=../editor.js
+```
+
+**Tiga pagar `fs_write`** — jangan buang mana-mana:
+
+1. `_safe_path()` — skop sama macam `fs_read`.
+2. `expected_size` — saiz masa fail dibaca. Kalau fail berubah di luar, tulis ditolak
+   dengan `conflict: true`, editor suruh tekan Simpan sekali lagi. Ini yang halang tab
+   lama padam kerja baru.
+3. `.bak` sekali sebelum tulis. Bukan versioning, cuma jaring satu pusingan.
+
+Fail > 200 KB **ditolak**, bukan diedit — `fs_read` potong pada 200k, jadi menyimpan
+semula bermakna tulis potongan itu ke cakera. Jangan longgarkan tanpa ubah `fs_read`.
+
+**Belum ada:** tab berbilang fail, carian seluruh projek, git diff dalam editor.
+Kalau perlu, itu kerja baru — jangan sangkut Fasa 6 sebab ini.
 
 ### 3. WEB (Fasa 6) — pilih satu jalan dulu
 
