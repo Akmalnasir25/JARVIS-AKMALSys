@@ -3,6 +3,7 @@
 Run:  python main.py      (atau pythonw main.py tanpa tetingkap konsol)
 Shortcut folder/app dalam shortcuts.json, tetapan Claude dalam config.json.
 """
+import base64
 import json
 import os
 import re
@@ -19,6 +20,7 @@ import psutil
 import webview
 
 import services as sv
+import system as sysctl
 from media_server import MediaServer
 
 ROOT = Path(__file__).resolve().parent
@@ -63,7 +65,7 @@ Kamu berjalan dalam HUD desktop Windows 11 dan boleh buat kerja dalam PC.
 CHAT_PROMPT = PERSONA + """
 
 Dalam mod ni kamu tak boleh access atau run apa-apa dalam PC. Kalau Akmal minta buat kerja dengan file, app atau code dalam PC, suruh dia tukar ke mod CLAUDE.
-Tool yang kamu ada: web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Akmal guna mod CLAUDE.
+Tool yang kamu ada: web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Akmal guna mod CLAUDE.
 ANALISIS: bila Akmal minta analisis, kumpul data secukupnya (maksimum 3-4 langkah tool, baca fail paling penting sahaja seperti README, package.json, data), kira angka penting, kemudian jawab dengan ringkasan padat yang ada angka. HUD akan tukar jawapan kamu jadi dashboard visual.
 Kamu ADA akses internet melalui tool web_search. Biasanya SATU carian dah cukup; cari lagi hanya kalau hasil pertama memang tak menjawab. Guna bila soalan perlukan maklumat terkini atau fakta yang kamu tak pasti (harga, berita, cuaca, jadual, skor, release terbaru). Jangan cakap kamu takde internet. Lepas cari, jawab ringkas dan sebut sumber secara santai (contoh: "ikut Bernama semalam...")."""
 
@@ -121,6 +123,28 @@ CHAT_TOOLS = WEB_TOOLS + [
         {"action": {"type": "string", "enum": ["next_slide", "prev_slide", "start_show", "end_show", "black_screen",
                                                "vol_up", "vol_down", "mute", "play_pause", "next_track", "prev_track",
                                                "scroll_down", "scroll_up", "show_desktop", "switch_window", "snip"]}}, ["action"]),
+    _fn("system", "Kawal Windows dengan nilai tepat: set volume/kecerahan ke peratus, fokus atau tutup app, "
+                  "kunci/sleep/restart/shutdown laptop, baca dan tulis clipboard, senarai tetingkap dan proses, "
+                  "taip teks, buka app atau URL. Guna ini bila Akmal beri arahan bertindih dengan PC. "
+                  "Untuk tindakan yang susah diundur (kill, close_window, recycle, sleep, shutdown, restart) "
+                  "tool akan pulangkan need_confirm + token; masa itu TANYA Akmal dan jangan ulang panggilan "
+                  "sehingga dia setuju.",
+        {"action": {"type": "string", "enum": ["status", "volume", "mute", "brightness", "focus", "minimize",
+                                               "maximize", "launch", "url", "clip_read", "clip_write", "type",
+                                               "windows", "processes", "shell", "lock", "show_desktop",
+                                               "power_cancel", "kill", "close_window", "recycle", "sleep",
+                                               "shutdown", "restart", "show_doc"],
+         "description": "Tindakan yang nak dibuat"},
+         "level": {"type": "number", "description": "0-100 untuk volume/brightness"},
+         "delta": {"type": "number", "description": "Perubahan, cth -10 atau +15"},
+         "title": {"type": "string", "description": "Nama atau sebahagian tajuk tetingkap"},
+         "name": {"type": "string", "description": "Nama app atau proses, cth chrome, notepad"},
+         "url": {"type": "string", "description": "Alamat web"},
+         "text": {"type": "string", "description": "Teks untuk clipboard atau untuk ditaip"},
+         "path": {"type": "string", "description": "Laluan fail untuk show_doc"},
+         "cmd": {"type": "string", "description": "Arahan shell dari senarai putih sahaja"},
+         "paths": {"type": "array", "items": {"type": "string"}, "description": "Fail untuk dibuang ke Recycle Bin"}},
+        ["action"]),
     _fn("open_media", "Main video atau audio dari folder media/ di dalam panel MEDIA stage. Untuk senarai sahaja, panggil tanpa nama.",
         {"name": {"type": "string", "description": "Nama fail atau sebahagian nama, contoh: lecture 3, lagu.mp3"}}),
 ]
@@ -137,6 +161,8 @@ TOOL_TRIGGERS = {
     "search_drive": r"\bdrive\b",
     "look_at_screen": r"skrin|screen|paparan|nampak|tengok ni|error ni",
     "control_pc": r"slide|volume|bunyi|mute|lagu|muzik|music|scroll|tingkap|window|present",
+    "system": r"volume|bunyi|kecerahan|cerah|brightness|clipboard|salin|tutup|close|kill|fokus|focus|"
+              r"kunci|lock|sleep|tidur|restart|shutdown|tutup laptop|proses|process|tetingkap|window|senarai|taip|type|shell",
     "open_media": r"video|filem|movie|lagu|muzik|audio|media|main|play|tengok wayang",
     "set_reminder": r"ingat|remind|peringatan|minit lagi|jam lagi|alarm",
 }
@@ -351,6 +377,10 @@ class Api:
         self._web_win = None      # child WebView2 window for the WEB pane
         self._web_url = ""
         self._stage_rect = None   # browse-body rect in screen px, set by JS
+        self._sys = sysctl.System()  # satu instance: token pengesahan hidup di sini
+        self._pending_cmd = None     # ayat penuh yang menunggu pengesahan Akmal
+        self._pending_token = None   # token terakhir yang belum dijawab
+        self._app_rect = None        # rect stage untuk app yang di-embed
         psutil.cpu_percent(None)  # panggilan pertama sentiasa 0, jadi panaskan dulu
 
     # ---------- Stage: telemetri & panel ----------
@@ -522,6 +552,151 @@ class Api:
             return {"ok": True}
         except OSError as e:
             return {"ok": False, "msg": str(e)}
+
+    # ---------- Stage: dokumen (Fasa 6) ----------
+    # Dibaca di Python, bukan di browser. PDF.js + docx-preview + SheetJS akan
+    # jadi ~3 MB JS yang perlu npm build dan versi yang mesti dijaga; sebaliknya
+    # pymupdf, python-docx, python-pptx dan openpyxl sudah ada dalam env ini dan
+    # berjalan pada mesin yang sama. Yang dihantar ke stage ialah blok struktur
+    # kecil, dan CSS stage yang mewarnakannya.
+    DOC_MAX_BYTES = 40 * 1024 * 1024
+
+    def docs_open(self, path, page=None):
+        """Buka satu dokumen untuk dibaca dalam stage. Tiada tulis, tiada ubah."""
+        p = self._safe_path(path)
+        if p is None or not p.is_file():
+            return {"ok": False, "msg": "Fail tiada atau luar kawasan kerja."}
+        if p.stat().st_size > self.DOC_MAX_BYTES:
+            return {"ok": False, "msg": "Fail lebih 40 MB — buka di luar sahaja."}
+        ext = p.suffix.lower().lstrip(".")
+        handler = {"pdf": self._doc_pdf, "docx": self._doc_docx, "pptx": self._doc_pptx,
+                   "xlsx": self._doc_xlsx, "xlsm": self._doc_xlsx,
+                   "md": self._doc_text, "markdown": self._doc_text, "txt": self._doc_text,
+                   "csv": self._doc_csv, "json": self._doc_text, "log": self._doc_text}.get(ext)
+        if handler is None:
+            return {"ok": False, "msg": "Format .%s belum disokong dalam stage." % ext}
+        try:
+            out = handler(p, page)
+        except Exception as e:
+            return {"ok": False, "msg": "%s: %s" % (type(e).__name__, e)}
+        out.setdefault("ok", True)
+        out.update({"name": p.name, "path": str(p), "ext": ext,
+                    "size": p.stat().st_size, "kind": out.get("kind", ext)})
+        return out
+
+    def _doc_pdf(self, p, page=None):
+        """Teks per halaman, dan imej halaman semasa untuk bentuk asal."""
+        try:
+            import pymupdf as fitz  # nama baru; `fitz` sudah deprecated dalam 1.28
+        except ImportError:
+            import fitz
+        doc = fitz.open(str(p))
+        try:
+            total = doc.page_count
+            i = max(0, min(total - 1, int(page or 0)))
+            pages = [{"n": k + 1, "text": doc[k].get_text("text").strip()} for k in range(min(total, 60))]
+            # imej pada 130 dpi: cukup tajam untuk dibaca, kecil untuk dihantar
+            pix = doc[i].get_pixmap(matrix=fitz.Matrix(130 / 72, 130 / 72))
+            png = base64.b64encode(pix.tobytes("png")).decode()
+            return {"kind": "pdf", "pages": pages, "total": total, "page": i,
+                    "image": "data:image/png;base64," + png,
+                    "w": pix.width, "h": pix.height}
+        finally:
+            doc.close()
+
+    def _doc_docx(self, p, page=None):
+        """Perenggan + jadual, bukan HTML — gaya kekal di CSS stage."""
+        import docx
+        d = docx.Document(str(p))
+        blocks = []
+        for para in d.paragraphs:
+            txt = para.text.strip()
+            if not txt:
+                continue
+            style = (para.style.name or "").lower()
+            level = 0
+            if style.startswith("heading"):
+                try:
+                    level = int(style.split()[-1])
+                except ValueError:
+                    level = 1
+            elif style == "title":
+                level = 1
+            blocks.append({"t": "h" if level else "p", "l": level, "x": txt})
+        for t_i, table in enumerate(d.tables):
+            rows = []
+            for row in table.rows[:80]:
+                rows.append([c.text.strip()[:200] for c in row.cells])
+            if rows:
+                blocks.append({"t": "table", "n": t_i + 1, "rows": rows})
+        return {"kind": "docx", "blocks": blocks[:600],
+                "counts": {"paras": len(d.paragraphs), "tables": len(d.tables)}}
+
+    def _doc_pptx(self, p, page=None):
+        import pptx
+        pr = pptx.Presentation(str(p))
+        total = len(pr.slides)
+        slides = []
+        # slides[:n] memulangkan list, dan pemanggil dalaman python-pptx
+        # kemudian panggil .rId padanya — jadi akses ikut indeks, bukan slice.
+        for i in range(min(total, 80)):
+            s = pr.slides[i]
+            title_shape = s.shapes.title
+            title_id = title_shape.shape_id if title_shape is not None else None
+            title, body = "", []
+            for sh in s.shapes:
+                if not sh.has_text_frame:
+                    continue
+                txt = sh.text_frame.text.strip()
+                if not txt:
+                    continue
+                if title_id is not None and sh.shape_id == title_id and not title:
+                    title = txt
+                else:
+                    body.append(txt)
+            slides.append({"n": i + 1, "title": title or ("Slide %d" % (i + 1)), "body": body})
+        return {"kind": "pptx", "slides": slides, "total": total}
+
+    def _doc_xlsx(self, p, page=None):
+        """Setiap helaian jadi grid, tetapi hanya 200 baris pertama setiap satu."""
+        import openpyxl
+        wb = openpyxl.load_workbook(str(p), read_only=True, data_only=True)
+        try:
+            sheets = []
+            for name in wb.sheetnames[:12]:
+                ws = wb[name]
+                rows, truncated = [], False
+                for r_i, row in enumerate(ws.iter_rows(values_only=True)):
+                    if r_i >= 200:
+                        truncated = True
+                        break
+                    cells = ["" if v is None else (v if isinstance(v, (int, float)) else str(v)[:120])
+                             for v in row[:30]]
+                    if any(str(c).strip() for c in cells):
+                        rows.append(cells)
+                sheets.append({"name": name, "rows": rows, "truncated": truncated,
+                               "dims": ws.max_row and "%d×%d" % (ws.max_row, ws.max_column or 0)})
+            return {"kind": "xlsx", "sheets": sheets}
+        finally:
+            wb.close()
+
+    def _doc_csv(self, p, page=None):
+        import csv
+        rows = []
+        with p.open("r", encoding="utf-8", errors="replace", newline="") as f:
+            for i, row in enumerate(csv.reader(f)):
+                if i >= 300:
+                    break
+                rows.append([c[:120] for c in row[:30]])
+        return {"kind": "csv", "sheets": [{"name": p.stem, "rows": rows, "truncated": len(rows) >= 300}]}
+
+    def _doc_text(self, p, page=None):
+        raw = p.read_bytes()
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode("cp1252", "replace")
+        return {"kind": "text", "text": text[:200_000], "lines": text.count("\n") + 1}
 
     # ---------- Stage: tulis fail (EDITOR) ----------
     def fs_write(self, path, text, expected_size=None):
@@ -1229,7 +1404,8 @@ class Api:
         label = {"web_search": "WebSearch", "open_item": "Open", "system_status": "Status", "list_folder": "List",
                  "find_files": "Find", "read_file": "Read", "set_reminder": "Reminder", "weather": "Weather",
                  "prayer_times": "Prayer", "check_email": "Gmail", "search_drive": "Drive",
-                 "look_at_screen": "Screen", "control_pc": "Control", "open_media": "Media"}.get(name, name)
+                 "look_at_screen": "Screen", "control_pc": "Control", "open_media": "Media",
+                 "system": "System"}.get(name, name)
         lat, lon, zone = self._cfg_place()
         if name == "open_media":
             want = str(args.get("name", "") or "").strip()
@@ -1274,6 +1450,24 @@ class Api:
             done = sv.do_control(act)
             self._emit("tool", {"name": label, "detail": done or act, "full": ""})
             return f"Dah buat: {done}." if done else f"Tindakan {act} tak dikenali."
+        if name == "system":
+            act = str(args.get("action", "") or "")
+            rest = {k: v for k, v in args.items() if k != "action" and v is not None}
+            self._emit("tool", {"name": label, "detail": act + (" " + str(next(iter(rest.values()))) if rest else ""),
+                                "full": json.dumps(rest, ensure_ascii=False)[:300]})
+            if act == "show_doc":
+                # System tidak tahu tentang HUD, jadi show_doc diselesaikan di sini
+                r = self._open_doc_in_stage(rest.get("path", ""))
+                return r.get("label", "Dah cuba buka.")
+            res = self._sys.do(act, **rest)
+            if res.get("need_confirm"):
+                # Token disimpan supaya "ya" dari Akmal menyambung kerja yang sama
+                self._pending_token = res["token"]
+                self._pending_cmd = act
+                self._push(f"window.jarvisConfirm && window.jarvisConfirm({json.dumps(res)})")
+                return (f"Perlu pengesahan Akmal: {res['ask']} JANGAN panggil tool ini lagi. "
+                        f"Tanya Akmal dalam satu ayat pendek dan berhenti.")
+            return res.get("msg") or ("Siap." if res.get("ok") else "Tak jadi.")
         detail = str(next(iter(args.values()), "")) if args else ""
         if name == "set_reminder":
             detail = f"{args.get('minutes')} min · {args.get('message', '')}"
@@ -1743,8 +1937,306 @@ class Api:
             return
         self._voice_emit("text", text)
 
+    # ---------- Kawalan laptop: ayat -> satu panggilan system.py ----------
+    def resolve_system(self, text):
+        """Padan ayat dengan satu tindakan sistem. Pulangkan {"handled","label"}.
+
+        Ini bukan AI dan sengaja bukan AI: bila Akmal cakap "volume 30", dia
+        mahu 30, bukan model yang berfikir dan mungkin memberi 40. Corak di
+        bawah tertib dari spesifik ke longgar, dan yang tidak padan langsung
+        jatuh ke false — ayat itu terus ke Claude seperti biasa.
+
+        Pengesahan: kalau tindakan itu tingkat 'pukal' (bunuh proses, tutup
+        tetingkap, recycle, kuasa), token disimpan dalam self._pending_token
+        dan ayat asal dalam self._pending_cmd, supaya "ya" selepas itu
+        menyambung kerja yang sama tanpa Akmal perlu ulang ayat penuh.
+        """
+        raw = str(text or "").strip()
+        t = sv.clean_command(raw)
+        low = t.lower()
+        if not low:
+            return {"handled": False}
+
+        # "ya" / "tak" hanya bermakna kalau ada tindakan yang menunggu
+        if re.match(r"^(ya|yes|ok|okay|buat|teruskan|jalan|go|confirm|sahkan)\b", low):
+            if self._pending_token:
+                tok, self._pending_token = self._pending_token, None
+                self._pending_cmd = None
+                return self._sys_report(self._sys.confirm(tok))
+            return {"handled": False}
+        if re.match(r"^(tak|no|jangan|batal|cancel|stop|jangan buat)\b", low):
+            if self._pending_token:
+                self._sys.cancel(self._pending_token)
+                self._pending_token = None
+                self._pending_cmd = None
+                return {"handled": True, "label": "Dibatalkan"}
+            return {"handled": False}
+
+        m = self._match_system(low)
+        if m is None:
+            return {"handled": False}
+        action, args = m
+        if action == "show_doc":
+            return self._open_doc_in_stage(args.get("path", ""))
+        res = self._sys.do(action, **args)
+        if res.get("need_confirm"):
+            self._pending_token = res["token"]
+            self._pending_cmd = raw
+            self._push(f"window.jarvisConfirm && window.jarvisConfirm({json.dumps(res)})")
+        return self._sys_report(res)
+
+    @staticmethod
+    def _sys_report(res):
+        msg = res.get("msg") or ("Siap." if res.get("ok") else "Tak jadi.")
+        label = ("✔ " if res.get("ok") else "✖ ") + msg
+        if res.get("need_confirm"):
+            label = "? " + msg
+        return {"handled": True, "label": label, "confirm": bool(res.get("need_confirm"))}
+
+    def _match_system(self, low):
+        """Satu jadual corak -> (action, args). Tiada kesan sampingan di sini."""
+        pct = sysctl.parse_pct
+
+        def num(*keys):
+            for k in keys:
+                if k in low:
+                    return pct(low)
+            return None
+
+        # -- kuasa dulu: ayat kuasa mesti tidak boleh tersalah masuk cabang lain
+        if re.search(r"\b(batal|batalkan|cancel)\b.*\b(shutdown|restart|tutup|restart)\b|^batal shutdown$", low):
+            return "power_cancel", {}
+        if re.search(r"\b(mati|tutup|shutdown|shut down|power off)\b.*\b(laptop|pc|komputer|computer)\b"
+                     r"|\b(shutdown|tutup laptop)\b", low):
+            return "shutdown", {}
+        if re.search(r"\b(restart|reboot|mula semula|restartkan)\b.*\b(laptop|pc|komputer|computer)?\b", low):
+            return "restart", {}
+        if re.search(r"\b(sleep|tidur|hibernate)\b.*\b(laptop|pc)?\b", low):
+            return "sleep", {}
+        if re.search(r"^(kunci|lock)\b.*\b(laptop|pc|skrin|screen|windows)?|^lock$", low):
+            return "lock", {}
+
+        # -- audio
+        if re.search(r"\b(mute|unmute|senyap|bisukan)\b", low):
+            return "mute", {"on": not re.search(r"\b(unmute|hidupkan|bukakan|on)\b", low)}
+        if "volume" in low or "bunyi" in low or "suara" in low:
+            if re.search(r"\b(berapa|check|status|tengok|semak)\b", low):
+                return "status", {}
+            p = num("volume", "bunyi", "suara")
+            if p is not None:
+                return "volume", {"level": p}
+            if re.search(r"\b(naik|up|kuat|besar|tinggi)\b", low):
+                return "volume", {"delta": 10}
+            if re.search(r"\b(turun|down|kecil|perlahan|rendah)\b", low):
+                return "volume", {"delta": -10}
+            if re.search(r"\b(maksimum|max|penuh)\b", low):
+                return "volume", {"level": 100}
+
+        # -- kecerahan. Akhiran -kan mesti dibenarkan: "cerahkan skrin", bukan
+        # "cerah skrin" — \b selepas "cerah" tidak akan padan dengan "cerahkan".
+        if re.search(r"\b(brightness|kecerahan|cerah(?:kan)?|terang(?:kan)?|malap(?:kan)?|gelap(?:kan)?)\b", low):
+            if re.search(r"\b(berapa|status|tengok|semak)\b", low):
+                return "brightness", {}
+            p = num("brightness", "kecerahan")
+            if p is not None:
+                return "brightness", {"level": p}
+            if re.search(r"\b(naik(?:kan)?|up|cerah(?:kan)?|terang(?:kan)?)\b", low):
+                return "brightness", {"delta": 10}
+            if re.search(r"\b(turun(?:kan)?|down|malap(?:kan)?|gelap(?:kan)?|kurang(?:kan)?)\b", low):
+                return "brightness", {"delta": -10}
+
+        # -- clipboard
+        if re.search(r"\b(clipboard|salin|copy|paste|tampal)\b", low):
+            if re.search(r"\b(baca|apa|tengok|read|show)\b", low):
+                return "clip_read", {}
+            m = re.search(r"(?:salin|copy|clipboard)\s+(.+)", low)
+            if m:
+                return "clip_write", {"text": m.group(1).strip()}
+
+        # -- tetingkap
+        m = re.search(r"\b(?:fokus|focus|pergi ke|tukar ke|switch to|depan kan|depankan)\s+(.+)$", low)
+        if m:
+            return "focus", {"title": m.group(1).strip()}
+        m = re.search(r"\b(?:minimi[sz]e|kecilkan)\s+(.+)$", low)
+        if m:
+            return "minimize", {"title": m.group(1).strip()}
+        m = re.search(r"\b(?:maximi[sz]e|besarkan|penuhkan)\s+(.+)$", low)
+        if m:
+            return "maximize", {"title": m.group(1).strip()}
+        m = re.search(r"\b(?:tutup|close|kill)\s+(.+)$", low)
+        if m:
+            target = m.group(1).strip()
+            # kalau tajuk tetingkap wujud, itu yang Akmal maksudkan; kalau tidak,
+            # mungkin dia sebut nama proses ("tutup chrome")
+            if sysctl.find_window(target):
+                return "close_window", {"title": target}
+            return "kill", {"name": target}
+        if re.search(r"\b(tunjuk|show|pergi)\b.*\bdesktop\b", low):
+            return "show_desktop", {}
+
+        # -- senarai & status (baca sahaja)
+        if re.search(r"\b(tetingkap|window|app)\b.*\b(apa|senarai|list|terbuka|buka)\b"
+                     r"|\b(apa|senarai)\b.*\b(tetingkap|window)\b", low):
+            return "windows", {}
+        if re.search(r"\b(proses|process)\b.*\b(apa|senarai|list|banyak|berat|makan)\b"
+                     r"|\b(apa|senarai)\b.*\b(proses|process)\b", low):
+            return "processes", {}
+        if re.search(r"^(status|keadaan)\b.*\b(laptop|pc|sistem|system)?$", low) or low in ("status", "status laptop"):
+            return "status", {}
+
+        # -- shell senarai putih
+        m = re.match(r"^(?:run|jalankan|shell|terminal)\s+(.+)$", low)
+        if m and sysctl.shell_allowed(m.group(1)):
+            return "shell", {"cmd": m.group(1).strip()}
+
+        # -- buka fail dokumen: cari nama itu dalam folder kerja, papar dalam stage
+        m = re.match(r"^(?:buka|open|tunjuk|show|papar)\s+(\S+\.(?:pdf|docx|xlsx|xlsm|pptx|csv|md|txt))$", low)
+        if m:
+            hit = self._find_doc(m.group(1))
+            if hit:
+                return "show_doc", {"path": str(hit)}
+
+        # -- buka app / url (paling longgar, jadi paling akhir)
+        m = re.match(r"^(?:buka|open|lancar|launch|run)\s+(https?://\S+|\S+\.\w{2,4}(?:/\S*)?)$", low)
+        if m and ("." in m.group(1) and " " not in m.group(1)):
+            target = m.group(1)
+            if re.match(r"^https?://", target) or re.match(r"^\S+\.(com|net|org|io|my|id|co|dev|ai|app|gg)\b", target):
+                return "url", {"url": target}
+        return None
+
+    def _find_doc(self, name):
+        """Cari fail dokumen ikut nama dalam workdir, Desktop, Documents, Downloads.
+
+        Satu lapisan sahaja bagi setiap folder, bukan rekursif: rekursif pada
+        ~ akan menyentuh puluhan ribu fail dan menjadikan satu ayat suara ambil
+        dua saat. Padanan: tepat dahulu, kemudian nama tanpa sambungan,
+        kemudian mengandung.
+        """
+        name = (name or "").strip().lower()
+        if not name:
+            return None
+        roots = [Path(os.path.expanduser(load_json(CONFIG, {}).get("workdir", "~"))),
+                 ROOT, HOME / "Desktop", HOME / "Documents", HOME / "Downloads"]
+        seen, cands = set(), []
+        for root in roots:
+            try:
+                for p in root.iterdir():
+                    if not p.is_file() or p in seen:
+                        continue
+                    if p.suffix.lower().lstrip(".") not in ("pdf", "docx", "xlsx", "xlsm", "pptx", "csv", "md", "txt"):
+                        continue
+                    seen.add(p)
+                    cands.append(p)
+            except OSError:
+                continue
+        exact = next((p for p in cands if p.name.lower() == name), None)
+        if exact:
+            return exact
+        stem = next((p for p in cands if p.stem.lower() == Path(name).stem.lower()), None)
+        if stem:
+            return stem
+        return next((p for p in cands if name in p.name.lower()), None)
+
+    def _open_doc_in_stage(self, path, page=None):
+        """Papar satu dokumen dalam panel DOK, dari suara atau dari model."""
+        r = self.docs_open(path, page)
+        if not r.get("ok"):
+            return {"handled": True, "label": "✖ " + r.get("msg", "Dokumen tak dapat dibaca.")}
+        self.stage_pane("docs")
+        pj = "null" if page is None else str(int(page))
+        payload = {"path": r["path"], "page": r.get("page", 0)}
+        # Python membaca dulu untuk label yang jujur, JS membaca semula untuk
+        # melukis. docs_open python tidak menyentuh disk lebih daripada sekali
+        # bagi fail kecil, dan elak await pada evaluate_js yang tidak menunggu.
+        self._push(f"window.stageDocs && window.stageDocs.open({json.dumps(r['path'])}, {pj})")
+        self._emit("docs", payload)
+        return {"handled": True, "label": "✔ " + r["name"],
+                "msg": r["name"], "path": r["path"]}
+
+    def cancel_system(self, token=None):
+        """Butang 'Tak' di HUD. Buang token tanpa menjalankan apa-apa."""
+        self._pending_token = None
+        self._pending_cmd = None
+        return self._sys.cancel(token)
+
+    # ---------- Stage: APP (Fasa 7) ----------
+    # Tetingkap asal di-embed dengan SetParent, bukan ditangkap sebagai imej.
+    # App yang di-embed masih hidup — video masih main, skrol masih jalan — tetapi
+    # ia duduk ATAS WebView2, jadi ia mesti disembunyikan setiap kali panel lain
+    # dipilih. Itu bukan pilihan; tanpa itu app terapung di atas panel lain.
+    def app_stage_rect(self, x, y, w, h, scale=1.0):
+        """JS ukur rect stage dalam CSS px; di sini ia ditukar ke fizikal px."""
+        if w < 240 or h < 180:
+            return {"ok": False, "msg": "Rect terlalu kecil — bukan kedudukan sebenar."}
+        self._app_rect = (float(x), float(y), float(w), float(h), float(scale))
+        if self._sys.embed.hwnd:
+            return self._app_place()
+        return {"ok": True, "placed": False}
+
+    def _app_place(self):
+        rect = getattr(self, "_app_rect", None)
+        if not rect:
+            return {"ok": False, "msg": "Rect stage belum diukur."}
+        x, y, w, h, scale = rect
+        ok = self._sys.embed.place(x, y, w, h, scale)
+        return {"ok": ok, "msg": "" if ok else "Tetingkap tak dapat diletakkan."}
+
+    def app_attach(self, title):
+        """Ambil tetingkap lain masuk ke dalam stage."""
+        hud = sysctl.hud_hwnd("Jarvis")
+        if not hud:
+            return {"ok": False, "msg": "Tetingkap Jarvis tak dijumpai."}
+        ok, msg = self._sys.embed.attach(hud, title)
+        if ok:
+            scale = sysctl.dpi_scale(hud)
+            self._app_rect = getattr(self, "_app_rect", (0, 0, 640, 480, scale))
+            self._app_place()
+            self._emit("app", {"attached": self._sys.embed.title})
+        return {"ok": ok, "msg": msg, "title": self._sys.embed.title}
+
+    def app_detach(self):
+        """Pulihkan tetingkap ke desktop dengan gaya dan ibu asalnya."""
+        ok = self._sys.embed.detach()
+        self._emit("app", {"attached": ""})
+        return {"ok": True, "msg": "Tetingkap dipulangkan ke desktop." if ok else "Tiada app di-embed."}
+
+    def app_show(self, on):
+        """Dipanggil setiap kali panel bertukar."""
+        if not self._sys.embed.hwnd:
+            return {"ok": False}
+        self._sys.embed.show(bool(on))
+        return {"ok": True, "visible": bool(on)}
+
+    def app_state(self):
+        e = self._sys.embed
+        return {"ok": True, "attached": bool(e.hwnd), "title": e.title, "visible": e.visible}
+
+    def app_windows(self, limit=30):
+        """Senarai tetingkap untuk dipilih dalam panel APP. Jarvis sendiri dibuang."""
+        wins = [w for w in sysctl.list_windows(int(limit) + 4)
+                if w["title"] not in ("Jarvis",)]
+        return {"ok": True, "windows": wins[:int(limit)]}
+
     def quick_control(self, text, allow_open=False):
-        """Arahan pantas tanpa AI. Pulangkan {"handled": bool, "label": str}."""
+        """Arahan pantas tanpa AI. Pulangkan {"handled": bool, "label": str}.
+
+        Susunan penting — yang paling murah dan paling tepat dahulu:
+          1. kekunci media dalam services.py ("next slide", "volume naik")
+          2. resolver system.py ("volume 30", "tutup Chrome", "kunci laptop")
+          3. panel stage ("panel media")
+          4. buka app/fail/media (hanya bila allow_open)
+        Resolver di atas kekunci kerana ayat bernombor mesti dibaca sebagai
+        nombor; "volume 30" yang lalu melalui tekan-kekunci 30 kali akan
+        bunyikan bunyi bising dan berakhir di 100%. Kata kunci media pula
+        ("lagu", "muzik", "slide") dikecualikan, supaya "main lagu" masih
+        jatuh ke services.py dan bukan ditelan resolver.
+        """
+        if not re.search(r"\b(lagu|muzik|music|track|song|slide|slideshow|pembentangan|"
+                         r"presentation|scroll)\b", str(text or "").lower()):
+            sysr = self.resolve_system(text)
+            if sysr.get("handled"):
+                sv.beep()
+                return sysr
         action = sv.match_control(text)
         if action:
             label = sv.do_control(action)

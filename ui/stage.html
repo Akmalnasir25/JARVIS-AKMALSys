@@ -937,6 +937,75 @@ main.stage-wrap {
 }
 .doc-side .item:hover { background: hsl(var(--hue) 100% 74% / .06); }
 .doc-side .item.sel { color: var(--cyan); background: hsl(var(--hue) 100% 74% / .1); }
+/* senarai fail duduk di bawah penapis, bukan dalamnya */
+.doc-files { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
+.doc-files .f {
+  padding: 4px 13px 4px 20px; font-size: 9.5px; line-height: 1.5; color: var(--ink-dim);
+  cursor: pointer; display: flex; gap: 6px; align-items: baseline;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.doc-files .f:hover { background: hsl(var(--hue) 100% 74% / .06); color: var(--ink); }
+.doc-files .f.on { color: var(--cyan); background: hsl(var(--hue) 100% 74% / .09); }
+.doc-files .f i {
+  font-style: normal; font-size: 7.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-faint); flex: 0 0 30px;
+}
+.doc-files .f.on i { color: var(--accent-alt); }
+.doc-count {
+  min-width: 44px; text-align: center; font-size: 9px; letter-spacing: .12em;
+  color: var(--ink-faint); font-variant-numeric: tabular-nums;
+}
+
+/* badan dokumen: satu scroll, tiada iframe, jadi carian teks pelayar terus jalan */
+.doc-body { min-height: 0; overflow: auto; position: relative; background: rgba(4,2,14,.5); }
+.doc-page {
+  display: block; margin: 14px auto; max-width: calc(100% - 28px); height: auto;
+  border: 1px solid var(--line-hard); box-shadow: 0 0 40px hsl(var(--hue) 100% 60% / .18);
+  background: #fff;
+}
+.doc-text { padding: 18px 22px 26px; max-width: 78ch; margin: 0 auto; }
+.doc-text h1, .doc-text h2, .doc-text h3, .doc-text h4 {
+  font-family: var(--font-display); color: var(--cyan); letter-spacing: .02em;
+  margin: 18px 0 7px; line-height: 1.3;
+}
+.doc-text h1 { font-size: 16px; } .doc-text h2 { font-size: 13.5px; }
+.doc-text h3 { font-size: 12px; color: var(--accent-alt); } .doc-text h4 { font-size: 11px; }
+.doc-text p { margin: 0 0 9px; font-size: 11px; line-height: 1.75; color: var(--ink-dim); }
+.doc-text pre {
+  margin: 0 0 9px; font: 10px/1.7 var(--font-mono); color: var(--ink);
+  white-space: pre-wrap; word-break: break-word;
+}
+.doc-hr { height: 1px; background: var(--line-soft); margin: 14px 0; border: 0; }
+
+.doc-table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 9.5px; }
+.doc-table th, .doc-table td {
+  border: 1px solid var(--line-soft); padding: 4px 7px; text-align: left;
+  color: var(--ink-dim); vertical-align: top;
+}
+.doc-table th { color: var(--cyan); font-weight: 600; background: hsl(var(--hue) 100% 74% / .06); }
+.doc-table tr:nth-child(even) td { background: rgba(255,255,255,.012); }
+.doc-table td.num { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+
+.doc-sheet-head {
+  font: 600 8.5px/1 var(--font-display); letter-spacing: .2em; text-transform: uppercase;
+  color: var(--accent-alt); padding: 12px 22px 6px; border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 4px; display: flex; gap: 10px; align-items: baseline;
+}
+.doc-sheet-head span { font-weight: 400; letter-spacing: .1em; color: var(--ink-faint); }
+.doc-trunc { font-size: 8.5px; color: var(--amber); padding: 4px 22px 10px; letter-spacing: .06em; }
+
+.doc-slide {
+  border: 1px solid var(--line-soft); margin: 0 22px 12px; padding: 11px 14px;
+  background: hsl(var(--hue) 100% 74% / .03);
+}
+.doc-slide h4 {
+  margin: 0 0 7px; font: 600 11px/1.35 var(--font-display); color: var(--cyan);
+  display: flex; gap: 8px; align-items: baseline;
+}
+.doc-slide h4 i { font-style: normal; font-size: 8px; letter-spacing: .16em; color: var(--ink-faint); }
+.doc-slide ul { margin: 0; padding-left: 16px; }
+.doc-slide li { font-size: 10px; line-height: 1.7; color: var(--ink-dim); }
+.doc-err { padding: 22px; color: var(--bad); font-size: 10.5px; line-height: 1.7; }
 
 /* ── ANALYSIS panel ───────────────────────────────────────── */
 .ana-shell { padding: 14px; display: flex; flex-direction: column; gap: 11px; height: 100%; overflow-y: auto; }
@@ -1004,13 +1073,37 @@ main.stage-wrap {
 .ana-follow button:hover { border-color: var(--line-hard); background: hsl(var(--hue) 100% 74% / .07); }
 
 /* ── NATIVE panel ─────────────────────────────────────────── */
-.native-note {
-  margin: 14px; padding: 14px;
-  border: 1px dashed var(--line);
-  display: grid; gap: 8px;
-  font-size: 10px; line-height: 1.7; color: var(--ink-faint);
+/* Tetingkap sebenar duduk di atas WebView2, jadi .app-host hanya perlu
+   memegang ruang yang sama seperti rect yang dihantar ke Python. Bingkai
+   di sekelilingnya bukan hiasan — ia menandakan di mana app tamat dan
+   stage bermula, kerana app itu tidak boleh diwarnakan oleh CSS kita. */
+.app-shell { display: grid; grid-template-columns: 208px minmax(0,1fr); height: 100%; min-height: 0; }
+.app-side { border-right: 1px solid var(--line-soft); padding: 10px 0; overflow-y: auto; }
+.app-hint { padding: 4px 13px 8px; font-size: 8.5px; line-height: 1.6; color: var(--ink-faint); }
+.app-side .f {
+  padding: 5px 13px; font-size: 9.5px; line-height: 1.5; color: var(--ink-dim); cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.native-note b { color: var(--amber); letter-spacing: .16em; text-transform: uppercase; font-size: 9px; }
+.app-side .f:hover { background: hsl(var(--hue) 100% 74% / .06); color: var(--ink); }
+.app-side .f.on { color: var(--cyan); background: hsl(var(--hue) 100% 74% / .1); }
+.app-side .f i { font-style: normal; font-size: 7.5px; color: var(--ink-faint); margin-left: 5px; }
+.app-body { position: relative; min-height: 0; overflow: hidden; }
+.app-host {
+  position: absolute; inset: 12px;
+  border: 1px dashed hsl(var(--alt) 90% 70% / .45);
+  box-shadow: inset 0 0 46px hsl(var(--hue) 100% 60% / .10);
+}
+.app-host::after {
+  content: "app asal · SetParent";
+  position: absolute; left: 6px; bottom: 4px;
+  font: 500 8px/1 var(--font-mono); letter-spacing: .12em;
+  color: hsl(var(--alt) 90% 74% / .7);
+}
+.app-empty-note {
+  position: absolute; inset: 0; display: grid; place-content: center; gap: 7px;
+  text-align: center; padding: 20px;
+  font-size: 9.5px; line-height: 1.7; color: var(--ink-faint);
+}
 
 /* ── right: comms log ─────────────────────────────────────── */
 aside.right {
@@ -1512,25 +1605,28 @@ footer {
       <section class="pane" id="pane-docs" role="tabpanel" hidden>
         <div class="pane-head">
           <span class="title">Dokumen</span>
-          <span class="meta">pdf · docx · xlsx</span>
+          <span class="meta" id="docMeta">belum ada fail</span>
           <span class="grow"></span>
-          <span class="phase">Fasa 6</span>
+          <button type="button" class="btn" id="docPrev" disabled>‹</button>
+          <span class="doc-count" id="docPage">–</span>
+          <button type="button" class="btn" id="docNext" disabled>›</button>
+          <button type="button" class="btn solid" id="docOpen" disabled>Buka luar</button>
         </div>
         <div class="docs-shell">
-          <div class="doc-side">
-            <div class="item sel">Dokumen terkini</div>
-            <div class="item">PDF</div>
-            <div class="item">Word</div>
-            <div class="item">Excel</div>
+          <div class="doc-side" id="docList">
+            <div class="item sel" data-side="recent">Dokumen terkini</div>
+            <div class="item" data-side="pdf">PDF</div>
+            <div class="item" data-side="docx">Word</div>
+            <div class="item" data-side="xlsx">Excel</div>
+            <div class="doc-files" id="docFiles"></div>
           </div>
-          <div class="pane-body">
-            <div class="placeholder">
+          <div class="doc-body" id="docBody">
+            <div class="placeholder" id="docEmpty">
               <div class="glyph">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
               </div>
-              <b>PDF · DOCX · XLSX</b>
-              <p>PDF.js untuk PDF, docx-preview untuk Word, SheetJS untuk Excel. Semua di dalam stage — tiada Adobe, tiada Word.</p>
-              <span class="phase">Fasa 6</span>
+              <b>PDF · DOCX · XLSX · PPTX</b>
+              <p>Pilih fail dari senarai di kiri. PDF dipaparkan sebagai halaman asal, Office sebagai teks dan grid — semuanya dibaca dalam stage.</p>
             </div>
           </div>
         </div>
@@ -1558,12 +1654,25 @@ footer {
       <section class="pane" id="pane-native" role="tabpanel" hidden>
         <div class="pane-head">
           <span class="title">Native app</span>
-          <span class="meta">hwnd overlay</span>
+          <span class="meta" id="appMeta">tiada app di-embed</span>
+          <span class="grow"></span>
+          <button type="button" class="btn" id="appRefresh">Imbas</button>
+          <button type="button" class="btn solid" id="appDetach" disabled>Keluarkan</button>
         </div>
-        <div class="native-note">
-          <b>Pilihan · Fasa 7</b>
-          <span>JS ukur rect stage → Python SetParent + SetWindowPos. DPI: CSS px × devicePixelRatio. Bila tukar panel, ShowWindow(hwnd, SW_HIDE) wajib — kalau tidak app duduk atas WebView2.</span>
-          <span>Batasan jujur: app yang di-embed curi fokus. 90% keperluan sudah selesai dengan panel HTML.</span>
+        <div class="app-shell">
+          <div class="app-side" id="appList">
+            <div class="app-hint">Pilih tetingkap untuk diambil masuk ke stage.</div>
+          </div>
+          <div class="app-body" id="appBody">
+            <div class="placeholder" id="appEmpty">
+              <div class="glyph">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>
+              </div>
+              <b>Tetingkap asal, bukan tangkapan skrin</b>
+              <p>SetParent + SetWindowPos. App yang di-embed masih hidup — video masih main, skrol masih jalan. Ia duduk atas WebView2, jadi ia disembunyikan setiap kali panel lain dipilih.</p>
+            </div>
+            <div class="app-host" id="appHost" hidden></div>
+          </div>
         </div>
       </section>
 
@@ -3066,9 +3175,349 @@ footer {
     };
   })();
 
+  /* ═══════════════════════════════════════════════════════════
+     DOKUMEN — dibaca di Python, dilukis di sini.
+     Tiada PDF.js, tiada docx-preview, tiada SheetJS. Bundle itu ~3 MB dan
+     perlu npm build setiap kali versi naik; sebaliknya Python menghantar blok
+     struktur kecil dan CSS panel ini yang mewarnakannya, jadi dokumen ikut
+     warna panel tanpa satu baris pun gaya dari dalam fail.
+     ═══════════════════════════════════════════════════════════ */
+  const stageDocs = (() => {
+    const body = document.getElementById('docBody');
+    const list = document.getElementById('docFiles');
+    const meta = document.getElementById('docMeta');
+    const pageTag = document.getElementById('docPage');
+    const btPrev = document.getElementById('docPrev');
+    const btNext = document.getElementById('docNext');
+    const btOpen = document.getElementById('docOpen');
+    if (!body || !list) return null;
+
+    const EXTS = { pdf: 1, docx: 1, xlsx: 1, xlsm: 1, pptx: 1, csv: 1, md: 1, txt: 1, json: 1, log: 1 };
+    let files = [];          // {name, path, ext, size}
+    let filter = 'recent';   // recent | pdf | docx | xlsx
+    let cur = null;          // {path, name, ext, page, total}
+    let dir = '', busy = false;
+
+    const el = (tag, cls, text) => {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text != null) n.textContent = text;
+      return n;
+    };
+
+    function paintList() {
+      list.textContent = '';
+      const want = filter === 'recent' ? null : filter;
+      (files || []).filter(f => !want || f.ext === want || (want === 'xlsx' && f.ext === 'xlsm'))
+        .slice(0, 60)
+        .forEach(f => {
+          const row = el('div', 'f' + (cur && cur.path === f.path ? ' on' : ''));
+          row.append(el('i', '', f.ext), el('span', '', f.name));
+          row.title = f.path;
+          row.addEventListener('click', () => open(f.path));
+          list.appendChild(row);
+        });
+    }
+
+    async function scan() {
+      if (!api || !api.fs_list) return;
+      const r = await api.fs_list(dir || '');
+      if (!r || !r.ok) {
+        meta.textContent = r && r.msg ? r.msg : 'folder tak dapat dibaca';
+        return;
+      }
+      dir = r.path;
+      files = (r.entries || [])
+        .filter(e => !e.dir && EXTS[(e.ext || '').toLowerCase()])
+        .map(e => ({ name: e.name, path: e.path, ext: (e.ext || '').toLowerCase(), size: e.size }));
+      meta.textContent = files.length + ' dokumen · ' + dir.split(/[\\/]/).pop();
+      paintList();
+    }
+
+    function setBusy(on, note) {
+      busy = on;
+      if (on) {
+        body.textContent = '';
+        const p = el('div', 'doc-err', note || 'Membaca…');
+        p.style.color = 'var(--ink-faint)';
+        body.appendChild(p);
+      }
+    }
+
+    function table(rows, opts) {
+      const t = el('table', 'doc-table');
+      rows.forEach((row, i) => {
+        const tr = el('tr');
+        row.forEach(c => {
+          const cell = el(i === 0 && opts.head ? 'th' : 'td', '', String(c ?? ''));
+          if (typeof c === 'number') cell.classList.add('num');
+          tr.appendChild(cell);
+        });
+        t.appendChild(tr);
+      });
+      return t;
+    }
+
+    function paint(r) {
+      body.textContent = '';
+      body.scrollTop = 0;
+      if (!r || !r.ok) {
+        body.appendChild(el('div', 'doc-err', (r && r.msg) || 'Dokumen tak dapat dibaca.'));
+        return;
+      }
+      cur = { path: r.path, name: r.name, ext: r.ext, page: r.page || 0, total: r.total || 0 };
+      paintList();
+      pageTag.textContent = r.kind === 'pdf' ? (r.page + 1) + ' / ' + r.total : (r.kind || '');
+      btPrev.disabled = !(r.kind === 'pdf' && r.page > 0);
+      btNext.disabled = !(r.kind === 'pdf' && r.page + 1 < r.total);
+      btOpen.disabled = false;
+
+      if (r.kind === 'pdf') {
+        const img = el('img', 'doc-page');
+        img.src = r.image;
+        img.alt = r.name + ' halaman ' + (r.page + 1);
+        body.appendChild(img);
+        if (r.pages && r.pages[r.page] && r.pages[r.page].text) {
+          // teks halaman disembunyikan tetapi ada dalam DOM: carian Ctrl+F jalan
+          const pre = el('div', 'doc-text');
+          const p = el('pre', '', r.pages[r.page].text);
+          p.style.opacity = '.55';
+          p.style.fontSize = '9.5px';
+          pre.appendChild(p);
+          body.appendChild(pre);
+        }
+        return;
+      }
+
+      if (r.kind === 'docx') {
+        const wrap = el('div', 'doc-text');
+        (r.blocks || []).forEach(b => {
+          if (b.t === 'table') {
+            wrap.appendChild(table(b.rows, { head: true }));
+            return;
+          }
+          if (b.t === 'h') {
+            wrap.appendChild(el('h' + Math.min(4, b.l || 1), null, b.x));
+            return;
+          }
+          wrap.appendChild(el('p', null, b.x));
+        });
+        body.appendChild(wrap);
+        return;
+      }
+
+      if (r.kind === 'xlsx' || r.kind === 'csv') {
+        (r.sheets || []).forEach(s => {
+          const head = el('div', 'doc-sheet-head', s.name || 'Sheet');
+          if (s.dims) head.appendChild(el('span', '', s.dims));
+          body.appendChild(head);
+          if (s.rows && s.rows.length) body.appendChild(table(s.rows, { head: true }));
+          if (s.truncated) body.appendChild(el('div', 'doc-trunc', 'Dipaparkan 200 baris pertama sahaja.'));
+        });
+        return;
+      }
+
+      if (r.kind === 'pptx') {
+        (r.slides || []).forEach(s => {
+          const box = el('div', 'doc-slide');
+          const h = el('h4');
+          h.append(el('i', '', 'S' + s.n), el('span', '', s.title));
+          box.appendChild(h);
+          if (s.body && s.body.length) {
+            const ul = el('ul');
+            s.body.forEach(txt => ul.appendChild(el('li', '', txt)));
+            box.appendChild(ul);
+          }
+          body.appendChild(box);
+        });
+        return;
+      }
+
+      // text / md / json / log
+      body.appendChild(el('pre', 'doc-text', r.text || ''));
+    }
+
+    async function open(path, page) {
+      if (!api || !api.docs_open) {
+        body.textContent = '';
+        body.appendChild(el('div', 'doc-err', 'Bridge belum siap.'));
+        return false;
+      }
+      setBusy(true);
+      try {
+        const r = await api.docs_open(path, page == null ? null : page);
+        paint(r);
+        if (r && r.ok) {
+          meta.textContent = r.name + ' · ' + (r.size / 1024).toFixed(0) + ' KB';
+          act('📄 ' + r.name);
+        } else if (r && r.msg) {
+          meta.textContent = r.msg;
+        }
+        return !!(r && r.ok);
+      } catch (e) {
+        body.textContent = '';
+        body.appendChild(el('div', 'doc-err', 'Ralat: ' + e.message));
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    // penapis di kiri
+    document.querySelectorAll('#docList .item').forEach(it => {
+      it.addEventListener('click', () => {
+        document.querySelectorAll('#docList .item').forEach(o => o.classList.remove('sel'));
+        it.classList.add('sel');
+        filter = it.dataset.side || 'recent';
+        paintList();
+      });
+    });
+
+    btPrev.addEventListener('click', () => cur && cur.page > 0 && open(cur.path, cur.page - 1));
+    btNext.addEventListener('click', () => cur && cur.page + 1 < cur.total && open(cur.path, cur.page + 1));
+    btOpen.addEventListener('click', () => cur && api && api.fs_open && api.fs_open(cur.path));
+
+    // Imbas sekali sahaja pada lawatan pertama, bukan setiap kali panel dibuka —
+    // fs_list menyentuh disk dan panel ini dibuka tutup sepanjang hari.
+    let scanned = false;
+    document.addEventListener('stage:change', e => {
+      if (e.detail.pane === 'docs' && !scanned) { scanned = true; scan(); }
+    });
+
+    // PDF: anak panah halaman semasa panel ini fokus
+    addEventListener('keydown', e => {
+      if (document.getElementById('pane-docs').hidden || !cur || cur.ext !== 'pdf') return;
+      if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') btNext.click();
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') btPrev.click();
+    });
+
+    return {
+      open, scan,
+      get file() { return cur; },
+      get files() { return files.slice(); },
+      setDir: p => { dir = p; return scan(); }
+    };
+  })();
+  window.stageDocs = stageDocs;
+
+  /* ═══════════════════════════════════════════════════════════
+     NATIVE APP — tetingkap asal diambil masuk ke stage.
+     JS hanya melakukan tiga perkara: senaraikan tetingkap, ukur rect, dan
+     beritahu Python bila ia patut dilihat. SetParent dan SetWindowPos kekal
+     di Python kerana JS tidak boleh menyentuh HWND.
+     ═══════════════════════════════════════════════════════════ */
+  const stageApp = (() => {
+    const list = document.getElementById('appList');
+    const host = document.getElementById('appHost');
+    const body = document.getElementById('appBody');
+    const meta = document.getElementById('appMeta');
+    const btDetach = document.getElementById('appDetach');
+    const btRefresh = document.getElementById('appRefresh');
+    const empty = document.getElementById('appEmpty');
+    if (!list || !host) return null;
+
+    let wins = [];
+    let attached = '';     // tajuk yang sedang di-embed
+    let visible = false;
+
+    function paintList() {
+      list.textContent = '';
+      if (!wins.length) {
+        list.appendChild(Object.assign(document.createElement('div'),
+          { className: 'app-hint', textContent: 'Tiada tetingkap lain. Buka app dahulu.' }));
+        return;
+      }
+      wins.forEach(w => {
+        const row = document.createElement('div');
+        row.className = 'f' + (w.title === attached ? ' on' : '');
+        row.title = w.title + ' · pid ' + w.pid;
+        row.append(document.createTextNode(w.title.slice(0, 48)));
+        if (w.front) row.append(Object.assign(document.createElement('i'), { textContent: 'depan' }));
+        row.addEventListener('click', () => attach(w.title));
+        list.appendChild(row);
+      });
+    }
+
+    async function scan() {
+      if (!api || !api.app_windows) { meta.textContent = 'bridge belum siap'; return; }
+      const r = await api.app_windows(30);
+      wins = (r && r.windows) || [];
+      paintList();
+      meta.textContent = wins.length + ' tetingkap';
+    }
+
+    function rect() {
+      const r = host.getBoundingClientRect();
+      return { x: Math.round(r.left), y: Math.round(r.top),
+               w: Math.round(r.width), h: Math.round(r.height) };
+    }
+
+    async function pushRect() {
+      if (!attached || !api || !api.app_stage_rect) return;
+      const g = rect();
+      // DPR bukan skala yang betul di sini: WebView2 sudah menyelesaikan unit
+      // CSS terhadap skala Windows sebelum kita melihatnya. Python mengukur
+      // DPI tetingkap HUD sendiri, jadi hantar 1 sahaja.
+      await api.app_stage_rect(g.x, g.y, g.w, g.h, 1);
+    }
+
+    async function attach(title) {
+      if (!api || !api.app_attach) return false;
+      const r = await api.app_attach(title);
+      if (!r || !r.ok) { sysNote(r && r.msg ? r.msg : 'Tidak dapat ambil tetingkap.', true); return false; }
+      attached = title;
+      visible = true;
+      host.hidden = false;
+      if (empty) empty.hidden = true;
+      btDetach.disabled = false;
+      meta.textContent = title;
+      paintList();
+      await pushRect();
+      act('▣ ' + title);
+      return true;
+    }
+
+    async function detach() {
+      if (api && api.app_detach) await api.app_detach();
+      attached = '';
+      visible = false;
+      host.hidden = true;
+      if (empty) empty.hidden = false;
+      btDetach.disabled = true;
+      meta.textContent = 'tiada app di-embed';
+      paintList();
+    }
+
+    // Tetingkap anak duduk ATAS WebView2. Setiap kali panel bertukar, ia mesti
+    // disembunyikan atau ditunjukkan — tiada jalan lain, kerana z-order bukan
+    // sesuatu yang CSS boleh kawal.
+    document.addEventListener('stage:change', e => {
+      const on = e.detail.pane === 'native';
+      if (attached && api && api.app_show) api.app_show(on);
+      visible = on && !!attached;
+      if (on && attached) setTimeout(pushRect, 60);
+    });
+    addEventListener('resize', () => { if (attached && visible) setTimeout(pushRect, 120); });
+
+    btDetach.addEventListener('click', () => detach());
+    btRefresh.addEventListener('click', () => scan());
+
+    let scanned = false;
+    document.addEventListener('stage:change', e => {
+      if (e.detail.pane === 'native' && !scanned) { scanned = true; scan(); }
+    });
+
+    return {
+      scan, attach, detach, rect,
+      get title() { return attached; },
+      get windows() { return wins.slice(); }
+    };
+  })();
+  window.stageApp = stageApp;
+
   show('comms', false);
   fromHash();
-
   /* ═══════════════════════════════════════════════════════════
      BRIDGE — every Python call lands here. Kept in one block so
      the surface has exactly one place to look when something
@@ -3112,6 +3561,62 @@ footer {
     scrollTalk();
     return b;
   }
+
+  // Tindakan yang susah diundur (bunuh proses, tutup tetingkap, recycle, kuasa)
+  // tidak jalan sampai Akmal jawab. Dua jalan jawab: tekan butang di sini, atau
+  // cakap "ya" — ayat itu masuk resolve_system() dan menyambung token yang sama.
+  // Butang sengaja dibuang selepas satu jawapan supaya prompt lama tidak boleh
+  // ditekan semula dan melahirkan dua shutdown.
+  window.jarvisConfirm = function (d) {
+    if (!talk || !d || !d.token) return;
+    dropEmpty();
+    const el = document.createElement('div');
+    el.className = 'msg';
+    el.style.borderLeftColor = 'rgba(255,179,64,.55)';
+
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    b.style.color = 'var(--amber)';
+    b.textContent = '⚠ ' + (d.ask || 'Teruskan?');
+
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.gap = '6px';
+    row.style.marginTop = '6px';
+
+    const mk = (label, ok) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn' + (ok ? ' solid' : '');
+      btn.textContent = label;
+      btn.style.height = '24px';
+      btn.style.fontSize = '9.5px';
+      btn.addEventListener('click', () => {
+        row.remove();
+        btn.disabled = true;
+        const after = document.createElement('span');
+        after.style.fontSize = '9px';
+        after.style.color = 'var(--dim)';
+        after.textContent = ok ? ' dihantar…' : ' dibatalkan';
+        b.appendChild(after);
+        if (ok) send('ya', true);
+        else {
+          if (api && api.cancel_system) api.cancel_system(d.token);
+          sysNote('✖ Dibatalkan');
+        }
+      });
+      row.appendChild(btn);
+      return btn;
+    };
+    mk('Ya, buat', true);
+    mk('Tak', false);
+
+    el.append(b, row);
+    talk.appendChild(el);
+    scrollTalk();
+    window.jarvisState('thinking');
+    speak(d.ask || 'Teruskan?');
+  };
 
   function sysNote(text, bad) {
     if (!talk) return;
@@ -3314,11 +3819,32 @@ footer {
     return false;
   }
 
+  // Arahan sistem yang dijawab tanpa AI: satu perjalanan ke Python, satu label
+  // kembali. Kalau Python tak kenal ayat itu, dia pulangkan handled:false dan
+  // ayat terus ke model — jadi tidak ada yang tersekat di antara.
+  async function trySystem(q) {
+    if (!api || !api.resolve_system) return false;
+    let r;
+    try { r = await api.resolve_system(q); } catch (e) { return false; }
+    if (!r || !r.handled) return false;
+    word('Akmal', q, 'me');
+    act(r.label || 'Siap.');
+    if (r.confirm) {
+      // jarvisConfirm() sudah memaparkan prompt dan membacanya; jangan ulang
+      return true;
+    }
+    sysNote('⌨ ' + (r.label || ''));
+    window.jarvisState('idle');
+    if (/^✔/.test(r.label || '')) speak(r.label.replace(/^\s*✔\s*/, ''));
+    return true;
+  }
+
   // ---------- the one path every command takes ----------
   async function send(q, fromVoice) {
     q = (q || '').trim();
     if (!q || busy) return;
     if (await localFirst(q)) return;
+    if (await trySystem(q)) return;
     if (!api) { word('Akmal', q, 'me'); sysNote('Bridge belum sambung — jalankan main.py.', true); return; }
 
     word('Akmal', q, 'me');
@@ -3454,8 +3980,7 @@ footer {
     else if (kind === 'control') {
       listenMode = false; window.jarvisState('idle');
       word('Akmal', d.text, 'me'); sysNote('⌨ ' + d.label);
-    }
-    else if (kind === 'wake_ready') { setLed('ledMic', d); }
+    }    else if (kind === 'wake_ready') { setLed('ledMic', d); }
   };
 
   window.onPrayer = function (d) {
@@ -3495,10 +4020,18 @@ footer {
   document.querySelector('.capsule').addEventListener('submit', e => {
     e.preventDefault();
     if (!cmd) return;
-    const q = cmd.value;
+    runCommand(cmd.value);
     cmd.value = '';
-    send(q, false);
   });
+
+  // Satu tempat arahan dari kotak teks bermula, dieksport supaya harness dan
+  // konsol boleh menyalurkan ayat tanpa memanipulasi DOM borang.
+  function runCommand(q) {
+    q = (q || '').trim();
+    if (!q) return;
+    return send(q, false);
+  }
+  window.runCommand = runCommand;
 
   // Esc stops, Ctrl+Space talks, "/" focuses
   addEventListener('keydown', e => {

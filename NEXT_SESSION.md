@@ -3,11 +3,148 @@
 > Fail ni ditulis supaya sesi baru boleh sambung tanpa perlu scroll sejarah chat.
 > Baca `PLAN.md` selepas ni. Itu blueprint penuh.
 
-**Dikemas kini:** 2026-11-05, 00:25
+**Dikemas kini:** 2026-11-06, 01:10
 
 ---
 
-## BARU — sistem warna gabung (shell + panel + pasangan)
+## BARU — Jarvis boleh kawal laptop (`system.py`)
+
+Satu perkataan sahaja: **`system.py`** (baharu, ~900 baris). Ia duduk sebelah
+`services.py` kerana `services.py` hanya tahu tekan kod VK media — ia tak boleh jawab
+"volume 30", "cerahkan separuh", atau "apa tetingkap terbuka".
+
+**Tiga tingkat kuasa**, ditanda pada setiap handler sebagai `.kind`:
+
+| tingkat | maksud | contoh |
+|---|---|---|
+| `baca` | tak ubah apa-apa | status, windows, processes, clip_read, shell |
+| `ubah` | ubah tapi boleh undur | volume, brightness, focus, launch, url, type, lock |
+| `pukal` | susah diundur | kill, close_window, recycle, sleep, shutdown, restart |
+
+`pukal` tak jalan terus. `System.do()` pulangkan `{"need_confirm":True, "token":...,"ask":...}`
+dan token itu hidup **90 saat**. `confirm(token)` yang buat kerja. Tiga jalan masuk
+kongsi satu `System` — suara (`Api.resolve_system`), model (tool `system`), dan panel —
+jadi token yang dicetak satu jalan boleh dibelanja jalan lain. Token palsu dan token
+luput dua-dua ditolak (diuji).
+
+**Audio tanpa `pycaw`.** COM terus melalui `ctypes`: `CoCreateInstance(CLSID_MMDeviceEnumerator)`
+→ vtable[4] `GetDefaultAudioEndpoint` → vtable[3] `Activate(IID_IAudioEndpointVolume)` →
+vtable[7] `SetMasterVolumeLevelScalar`. Tiada dependency baharu, tiada pip install.
+
+**Kecerahan melalui WMI + pythonnet.** `WmiMonitorBrightnessMethods` /
+`InvokeMethod("WmiSetBrightness",[1,pct])`. Nota: menghantar `str` kosong sebagai nama
+kelas membaling ralat ManagementPath — guna `ManagementPath("...")` dengan `ObjectGetOptions()`.
+Bacaan selepas tulis lambat ~1 saat; jangan tulis ujian yang baca serta-merta.
+
+**Shell ialah senarai putih, bukan senarai hitam.** `SHELL_ALLOW` regex + penapis awal
+yang tolak `&&`, `||`, `;`, `|`, `>`, `<`, backtick, `$(`. Senarai hitam sentiasa ketinggalan
+satu langkah di belakang pemanggil yang rajin.
+
+**Perangkap clipboard.** `GlobalAlloc` / `GlobalLock` / `GetClipboardData` memulangkan
+pemegang 64-bit; tanpanya `argtypes`/`restype` ctypes potong jadi int 32-bit dan menulis
+melaluinya membaling `access violation writing 0x0000000000000000`. Setiap satu mesti
+ada `argtypes` **dan** `restype`, dan guna `ctypes.wstring_at(ptr)`, bukan `c_char_p(ptr)`.
+
+**Resolver jalan dahulu, media dikecualikan.** `quick_control` baca `resolve_system`
+sebelum `services.match_control` — sebab "volume 30" yang lalu melalui tekan-kekunci
+30 kali akan bunyikan bunyi bising dan berhenti di 100%. Tapi ayat yang ada
+`lagu|muzik|music|track|song|slide|slideshow|pembentangan|presentation|scroll` melangkau
+resolver, jika tidak "main lagu" ditelan oleh cabang buka/url.
+
+**`show_doc` ialah satu-satunya tindakan yang diwakilkan.** `System` tak tahu tentang HUD,
+jadi `_a_show_doc` ditanda `.delegated = True` dan `Api._open_doc_in_stage()` yang
+menyelesaikannya (baca dokumen → tukar panel → suap ke `window.stageDocs.open`).
+Kalau `@staticmethod` tertinggal pada `_match_system`, `self._find_doc` membaling
+`NameError` — sudah dibetulkan, jangan letak balik.
+
+---
+
+## BARU — DOK dalam Python, bukan dalam browser
+
+Fasa 6 selebihnya siap tanpa PDF.js / docx-preview / SheetJS. Keputusan: **hurai di
+Python**, hantar blok struktur kecil, stage warnakan dengan CSS sendiri.
+
+| format | pembaca | dihantar sebagai |
+|---|---|---|
+| pdf | `pymupdf` | teks 60 halaman + PNG halaman semasa @130dpi |
+| docx | `python-docx` | blok `h`/`p`/`table` |
+| xlsx/xlsm | `openpyxl` | helaian × baris (dipotong) |
+| pptx | `python-pptx` | slaid: tajuk + isi |
+| csv / md / txt / json | stdlib | teks |
+
+Sebab: PDF.js + docx-preview + SheetJS bersama ~3 MB JS, perlu npm build dan versi
+yang mesti dijaga. Empat pilihan Python itu **sudah ada** dalam env dan berjalan pada
+mesin yang sama. Bonus: kerana stage yang melukis, dokumen ikut warna panel secara
+percuma (hue 22) — sesuatu yang bundle pihak ketiga tak bagi.
+
+Perangkap: `pr.slides[:80]` memulangkan `list` kosong tanpa `rId`, jadi `AttributeError`
+bila python-pptx baca semula. Guna `range(min(total,80))` + indeks.
+`fitz` sudah deprecated dalam 1.28 — `import pymupdf as fitz`, dengan `import fitz` sebagai
+sandaran.
+
+---
+
+## BARU — APP: tetingkap asal masuk stage (Fasa 7)
+
+`SetParent` + `SetWindowPos`, dengan pemulihan penuh pada detach:
+
+```
+simpan  GetParent(hwnd), GetWindowLongPtrW(GWL_STYLE), GetWindowRect
+pasang  style = (style & ~WS_POPUP) | WS_CHILD  →  SetParent
+lepas   SetParent(parent) → SetWindowLongPtrW(style asal) → SetWindowPos(rect asal)
+```
+
+**Koordinat.** `SetWindowPos` pada tetingkap anak mengambil koordinat relatif kepada
+kawasan **klien** ibu; `getBoundingClientRect()` dalam JS pula relatif kepada viewport.
+Kedua-dua asalan itu sama, jadi tiada pembetulan asalan skrin diperlukan. Yang tinggal
+hanya tukar unit: CSS px → px fizikal.
+
+**Penemuan yang memakan masa:** WebView2 **sudah** menyelesaikan unit CSS terhadap skala
+Windows. Probe dengan `scale=1.5` pada DPI 150% menghasilkan 630×390 daripada rect
+420×260 CSS — iaitu WebView2 melaporkan CSS px yang sudah diskalakan. Jadi JS mesti
+hantar `scale=1` dan **Python** yang ukur DPI tetingkap HUD sendiri (`GetDpiForWindow/96`).
+Tanpa itu app tersangkut di suku atas stage.
+
+**Wajib:** `ShowWindow(hwnd, SW_HIDE)` bila tukar panel. Tetingkap anak sentiasa duduk
+atas WebView2 dan CSS tak boleh menutupnya. Pendengar `stage:change` dalam stageApp
+yang uruskan — jangan buang.
+
+---
+
+## Ringkasan status fasa
+
+| fasa | apa | status |
+|---|---|---|
+| 0 | git + `.gitignore` | siap |
+| 1 | antara muka Python ↔ WebView2 | siap |
+| — | sistem warna gabung (3 lapisan) | siap |
+| 5 | EDITOR (CodeMirror 6) | siap |
+| 6 | WEB (tetingkap anak + iframe) | siap · `create_window` belum diuji hidup |
+| 6b | DOK (pdf/docx/xlsx/pptx/csv/md) | siap |
+| 7 | APP (embed tetingkap asal) | siap · belum diuji atas HUD sebenar |
+| — | kawalan laptop (`system.py`) | siap · 46/46 ujian e2e |
+
+---
+
+## Cara uji tanpa buka HUD
+
+```bash
+# kawalan laptop hujung-ke-hujung, Api sebenar, _window=None
+PYTHONIOENCODING=utf-8 python ui/_sys_e2e.py        # 46 lulus, 0 gagal
+
+# harness browser — satu skrip untuk semua
+cd ui && sh _run.sh _smoke.html _docs.html _app.html _sysui.html _web.html
+```
+
+`PYTHONIOENCODING=utf-8` bukan hiasan: konsol Windows guna cp1252 dan `✔`/`✖` dalam
+label akan membaling `UnicodeEncodeError` di tengah ujian.
+
+`--allow-file-access-from-files` pula wajib untuk harness: tanpanya skrip dalam iframe
+tak jalan dan `--dump-dom` hanya memulangkan **sumber** skrip, bukan hasilnya.
+
+---
+
+
 
 UI dulu satu warna ungu. Sekarang **tiga** warna wujud serentak pada setiap skrin.
 
@@ -129,34 +266,28 @@ penuh satu baris. Sekarang guna `span.ic` macam baris lain.
 
 ---
 
-## Cara uji tanpa buka HUD
+## Perangkap harness browser
 
-Dua harness dalam `ui/` (dua-dua di-.gitignore, jadi tak masuk commit):
+`--dump-dom` tak boleh baca dalaman iframe, jadi setiap harness tulis hasil ke elemen
+`#R` dalam dokumen **ibu**, bukan `console.log`.
+
+**Jangan guna `f.addEventListener('load', …)`.** Untuk fail `file://` sebaka ia kerap
+tak menyala langsung, dan bila menyala pun boleh mendahului skrip anak. Guna gelung
+`poll()` yang tunggu `contentDocument.readyState === 'complete'` **dan**
+`contentWindow.stageShow` wujud. `_smoke.html` dan `_shoot.html` pernah senyap sebab ini.
+
+**Jangan panggil `send()` dari harness.** Ia skop-modul, bukan pada `window`. `window.runCommand`
+dieksport khas untuk itu.
+
+**HUD `busy` lock.** `ask()` palsu mesti juga hantar `onClaude('done')`, kalau tidak
+arahan berikutnya digugurkan senyap.
 
 ```bash
-# ujian penuh — Api palsu, semua panel, ask round-trip, analysis render
-chrome --headless=new --allow-file-access-from-files --virtual-time-budget=9000 \
-  --dump-dom "file:///C:/Users/akmal/jarvis-desktop/ui/_smoke.html" | grep -o 'RESULT{[^}]*}'
-
-# tangkap skrin satu panel: #media #files #ana #term ...
+# tangkap skrin satu panel: #media #files #ana #term #docs #native
 chrome --headless=new --allow-file-access-from-files --window-size=1600,900 \
   --virtual-time-budget=9000 --screenshot="C:\...\ui\_sh.png" \
   "file:///C:/Users/akmal/jarvis-desktop/ui/_shoot.html#ana"
 ```
-
-```bash
-# ujian EDITOR — bundle sebenar, bukan stub
-chrome --headless=new --allow-file-access-from-files --virtual-time-budget=25000   --dump-dom "file:///C:/Users/akmal/jarvis-desktop/ui/_ed.html" | grep -o '<div id="R">[^<]*'
-```
-
-`--dump-dom` pada iframe tak boleh baca dalaman, jadi ketiga-tiga harness tulis hasil ke
-elemen dalam dokumen **ibu**, bukan `console.log`.
-
-**Perangkap harness:** jangan guna `f.addEventListener('load', …)`. Untuk fail `file://`
-sebaka ia kerap tak menyala langsung, dan bila menyala pun boleh mendahului skrip anak.
-Guna gelung `poll()` yang tunggu `contentDocument.readyState === 'complete'` **dan**
-`contentWindow.stageShow` wujud. Dua-dua `_smoke.html` dan `_shoot.html` pernah senyap
-sebab ini.
 
 ---
 
@@ -167,13 +298,28 @@ sebab ini.
 | Projek | `C:\Users\akmal\jarvis-desktop` |
 | Versi berjalan | v1.1 stage (`main.py` → `ui/stage.html`) |
 | Git | **dah `git init`**, commit pertama `33fccb5`, `secrets.json` dilindungi |
-| Fasa selesai | 0 (git), 1 (antara muka + Python), warna gabung, 5 (EDITOR), 6 (WEB) |
-| Fasa seterusnya | **Fasa 7 APP**, atau sahkan MEDIA + WEB dalam WebView2 betul-betul |
+| Fasa selesai | 0 (git), 1 (antara muka), warna gabung, 5 (EDITOR), 6 (WEB), 6b (DOK), 7 (APP), kawalan laptop |
+| Fasa seterusnya | **sahkan MEDIA + WEB + APP dalam WebView2 hidup** — kod siap, kaki belum diuji |
 | TTS aktif | Google Cloud, `ms-MY-Wavenet-D` |
 
 ---
 
 ## Fasa seterusnya, ikut urutan
+
+### 0. Yang tinggal hanya pengesahan hidup (30 min)
+
+Semua kod siap dan lulus harness. Yang belum disentuh mesin sebenar:
+
+| apa | cara sahkan | apa yang membuktikan ia betul |
+|---|---|---|
+| MEDIA | letak satu `.mp4` dalam `media/`, `python main.py`, tekan `2`, klik fail | video main, scrub gerak (itu maksud 206), tukar panel senyap |
+| WEB | tekan `6`, taip `example.com` | `create_window` benar-benar hidup dalam pywebview 6 |
+| APP | buka Notepad, tekan `9`, pilih tetingkap | ia masuk stage, tak melimpah, hilang bila tukar panel |
+| DOK | tekan `7`, klik satu pdf | halaman render, anak panah tukar halaman |
+| kawalan | cakap "volume 40", "tutup chrome", "status laptop" | resolver tangkap sebelum model, tanpa lag |
+
+`widget`/`media` sekarang hanya ada `_probe.mp3` dan `_t.bin` — bukan video. Jangan guna
+untuk ujian MEDIA.
 
 ### 1. Sahkan MEDIA dalam HUD betul-betul (15 min)
 
@@ -268,10 +414,11 @@ lepas itu setiap laman yang bergantung pada skrip mati dan skrol langsung tak ja
 **Belum diuji:** `create_window` sebenar. Semua laluan lain diuji dengan bridge
 palsu. Jalankan `python main.py`, tekan `6`, taip satu alamat.
 
-### 4. APP (Fasa 7) — paling akhir
+### 4. APP (Fasa 7) — SIAP
 
-`SetParent` + `SetWindowPos` atas rect stage. Wajib `ShowWindow(hwnd, SW_HIDE)` bila tukar
-panel, kalau tidak app duduk atas WebView2.
+`SetParent` + `SetWindowPos` atas rect stage, dengan pemulihan penuh (parent, style, rect).
+Wajib `ShowWindow(hwnd, SW_HIDE)` bila tukar panel — tetingkap anak sentiasa di atas
+WebView2 dan CSS tak boleh menutupnya. Perincian penuh di bahagian APP di atas.
 
 ---
 
@@ -303,6 +450,17 @@ panel, kalau tidak app duduk atas WebView2.
 - `to_ssml()` bungkus perkataan English dalam `<lang en-US>` — **jangan** guna untuk `en-GB`
 - rootsys: `tool_choice` diabaikan, latency naik dengan bilangan tool, kadang DSML mentah
 - MCP Gmail/Drive perlukan `ToolSearch` dulu atau server tak sambung
+- **ctypes tanpa `restype`.** Pemegang 64-bit dipotong jadi int 32-bit; menulis melaluinya
+  membaling `access violation writing 0x0000...`. Setiap fungsi Win32 mesti ada `argtypes`
+  **dan** `restype`.
+- **`\b` selepas kata dasar Melayu.** `\bcerah\b` tak padan dengan "cerahkan". Guna
+  `cerah(?:kan)?` dan seasamanya untuk `terang`/`malap`/`gelap`.
+- **`pr.slides[:n]` bukan objek slaid** — ia `list`. Akses indeks, bukan hirisan.
+- **WebView2 sudah selesaikan unit CSS.** JS hantar `scale=1`; Python ukur
+  `GetDpiForWindow/96` sendiri.
+- **Konsol Windows cp1252.** Ujian yang cetak `✔`/`✖` perlu `PYTHONIOENCODING=utf-8`.
+- **`@staticmethod` pada `_match_system`** menjadikan `self` hilang; `_find_doc` jadi
+  `NameError` yang hanya muncul bila ayat itu benar-benar dihantar.
 
 ---
 
