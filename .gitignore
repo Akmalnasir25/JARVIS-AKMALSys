@@ -28,3 +28,7 @@ ui/index-v09.html
 venv/
 .idea/
 .vscode/
+
+# ── bundle build (node_modules; editor.js sendiri DI-COMMIT) ───
+ui/vendor/_build/node_modules/
+ui/vendor/_build/package-lock.json

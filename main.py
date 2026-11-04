@@ -520,6 +520,53 @@ class Api:
         except OSError as e:
             return {"ok": False, "msg": str(e)}
 
+    # ---------- Stage: tulis fail (EDITOR) ----------
+    def fs_write(self, path, text, expected_size=None):
+        """Simpan teks ke fail. Gated oleh _safe_path + semakan konflik.
+
+        Tiga pagar, sebab satu-satunya fungsi yang mengubah fail Akmal:
+
+        1. _safe_path — skop sama seperti fs_list/fs_read. Luar kawasan kerja tolak.
+        2. expected_size — saiz fail semasa masa ianya dibuka. Kalau berubah di
+           antara, fail telah disentuh di luar editor, jadi tulis ditolak dan
+           editor boleh tanya Akmal nak timpa atau tidak. Ini yang menghalang
+           tab lama memadam kerja yang lebih baru.
+        3. simpanan .bak sekali — bukan versioning, cuma jaring untuk satu
+           pusingan salah. Ditulis sebelum tulis baru, ditimpa setiap simpan.
+
+        Tiada direktori baru dicipta. Kalau folder tiada, itu silap pemanggil.
+        """
+        p = self._safe_path(path)
+        if p is None:
+            return {"ok": False, "msg": "Laluan luar kawasan kerja — tidak ditulis."}
+        if not p.parent.is_dir():
+            return {"ok": False, "msg": f"Folder induk tiada: {p.parent}"}
+        if p.exists():
+            if p.is_dir():
+                return {"ok": False, "msg": "Itu folder, bukan fail."}
+            try:
+                current = p.stat().st_size
+            except OSError as e:
+                return {"ok": False, "msg": str(e)}
+            # only enforce when the caller tracked a size; a fresh save of a new
+            # file passes no expected_size and skips straight through
+            if expected_size is not None and int(expected_size) != current:
+                return {"ok": False, "conflict": True, "size": current,
+                        "msg": f"Fail berubah di luar editor ({current} bait, "
+                               f"dijangka {expected_size}). Simpan semula untuk timpa."}
+            try:
+                shutil.copy2(p, p.with_suffix(p.suffix + ".bak"))
+            except OSError:
+                pass  # a missing backup must never block the actual save
+        data = text.encode("utf-8") if isinstance(text, str) else bytes(text)
+        try:
+            p.write_bytes(data)
+        except OSError as e:
+            return {"ok": False, "msg": str(e)}
+        line_count = data.count(b"\n") + (1 if data and not data.endswith(b"\n") else 0)
+        self._emit("fs", {"saved": str(p), "size": len(data)})
+        return {"ok": True, "path": str(p), "size": len(data), "lines": max(1, line_count)}
+
     # ---------- Stage: buka media melalui arahan suara/teks ----------
     def open_media(self, which=""):
         return self.media_open(which) if which else self.media_list()

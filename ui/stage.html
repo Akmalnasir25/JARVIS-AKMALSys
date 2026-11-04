@@ -556,9 +556,54 @@ main.stage-wrap {
 }
 .placeholder .phase {
   font-size: 8px; letter-spacing: .18em; text-transform: uppercase;
-  color: var(--amber); border: 1px solid rgba(255,179,64,.28);
-  padding: 3px 8px;
+  color: var(--amber); border: 1px solid rgba(255,179,64,.28); padding: 3px 8px;
 }
+
+/* ── EDITOR panel ─────────────────────────────────────────── */
+.ed-shell { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.ed-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 12px; padding: 24px; text-align: center;
+}
+.ed-empty .glyph {
+  width: 58px; height: 58px;
+  display: grid; place-items: center;
+  border: 1px dashed var(--line);
+  color: var(--cyan); opacity: .55;
+}
+.ed-empty .glyph svg { width: 24px; height: 24px; }
+.ed-empty b {
+  font: 600 10.5px/1 var(--font-display);
+  letter-spacing: .26em; text-transform: uppercase; color: var(--ink-dim);
+}
+.ed-empty p {
+  margin: 0; max-width: 52ch;
+  font-size: 10px; line-height: 1.7; color: var(--ink-faint);
+}
+.ed-empty p b { font-size: inherit; letter-spacing: 0; color: hsl(var(--alt) 85% 74%); }
+/* the CodeMirror host is absolutely sized so the editor's own 100% height has
+   a definite parent — inside a flex column a percentage height resolves to
+   auto and the editor collapses to a single line */
+.ed-host { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; }
+.ed-host > .cm-editor { position: absolute; inset: 0; }
+.ed-loading {
+  position: absolute; inset: 0;
+  display: grid; place-items: center;
+  font: 500 8.5px/1 var(--font-mono); letter-spacing: .2em; text-transform: uppercase;
+  color: hsl(var(--alt) 60% 66% / .8);
+}
+/* dirty flag: amber, the reserved state colour, not the panel hue */
+.ed-dirty {
+  font: 500 8px/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase;
+  color: var(--amber);
+  border: 1px solid rgba(255,179,64,.32);
+  background: rgba(255,179,64,.07);
+  padding: 3px 7px;
+}
+.ed-dirty[hidden] { display: none !important; }
+.btn[disabled] { opacity: .38; cursor: default; }
+.btn[disabled]:hover { background: transparent; border-color: var(--line); }
 
 /* ── COMMS core (orb lives here) ──────────────────────────── */
 .core-body {
@@ -1310,6 +1355,7 @@ footer {
               <span class="title" id="fileName">—</span>
               <span class="meta" id="fileMeta">pilih fail di kiri</span>
               <span class="grow"></span>
+              <button type="button" class="btn" id="fileEdit" disabled>Edit</button>
               <button type="button" class="btn solid" id="fileOpen">Buka luar</button>
             </div>
             <div class="preview-body" id="fileBody">
@@ -1323,19 +1369,21 @@ footer {
       <section class="pane" id="pane-editor" role="tabpanel" hidden>
         <div class="pane-head">
           <span class="title">Editor</span>
-          <span class="meta">codemirror 6 · belum dipasang</span>
+          <span class="meta" id="edMeta">belum ada fail</span>
           <span class="grow"></span>
-          <button type="button" class="btn">Simpan</button>
+          <span class="ed-dirty" id="edDirty" hidden>belum disimpan</span>
+          <button type="button" class="btn" id="edRevert" disabled>Undo semua</button>
+          <button type="button" class="btn solid" id="edSave" disabled>Simpan</button>
         </div>
-        <div class="pane-body">
-          <div class="placeholder">
+        <div class="ed-shell">
+          <div class="ed-empty" id="edEmpty">
             <div class="glyph">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
             </div>
-            <b>Editor penuh</b>
-            <p>CodeMirror 6 dimuat lazy. Tulis hanya di dalam workdir yang dikonfigurasi — semakan <code>Path.resolve().is_relative_to(WORKDIR)</code>.</p>
-            <span class="phase">Fasa 5</span>
+            <b>Belum ada fail dibuka</b>
+            <p>Pergi ke panel <b>Fail</b>, klik satu fail teks, tekan <b>Edit</b> di bar bawah pratonton. Fail terakhir kekal sampai satu lagi dibuka.</p>
           </div>
+          <div class="ed-host" id="edHost" hidden></div>
         </div>
       </section>
 
@@ -2463,6 +2511,7 @@ footer {
     const fname = document.getElementById('fileName');
     const fmeta = document.getElementById('fileMeta');
     const openBtn = document.getElementById('fileOpen');
+    const editBtn = document.getElementById('fileEdit');
     if (!tree || !body) return;
 
     let currentPath = '';
@@ -2537,6 +2586,7 @@ footer {
       fname.textContent = it.name;
       fmeta.textContent = sizeText(it.size) + ' · ' + (it.ext || 'fail');
       body.innerHTML = '<div class="empty">membaca…</div>';
+      if (editBtn) editBtn.disabled = true;
       const r = await api.fs_read(it.path);
       if (!r.ok) {
         body.innerHTML = '<div class="empty">' + (r.msg || 'tidak boleh dibaca') + '</div>';
@@ -2547,10 +2597,22 @@ footer {
       body.innerHTML = '';
       body.appendChild(pre);
       fmeta.textContent = r.lines + ' baris · ' + sizeText(r.size) + ' · ' + it.ext;
+      // a binary file never reaches here (fs_read refuses it), so anything
+      // that renders as text is editable
+      if (editBtn) editBtn.disabled = false;
     }
 
     if (openBtn) openBtn.addEventListener('click', () => {
       if (selected && api) api.fs_open(selected);
+    });
+
+    /* hand the file to the editor pane and switch to it. The editor asks
+       fs_read again rather than accepting the preview text — the preview is
+       truncated at 200k and the editor must start from the real document. */
+    if (editBtn) editBtn.addEventListener('click', async () => {
+      if (!selected) return;
+      await window.stageEditor.open(selected);
+      show('editor');
     });
 
     document.addEventListener('stage:change', e => {
@@ -2560,6 +2622,178 @@ footer {
     window.stageFiles = { reload: () => load(currentPath) };
     // first mount happens when the pane is opened, or immediately if it already is
     if (api && !document.getElementById('pane-files').hidden) load('');
+  })();
+
+  /* ═══════════════════════════════════════════════════════════
+     EDITOR panel — CodeMirror 6, loaded lazily from
+     ui/vendor/editor.js. The bundle is local: the HUD runs
+     offline and nothing here may reach the network.
+
+     Save path: fs_write(path, text, expected_size). The size is
+     the one Python reported at read time, so a file edited by
+     something else while this tab sat open gets refused with
+     conflict:true instead of silently overwritten.
+     ═══════════════════════════════════════════════════════════ */
+  (() => {
+    const host   = document.getElementById('edHost');
+    const empty  = document.getElementById('edEmpty');
+    const meta   = document.getElementById('edMeta');
+    const dirty  = document.getElementById('edDirty');
+    const saveBt = document.getElementById('edSave');
+    const revertBt = document.getElementById('edRevert');
+    if (!host) return;
+
+    let ed = null;              // the CodeMirror handle
+    let loading = null;         // in-flight bundle promise
+    let curPath = '';           // absolute path of the open file
+    let curName = '';
+    let curExt  = '';
+    let baseSize = null;        // size Python reported; the conflict guard
+    let savedText = '';         // last text known to be on disk
+
+    const sizeText = n => n == null ? '' :
+      n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' :
+      n >= 1024 ? Math.round(n / 1024) + ' KB' : n + ' B';
+
+    /* the bundle is 632 KB — parse it once, on first open, not at boot */
+    function loadBundle() {
+      if (window.JarvisEditor) return Promise.resolve(window.JarvisEditor);
+      if (loading) return loading;
+      loading = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'vendor/editor.js';
+        s.onload = () => window.JarvisEditor ? resolve(window.JarvisEditor) : reject(new Error('bundle kosong'));
+        s.onerror = () => reject(new Error('vendor/editor.js tidak dijumpai'));
+        document.head.appendChild(s);
+      });
+      return loading;
+    }
+
+    function paintMeta() {
+      if (!curName) { meta.textContent = 'belum ada fail'; return; }
+      const bits = [curName];
+      if (ed) bits.push((ed.getText().match(/\n/g) || []).length + 1 + ' baris');
+      if (curExt) bits.push(curExt);
+      meta.textContent = bits.join(' · ');
+    }
+
+    function paintDirty(isDirty) {
+      if (dirty) dirty.hidden = !isDirty;
+      if (saveBt) saveBt.disabled = !isDirty;
+      if (revertBt) revertBt.disabled = !isDirty;
+      if (isDirty) document.title = 'J.A.R.V.I.S — ' + curName + ' •';
+      else document.title = 'J.A.R.V.I.S — STAGE v1.1';
+    }
+
+    async function save() {
+      if (!api || !curPath || !ed) return { ok: false };
+      const text = ed.getText();
+      const r = await api.fs_write(curPath, text, baseSize);
+      if (!r || !r.ok) {
+        if (r && r.conflict) {
+          // the file moved under us. Take the new size so a second press
+          // overwrites deliberately, and say what happened on the meta line.
+          baseSize = r.size;
+          meta.textContent = curName + ' · berubah di luar — tekan Simpan sekali lagi untuk timpa';
+          return { ok: false, conflict: true };
+        }
+        meta.textContent = curName + ' · gagal: ' + ((r && r.msg) || 'tidak diketahui');
+        return { ok: false };
+      }
+      baseSize = r.size;
+      savedText = text;
+      ed.markClean(text);
+      paintDirty(false);
+      paintMeta();
+      return r;
+    }
+
+    async function open(path) {
+      if (!api || !path) return false;
+      // refusing to clobber unsaved work is the whole point of the dirty flag
+      if (ed && ed.isDirty()) {
+        const ok = window.confirm('Ada perubahan belum disimpan dalam ' + curName + '. Buang dan buka fail baru?');
+        if (!ok) return false;
+      }
+      host.innerHTML = '<div class="ed-loading">memuatkan editor…</div>';
+      empty.hidden = true;
+      host.hidden = false;
+
+      let bundle;
+      try { bundle = await loadBundle(); }
+      catch (e) {
+        host.innerHTML = '';
+        empty.hidden = false;
+        empty.querySelector('b').textContent = 'Editor tidak dapat dimuatkan';
+        empty.querySelector('p').textContent = e.message + ' — jalankan semula langkah build dalam ui/vendor/_build.';
+        return false;
+      }
+
+      const r = await api.fs_read(path);
+      if (!r || !r.ok) {
+        host.innerHTML = '';
+        empty.hidden = false;
+        empty.querySelector('b').textContent = 'Fail tidak dapat dibaca';
+        empty.querySelector('p').textContent = (r && r.msg) || 'tiada jawapan dari Python';
+        return false;
+      }
+      // fs_read truncates at 200k. Editing a truncated document would write the
+      // truncation back to disk, so refuse rather than corrupt.
+      if (r.size > 200_000) {
+        host.innerHTML = '';
+        empty.hidden = false;
+        empty.querySelector('b').textContent = 'Fail terlalu besar';
+        empty.querySelector('p').textContent = sizeText(r.size) + ' — editor hadkan 200 KB. Guna VS Code untuk fail ini.';
+        return false;
+      }
+
+      host.innerHTML = '';
+      curPath = r.path || path;
+      curName = r.name || curPath.split(/[\\/]/).pop();
+      curExt  = (curName.split('.').pop() || '').toLowerCase();
+      baseSize = r.size;
+      savedText = r.text;
+
+      if (ed) { ed.destroy(); ed = null; }
+      ed = bundle.createEditor({
+        parent: host,
+        doc: r.text,
+        ext: curExt,
+        onChange: (text, isDirty) => { paintDirty(isDirty); paintMeta(); },
+        onSave: () => save()
+      });
+      paintDirty(false);
+      paintMeta();
+      ed.focus();
+      document.dispatchEvent(new CustomEvent('editor:load', { detail: { path: curPath } }));
+      return true;
+    }
+
+    if (saveBt) saveBt.addEventListener('click', save);
+    if (revertBt) revertBt.addEventListener('click', () => {
+      if (!ed) return;
+      ed.setText(savedText, true);
+      paintDirty(false);
+      paintMeta();
+    });
+
+    /* Ctrl+S anywhere in the pane, so it works before the editor has focus */
+    document.addEventListener('keydown', e => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 's') return;
+      if (document.getElementById('pane-editor').hidden) return;
+      e.preventDefault();
+      save();
+    });
+
+    window.stageEditor = {
+      open,
+      save,
+      get path() { return curPath; },
+      get dirty() { return ed ? ed.isDirty() : false; },
+      /* the CodeMirror handle, for the terminal and for probes — the stage
+         elsewhere has no other way to reach into the document */
+      get editor() { return ed; }
+    };
   })();
 
   show('comms', false);
