@@ -33,6 +33,24 @@ Sembilan pasangan, dalam `:root`:
 
 Amber 36 dan merah kekal **khas untuk keadaan**: amaran dan rosak. Jangan guna untuk hiasan.
 
+**Bar telemetri** ikut peraturan yang sama, tapi bukan `var(--hue)`: meter ialah
+perabot shell, jadi ia mesti kekal bila panel bertukar. Setiap tube ada pasangan
+sendiri melalui `--fill-a`/`--fill-b`:
+
+| meter | bawah | atas |
+|---|---|---|
+| CPU | ungu 272 | magenta 302 |
+| RAM | violet 256 | biru 196 |
+| DSK | biru 228 | ungu 272 |
+| BAT | hijau 152 | sian 186 |
+
+Empat warna berbeza pada ketinggian yang sama — itu maksudnya. Kalau semua tube
+kongsi satu gradien, stack jadi satu blok warna, bukan empat alat.
+
+`hot` (amber) dan `crit` (merah) menang atas warna per-alat melalui pemilih
+**ber-ID** (`#g-cpu.hot .v`). Tanpa ID, warna `.v` per-alat akan menang atas
+`.meter.hot .v` dan amaran tak pernah muncul. Ini dah terkena sekali.
+
 **Perangkap yang kena ingat** — ini yang makan satu pusingan penuh:
 
 1. Custom property dikira **di tempat ia diisytihar**, bukan di tempat ia digunakan.
@@ -68,7 +86,7 @@ statik masih nampak betul. Dua sebab, dua-dua dah dibetulkan:
 Sekarang hidup: telemetri 2 s, sembilan panel, MEDIA (senarai + main), FAIL (tree + pratonton),
 ANALISIS (kad, graf bar, poin bernarasi), terminal mirror, chat + `onClaude` stream, TTS, orb.
 
-**Panel yang masih placeholder:** WEB, DOK, APP. Fasa 6–7. (EDITOR siap.)
+**Panel yang masih placeholder:** DOK, APP. Fasa 6–7. (EDITOR dan WEB siap.)
 
 ---
 
@@ -149,8 +167,8 @@ sebab ini.
 | Projek | `C:\Users\akmal\jarvis-desktop` |
 | Versi berjalan | v1.1 stage (`main.py` → `ui/stage.html`) |
 | Git | **dah `git init`**, commit pertama `33fccb5`, `secrets.json` dilindungi |
-| Fasa selesai | 0 (git), 1 (antara muka + Python), warna gabung, 5 (EDITOR) |
-| Fasa seterusnya | **Fasa 6 WEB**, atau sahkan MEDIA dalam WebView2 betul-betul |
+| Fasa selesai | 0 (git), 1 (antara muka + Python), warna gabung, 5 (EDITOR), 6 (WEB) |
+| Fasa seterusnya | **Fasa 7 APP**, atau sahkan MEDIA + WEB dalam WebView2 betul-betul |
 | TTS aktif | Google Cloud, `ms-MY-Wavenet-D` |
 
 ---
@@ -213,10 +231,42 @@ semula bermakna tulis potongan itu ke cakera. Jangan longgarkan tanpa ubah `fs_r
 **Belum ada:** tab berbilang fail, carian seluruh projek, git diff dalam editor.
 Kalau perlu, itu kerja baru — jangan sangkut Fasa 6 sebab ini.
 
-### 3. WEB (Fasa 6) — pilih satu jalan dulu
+### 3. WEB (Fasa 6) — SIAP
 
-Iframe senang tetapi separuh laman sekat `X-Frame-Options`. Navigasi WebView2 dalam
-sub-window paling bersih; snapshot DOM jalan tetapi rapuh. Jangan buat dua-dua serentak.
+Dua jalan render, dipilih ikut laman. **Bukan** dua-dua sekali gus — sebab separuh
+internet sekat embed, dan satu jalan sahaja tak cukup:
+
+| jalan | bila | kos |
+|---|---|---|
+| tetingkap anak WebView2 | default | tetingkap berasingan, kena ikut rect stage |
+| iframe | tekan **Embed** | laman yang hantar `X-Frame-Options` jadi kosong |
+
+Tetingkap anak dicipta Python (`webview.create_window` dari thread bridge JS —
+pywebview 6 sokong ini) dan diletak tepat atas `#webBody`. Rect dihantar dari JS
+melalui `web_stage_rect(x, y, w, h)` pada buka pane dan resize.
+
+**Tiga method, jangan keliru antara satu sama lain:**
+
+| method | makna |
+|---|---|
+| `web_open(url)` | cipta atau navigasi. Guna semula tetingkap kalau ada |
+| `web_show()` | tunjuk semula tetingkap yang diparkir, **tanpa reload** |
+| `web_hide()` | parkir, kekalkan laman |
+
+Tukar panel guna `hide`, bukan `close` — destroy setiap kali tukar panel bermakna
+buang posisi skrol dan borang yang separuh diisi. `web_show` yang buat `show`,
+bukan `web_open`; kalau tersilap panggil `web_open` di situ, setiap kali balik ke
+WEB laman reload.
+
+Carian: alamat tanpa titik dianggap carian, dibawa ke DuckDuckGo dalam tetingkap
+anak. Logik yang sama dipakai kotak alamat dan `web_search()`, jadi dua-dua tak
+boleh bercanggah.
+
+**Snapshot DOM telah dibuang dari reka bentuk.** Ia nampak betul untuk satu saat,
+lepas itu setiap laman yang bergantung pada skrip mati dan skrol langsung tak jalan.
+
+**Belum diuji:** `create_window` sebenar. Semua laluan lain diuji dengan bridge
+palsu. Jalankan `python main.py`, tekan `6`, taip satu alamat.
 
 ### 4. APP (Fasa 7) — paling akhir
 
