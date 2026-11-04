@@ -487,10 +487,20 @@ class Api:
 
     # ---------- Stage: fail ----------
     def _safe_path(self, raw):
-        """Hadkan capaian panel fail kepada tempat kerja yang dibenarkan."""
+        """Hadkan capaian panel fail kepada tempat kerja yang dibenarkan.
+
+        Folder shortcut Akmal (shortcuts.json) masuk senarai akar juga —
+        tanpanya, klik "Pictures" pada dock memaparkan "Folder luar kawasan
+        kerja", yang bukan jawapan yang berguna untuk folder yang Akmal
+        sendiri letak dalam dock.
+        """
         cfg = load_json(CONFIG, {})
         roots = [Path(os.path.expanduser(cfg.get("workdir", "~"))), ROOT, HOME / "Desktop",
                  HOME / "Documents", HOME / "Downloads"]
+        for item in load_json(SHORTCUTS, {}).get("folders", []):
+            t = resolve(item)
+            if t is not None and Path(t).is_dir():
+                roots.append(Path(t))
         p = Path(os.path.expanduser(str(raw))).resolve()
         for r in roots:
             try:
@@ -557,6 +567,93 @@ class Api:
             return {"ok": True}
         except OSError as e:
             return {"ok": False, "msg": str(e)}
+
+    # ---------- ujian hidup: tool tanpa Claude ----------
+    def chat_tool_probe(self, tool, arg):
+        """Jalankan satu tool chat terus, supaya harness dapat mengesahkan
+        `_emit("tool")` benar-benar sampai ke orb tanpa memanggil model."""
+        try:
+            key = "keyword" if tool == "find_files" else ("path" if tool == "read_file" else "folder")
+            return {"ok": True, "out": str(self._chat_tool(tool, {key: arg}))}
+        except Exception as e:
+            return {"ok": False, "msg": f"{type(e).__name__}: {e}"}
+
+    # ---------- Dock: satu peta untuk tiga tab ----------
+    def dock_map(self):
+        """Tiga senarai dock dalam satu panggilan: desktop, apps, folders.
+
+        Dock di HUD dibina statik dalam HTML; ia tidak pernah tahu apa yang
+        ada pada mesin ini. Peta ini menjadikannya hidup tanpa menulis semula
+        markup — setiap tile membawa `open` yang cukup untuk api.dock_open().
+        """
+        desk = []
+        d = known_folder("Desktop")
+        if d is not None and d.is_dir():
+            try:
+                entries = [p for p in d.iterdir()
+                           if not p.name.startswith(".") and p.name.lower() != "desktop.ini"]
+            except OSError:
+                entries = []
+            entries.sort(key=lambda p: (not p.is_dir(), p.name.lower()))
+            for p in entries[:24]:
+                desk.append({"name": (p.stem if p.suffix.lower() in (".lnk", ".url") else p.name),
+                             "dir": p.is_dir(), "path": str(p)})
+        apps, folders = [], []
+        for item in load_json(SHORTCUTS, {}).get("apps", []):
+            t = resolve(item)
+            apps.append({"name": item.get("name", "?"), "path": str(t) if t else "",
+                         "ok": t is not None})
+        for item in load_json(SHORTCUTS, {}).get("folders", []):
+            t = resolve(item)
+            folders.append({"name": item.get("name", "?"), "path": str(t) if t else "",
+                            "ok": t is not None and Path(t).is_dir()})
+        return {"ok": True, "desktop": desk, "apps": apps, "folders": folders}
+
+    def dock_open(self, kind, name):
+        """Klik satu tile dock.
+
+        `kind` ialah 'desktop' | 'apps' | 'folders'. Folder dibuka DALAM panel
+        fail HUD (bukan tetingkap Explorer bertimbun); app dilancarkan.
+        Desktop juga folder, jadi ia melalui laluan yang sama.
+        """
+        kind = (kind or "").strip().lower()
+        want = (name or "").strip().lower()
+        if not want:
+            return {"ok": False, "msg": "Tiada nama."}
+        if kind in ("desktop",):
+            base = known_folder("Desktop")
+            if base is None:
+                return {"ok": False, "msg": "Tiada Desktop."}
+            try:
+                for p in base.iterdir():
+                    if ((p.stem if p.suffix.lower() in (".lnk", ".url") else p.name).lower() == want
+                            or p.name.lower() == want):
+                        if p.is_dir():
+                            return {"ok": True, "folder": str(p)}
+                        os.startfile(str(p))
+                        return {"ok": True, "opened": str(p)}
+            except OSError as e:
+                return {"ok": False, "msg": str(e)}
+            return {"ok": False, "msg": f'"{name}" tiada di Desktop.'}
+        group = "apps" if kind in ("apps", "app") else "folders"
+        for item in load_json(SHORTCUTS, {}).get(group, []):
+            if item.get("name", "").strip().lower() != want:
+                continue
+            t = resolve(item)
+            if t is None:
+                return {"ok": False, "msg": f'"{name}" tak dijumpai pada mesin ini.'}
+            if Path(t).is_dir():
+                return {"ok": True, "folder": str(t)}
+            try:
+                os.startfile(str(t))
+                return {"ok": True, "opened": str(t)}
+            except OSError:
+                try:
+                    subprocess.Popen(str(t), shell=True, creationflags=NO_WINDOW)
+                    return {"ok": True, "opened": str(t)}
+                except Exception as e:
+                    return {"ok": False, "msg": str(e)}
+        return {"ok": False, "msg": f'"{name}" tiada dalam shortcuts.json.'}
 
     # ---------- Stage: dokumen (Fasa 6) ----------
     # Dibaca di Python, bukan di browser. PDF.js + docx-preview + SheetJS akan
@@ -1422,12 +1519,20 @@ class Api:
     def _tool_list(self, folder):
         p = self._resolve_place(folder)
         if not p or not p.is_dir():
-            return f'Folder "{folder}" tak dijumpai.', "", ""
+            return f'Folder "{folder}" tak dijumpai.', "", "", []
         entries = sorted(p.iterdir(), key=lambda e: (not e.is_dir(), e.name.lower()))
         lines = [("[folder] " if e.is_dir() else "") + e.name for e in entries[:80]]
         more = f"\n…dan {len(entries) - 80} lagi" if len(entries) > 80 else ""
         listing = "\n".join(str(e) for e in entries[:12])  # untuk cabang peta hologram
-        return f"Isi {p} ({len(entries)} item):\n" + "\n".join(lines) + more, str(p), listing
+        return (f"Isi {p} ({len(entries)} item):\n" + "\n".join(lines) + more,
+                str(p), listing, self._as_items(entries, 6))
+
+    @staticmethod
+    def _as_items(entries, limit=6):
+        """Entri folder sebagai {text, dir} untuk senarai tugas orb.
+        Orb hanya ada ~260px lebar; enam baris adalah senarai yang boleh
+        dibaca sekali pandang, bukan skrol."""
+        return [{"text": e.name, "dir": e.is_dir()} for e in entries[:limit]]
 
     def _tool_find(self, keyword):
         kw, hits, deadline = keyword.lower().strip(), [], time.time() + 6
@@ -1440,8 +1545,10 @@ class Api:
                 if len(hits) >= 30 or time.time() > deadline:
                     break
         if not hits:
-            return f'Tiada fail dengan nama "{keyword}".', ""
-        return f"Jumpa {len(hits)} fail:\n" + "\n".join(hits[:30]), "\n".join(hits[:12])
+            return f'Tiada fail dengan nama "{keyword}".', "", []
+        return (f"Jumpa {len(hits)} fail:\n" + "\n".join(hits[:30]),
+                "\n".join(hits[:12]),
+                [{"text": os.path.basename(h), "dir": False} for h in hits[:6]])
 
     def _tool_read(self, path):
         p = self._resolve_place(path)
@@ -1594,14 +1701,15 @@ class Api:
             self._emit("tool", {"name": label, "detail": detail, "full": path or ""})
             return msg
         if name == "list_folder":
-            msg, path, listing = self._tool_list(args.get("folder", ""))
-            self._emit("tool", {"name": label, "detail": detail, "full": f'"{path}"' if path else ""})
+            msg, path, listing, items = self._tool_list(args.get("folder", ""))
+            self._emit("tool", {"name": label, "detail": detail, "full": f'"{path}"' if path else "",
+                                "items": items})
             if listing:
                 self._emit("result", {"name": label, "text": listing})
             return msg
         if name == "find_files":
-            msg, listing = self._tool_find(args.get("keyword", ""))
-            self._emit("tool", {"name": label, "detail": detail, "full": ""})
+            msg, listing, items = self._tool_find(args.get("keyword", ""))
+            self._emit("tool", {"name": label, "detail": detail, "full": "", "items": items})
             if listing:
                 self._emit("graph", {"full": " ".join(f'"{h}"' for h in listing.splitlines()[:6])})
             return msg
@@ -1885,7 +1993,10 @@ class Api:
                 "voice_fx": cfg.get("voice_fx", False), "speak_replies": cfg.get("speak_replies", True), "reply_language": cfg.get("reply_language", "ms"),
                 "voice_en": cfg.get("voice_en", "en-GB-RyanNeural"), "en_voices": EN_VOICES,
                 "voices": all_voices(), "models": CLAUDE_MODELS,
-                "chat_model": self._chat_model(load_json(SECRETS, {})), "chat_models": CHAT_MODELS}
+                "chat_model": self._chat_model(load_json(SECRETS, {})), "chat_models": CHAT_MODELS,
+                # rail menulis "google · <id>"; provider dihantar supaya JS tidak
+                # meneka dan tidak perlu tahu nama penyedia suara
+                "voice_provider": "google"}
 
     def set_setting(self, key, value):
         allowed = {"model": lambda v: v in [m["id"] for m in CLAUDE_MODELS],

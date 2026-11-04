@@ -653,6 +653,168 @@ main.stage-wrap {
 .btn[disabled] { opacity: .38; cursor: default; }
 .btn[disabled]:hover { background: transparent; border-color: var(--line); }
 
+/* ── orb task list ───────────────────────────────────────────
+   Baris tugas, bukan satu kad besar. Orb duduk di tengah .orb-box; senarai
+   ini mengalir dari sebelah kanannya supaya kedua-duanya kelihatan serentak
+   dan orb tidak pernah tertutup. Setiap baris masuk dengan translateX(-6px)
+   → 0, sebab arah masuknya bercakap dari mana ia datang: dari orb.
+   ───────────────────────────────────────────────────────────── */
+.orb-tasks {
+  position: absolute;
+  left: calc(50% + 108px); top: 50%;
+  transform: translateY(-50%);
+  width: min(300px, calc(50% - 118px));
+  min-width: 168px;
+  margin: 0; padding: 0;
+  list-style: none;
+  display: flex; flex-direction: column; gap: 5px;
+  pointer-events: none;
+}
+.orb-tasks:empty { display: none; }
+.orbt {
+  display: grid;
+  grid-template-columns: 14px minmax(0,1fr);
+  align-items: start; gap: 7px;
+  padding: 6px 8px 7px;
+  background: rgba(9, 4, 20, .80);
+  border: 1px solid var(--line-soft);
+  border-left: 2px solid hsl(var(--hue) 100% 74% / .55);
+  animation: orbtIn .18s ease-out;
+  transition: opacity .3s, border-left-color .3s;
+}
+@keyframes orbtIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
+.orbt.done {
+  opacity: .42;
+  border-left-color: var(--ok);
+}
+.orbt.failed { border-left-color: var(--bad); }
+.orbt.done .orbt-main { color: var(--ink-faint); }
+.orb-ico {
+  width: 14px; height: 14px; margin-top: 1px;
+  display: grid; place-items: center;
+  color: var(--cyan);
+}
+.orb-ico svg { width: 100%; height: 100%; }
+.orb-ico img { width: 13px; height: 13px; object-fit: contain; }
+.orbt.done .orb-ico { position: relative; }
+/* titik status di sudut ikon: favicon laman itu kekal, jadi baris yang siap
+   masih boleh dikenali sebagai "carian web tadi", bukan baris kosong */
+.orbt.done .orb-ico::after {
+  content: ""; position: absolute; right: -3px; bottom: -3px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--ok); box-shadow: 0 0 6px hsl(150 90% 60% / .75);
+}
+.orbt.failed .orb-ico::after { background: var(--bad); box-shadow: 0 0 6px hsl(0 90% 62% / .75); }
+.orbt-body { min-width: 0; }
+.orbt-kind {
+  font: 600 6.8px/1 var(--font-mono); letter-spacing: .26em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+.orbt-main {
+  margin-top: 3px;
+  font: 500 10.5px/1.35 var(--font-display); color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.orbt-sub {
+  margin-top: 2px;
+  font: 400 8.5px/1.5 var(--font-mono); color: var(--ink-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.orbt-sub:empty { display: none; }
+.orbt-items { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; }
+.orbt-items:empty { display: none; }
+.orbt-items .it {
+  font: 400 8.5px/1.55 var(--font-mono); color: var(--ink-faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.orbt-items .it::before { content: "· "; opacity: .6; }
+.orbt-items .it.dir::before { content: "▸ "; color: hsl(var(--alt) 80% 72% / .85); }
+
+/* satu orb sahaja pada satu masa — bila senarai wujud, orb bergeser kiri
+   supaya dua-dua dapat ruang, bukan bertindih */
+.orb-box.has-tasks #orb { transform: translateX(-72px); }
+#orb { transition: transform .3s ease-out; }
+
+/* ── TETAPAN: satu sheet, bukan modal terapung ──
+   Tiada backdrop-filter: ia menelan GPU pada panel 1080p dan menjadikan
+   input di bawahnya perlahan. Satu lapisan gelap + satu kotak sudah cukup. */
+.sheet-wrap {
+  position: fixed; inset: 0; z-index: 400;
+  display: grid; place-items: center;
+  background: rgba(2, 1, 6, .72);
+}
+.sheet-wrap[hidden] { display: none !important; }
+.sheet {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(78vh, 640px);
+  display: flex; flex-direction: column;
+  background: #0b0518;
+  border: 1px solid var(--line-hard);
+  box-shadow: 0 24px 80px rgba(0,0,0,.7), 0 0 0 1px hsl(var(--hue) 100% 74% / .10);
+}
+.sheet-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--line-soft);
+  background: linear-gradient(90deg, hsl(var(--hue) 100% 74% / .10), transparent 70%);
+}
+.sheet-head .title {
+  font: 600 10px/1 var(--font-display); letter-spacing: .34em;
+  text-transform: uppercase; color: var(--cyan);
+}
+.sheet-head .grow { flex: 1; }
+.sheet-body { overflow-y: auto; padding: 6px 13px 13px; }
+.sheet-body::-webkit-scrollbar { width: 4px; }
+.sheet-body::-webkit-scrollbar-thumb { background: var(--line); }
+.sheet-sec {
+  margin: 12px 0 5px;
+  font: 600 8px/1 var(--font-mono); letter-spacing: .26em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+.set-row {
+  display: grid; grid-template-columns: 130px minmax(0,1fr);
+  align-items: center; gap: 9px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,.035);
+}
+.set-row > label { font: 400 10px/1.4 var(--font-mono); color: var(--ink-dim); }
+.set-row select, .set-row input[type="text"] {
+  width: 100%; min-width: 0;
+  padding: 5px 7px;
+  background: rgba(0,0,0,.42);
+  border: 1px solid var(--line-soft);
+  color: var(--ink);
+  font: 400 10.5px/1.3 var(--font-mono);
+  outline: 0;
+}
+.set-row select:focus, .set-row input:focus { border-color: var(--line-hard); }
+.set-row input.bad { border-color: var(--bad); box-shadow: 0 0 0 1px hsl(0 90% 62% / .35); }
+.set-row .toggle {
+  justify-self: start;
+  display: inline-flex; align-items: center; gap: 7px;
+  font: 400 10px/1 var(--font-mono); color: var(--ink-dim);
+  cursor: pointer;
+}
+.set-row .toggle input { accent-color: hsl(var(--hue) 100% 74%); }
+.set-row.wide { grid-template-columns: minmax(0,1fr); gap: 4px; }
+.set-note {
+  grid-column: 1 / -1;
+  font: 400 9px/1.6 var(--font-mono);
+  color: var(--ink-faint);
+}
+.sheet-foot {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 13px;
+  border-top: 1px solid var(--line-soft);
+  background: rgba(0,0,0,.28);
+}
+.sheet-foot .grow { flex: 1; }
+.sheet-saved {
+  font: 400 9px/1 var(--font-mono); color: var(--ok);
+  opacity: 0; transition: opacity .18s;
+}
+.sheet-saved.on { opacity: 1; }
+
 /* ── COMMS core (orb lives here) ──────────────────────────── */
 .core-body {
   flex: 1; min-height: 0;
@@ -1230,6 +1392,14 @@ footer {
   cursor: pointer; transition: border-color .13s, background .13s, transform .13s;
 }
 .tile:hover { border-color: var(--line); background: hsl(var(--hue) 100% 74% / .07); transform: translateY(-2px); }
+/* tile yang sasarannya tiada pada mesin ini — masih boleh klik, tetapi
+   kelihatan berbeza supaya Akmal tidak meneka kenapa ia senyap */
+.tile.nope { opacity: .42; }
+.tile.nope .hex { border-style: dashed; }
+.dock-empty {
+  font: 400 8.5px/1 var(--font-mono); letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ink-faint); padding: 14px 2px; opacity: .7;
+}
 .tile .hex {
   width: 24px; height: 24px; display: grid; place-items: center;
   background: hsl(var(--hue) 100% 74% / .09);
@@ -1344,7 +1514,7 @@ footer {
       <span id="today">—</span>
     </div>
     <div class="iconbar">
-      <button type="button" title="Tetapan">
+      <button type="button" id="btnSettings" title="Tetapan">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <circle cx="12" cy="12" r="3"/>
           <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
@@ -1438,6 +1608,10 @@ footer {
         </div>
         <div class="core-body">
           <div class="orb-box">
+            <!-- senarai tugas: mengalir dari kanan orb, satu baris satu kerja.
+                 Ia tidak menutup orb kerana orb 250px dan senarai ini 190px,
+                 dua-dua dalam .core-body yang sama. -->
+            <ol class="orb-tasks" id="orbTasks"></ol>
             <canvas id="orb" aria-label="Teras Jarvis"></canvas>
           </div>
           <div class="core-state">
@@ -1737,20 +1911,13 @@ footer {
   <footer>
     <div class="dock">
       <div class="dock-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected="true">DESKTOP · 6</button>
-        <button type="button" role="tab" aria-selected="false">APPS · 13</button>
-        <button type="button" role="tab" aria-selected="false">FOLDER · 7</button>
+        <button type="button" role="tab" data-dock="desktop" aria-selected="true">DESKTOP</button>
+        <button type="button" role="tab" data-dock="apps" aria-selected="false">APPS</button>
+        <button type="button" role="tab" data-dock="folders" aria-selected="false">FOLDER</button>
       </div>
-      <div class="dock-row">
-        <button type="button" class="tile"><span class="hex">EL</span><span class="n">eLawatan</span></button>
-        <button type="button" class="tile"><span class="hex">VS</span><span class="n">VS Code</span></button>
-        <button type="button" class="tile"><span class="hex">CH</span><span class="n">Chrome</span></button>
-        <button type="button" class="tile"><span class="hex">TM</span><span class="n">Terminal</span></button>
-        <button type="button" class="tile"><span class="hex"><svg viewBox="0 0 24 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1.5 3.5h7l2.5 2.5h11.5v13h-21z"/></svg></span><span class="n">Projek</span></button>
-        <button type="button" class="tile"><span class="hex"><svg viewBox="0 0 24 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1.5 3.5h7l2.5 2.5h11.5v13h-21z"/></svg></span><span class="n">Muat turun</span></button>
-        <button type="button" class="tile"><span class="hex">MD</span><span class="n">Nota</span></button>
-        <button type="button" class="tile"><span class="hex">XL</span><span class="n">Bajet</span></button>
-      </div>
+      <!-- tile diisi oleh stageDock.load() — nama folder yang tidak wujud
+           pada mesin ini tidak sepatutnya terpampang sebagai butang mati -->
+      <div class="dock-row" id="dockRow"></div>
     </div>
 
     <div>
@@ -1774,6 +1941,67 @@ footer {
       <div class="hint"><kbd>/</kbd> taip · <kbd>1–9</kbd> panel · <kbd>Ctrl+Space</kbd> cakap · <kbd>Esc</kbd> henti</div>
     </div>
   </footer>
+
+  <!-- ══════════ TETAPAN ══════════ -->
+  <div class="sheet-wrap" id="sheetWrap" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <div class="sheet-head">
+        <span class="title" id="sheetTitle">Tetapan</span>
+        <span class="grow"></span>
+        <button type="button" class="btn" id="sheetClose">Tutup</button>
+      </div>
+      <div class="sheet-body" id="sheetBody">
+        <div class="sheet-sec">Otak</div>
+        <div class="set-row">
+          <label for="setModel">Model Claude</label>
+          <select id="setModel"></select>
+        </div>
+        <div class="set-row">
+          <label for="setChatModel">Model chat</label>
+          <select id="setChatModel"></select>
+        </div>
+
+        <div class="sheet-sec">Suara</div>
+        <div class="set-row">
+          <label for="setVoice">Suara BM</label>
+          <select id="setVoice"></select>
+        </div>
+        <div class="set-row">
+          <label for="setVoiceEn">Suara English</label>
+          <select id="setVoiceEn"></select>
+        </div>
+        <div class="set-row">
+          <label for="setRate">Laju</label>
+          <input id="setRate" type="text" inputmode="numeric" placeholder="+8%">
+        </div>
+        <div class="set-row">
+          <label for="setPitch">Nada</label>
+          <input id="setPitch" type="text" inputmode="numeric" placeholder="+0Hz">
+        </div>
+        <div class="set-row wide">
+          <label class="toggle"><input type="checkbox" id="setSpeak"> Baca setiap balasan</label>
+          <span class="set-note">Kalau dimatikan, Jarvis menjawab dalam teks sahaja — laju, tiada suara.</span>
+        </div>
+
+        <div class="sheet-sec">Bahasa</div>
+        <div class="set-row wide">
+          <label for="setLang">Bahasa jawapan</label>
+          <select id="setLang">
+            <option value="ms">Bahasa Melayu</option>
+            <option value="en">English</option>
+          </select>
+          <span class="set-note">Tukar serta-merta — tiada restart. Nota: ayat arahan sistem
+            (volume, buka fail) sentiasa difahami dalam kedua-dua bahasa.</span>
+        </div>
+      </div>
+      <div class="sheet-foot">
+        <span class="sheet-saved" id="sheetSaved">disimpan</span>
+        <span class="grow"></span>
+        <button type="button" class="btn" id="sheetReset">Muat semula</button>
+        <button type="button" class="btn solid" id="sheetDone">Siap</button>
+      </div>
+    </div>
+  </div>
 
 </div>
 
@@ -2821,7 +3049,7 @@ footer {
       if (e.detail.pane === 'files' && !currentPath && api) load('');
     });
 
-    window.stageFiles = { reload: () => load(currentPath) };
+    window.stageFiles = { reload: () => load(currentPath), open: p => load(p) };
     // first mount happens when the pane is opened, or immediately if it already is
     if (api && !document.getElementById('pane-files').hidden) load('');
   })();
@@ -3648,6 +3876,179 @@ footer {
     scrollTalk();
   }
 
+  /* ── orb task list ──
+     Apa yang sedang berlaku, di sebelah orb. Bukan log: setiap baris ada kind
+     (carian, folder, fail, app, ukur, kod), satu subjek, dan kadang-kadang
+     beberapa item (hasil carian, isi folder). Baris bertukar jadi "done"
+     apabila tool itu pulang, dan kekal di situ supaya Akmal boleh baca apa
+     yang baru berlaku tanpa scroll transkrip.
+     Tiga sumber menulis ke sini:
+       trace()      — tool call Claude, satu per satu
+       _emit("web") — hasil carian dengan tajuk + favicon
+       _emit("result") — senarai folder / hasil find
+     ───────────────────────────────────────────────────────────── */
+  /* Nama kerja, bukan nama API. "Read" bukan bahasa yang Akmal guna;
+     "membaca fail" adalah. Inilah yang muncul di sebelah orb. */
+  const TOOL_LABEL = {
+    web_search: 'connecting web', find_files: 'mencari fail',
+    list_folder: 'menyemak folder', read_file: 'membaca fail',
+    open_item: 'membuka app', system_status: 'mengukur sistem',
+    weather: 'menyemak cuaca', prayer_times: 'menyemak waktu',
+    set_reminder: 'menyemak peringatan',
+    WebSearch: 'connecting web', WebFetch: 'membuka halaman',
+    Find: 'mencari fail', Search: 'mencari', Grep: 'mencari dalam fail',
+    Glob: 'menyemak folder', List: 'menyemak folder', Folders: 'menyemak folder',
+    Read: 'membaca fail', Edit: 'mengubah fail', Write: 'menulis fail',
+    Bash: 'menjalankan arahan', PowerShell: 'menjalankan arahan',
+    Open: 'membuka app', Launch: 'membuka app', Focus: 'fokus tetingkap',
+    Screen: 'menangkap skrin', Status: 'mengukur sistem',
+    Control: 'mengawal sistem', System: 'mengawal sistem',
+    Media: 'menyemak media', Prayer: 'menyemak waktu', Weather: 'menyemak cuaca',
+    Gmail: 'membaca mel', Drive: 'menyemak drive', Reminder: 'menyemak peringatan',
+    Memory: 'menyimpan nota', Note: 'menyimpan nota'
+  };
+
+  const orbTasks = (() => {
+    const el = document.getElementById('orbTasks');
+    const box = document.querySelector('.orb-box');
+    if (!el) return { upsert(){}, done(){}, clear(){}, items(){} };
+    const MAX = 4;
+    let seq = 0;
+
+    const SVG = {
+      search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.3-4.3"/></svg>',
+      folder: '<svg viewBox="0 0 24 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1.5 3.5h7l2.5 2.5h11.5v13h-21z"/></svg>',
+      file:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>',
+      app:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg>',
+      gauge:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/></svg>',
+      code:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M8 6l-5 6 5 6M16 6l5 6-5 6"/></svg>',
+      check:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 12.5l5 5L20 6.5"/></svg>'
+    };
+    const KIND = {
+      // label Python dan nama tool mentah — dua-dua sampai ke fungsi ini
+      web_search: 'search', find_files: 'search', list_folder: 'folder',
+      read_file: 'file', open_item: 'app', system_status: 'gauge',
+      weather: 'gauge', prayer_times: 'gauge', set_reminder: 'gauge',
+      WebSearch: 'search', Find: 'search', Search: 'search',
+      List: 'folder', Folders: 'folder', Glob: 'folder',
+      Read: 'file', Edit: 'code', Write: 'code', Bash: 'code', PowerShell: 'code',
+      Grep: 'search',
+      Open: 'app', Launch: 'app', Focus: 'app', Screen: 'app',
+      Status: 'gauge', Control: 'gauge', System: 'gauge',
+      Media: 'file', Prayer: 'gauge', Weather: 'gauge',
+      Gmail: 'file', Drive: 'folder', Reminder: 'gauge'
+    };
+
+    const host = node => (node || '').replace(/^[a-z]+:\/\//i, '').split('/')[0];
+
+    function favicon(url) {
+      // Google's s2 endpoint returns a real PNG for any host and needs no key.
+      // It costs one request per row and the row is short-lived, so it is
+      // cheaper than shipping a favicon cache.
+      const h = host(url);
+      return h ? 'https://www.google.com/s2/favicons?sz=32&domain=' + encodeURIComponent(h) : '';
+    }
+
+    function trim() {
+      while (el.children.length > MAX) el.removeChild(el.lastElementChild);
+    }
+
+    function mount() {
+      if (box) box.classList.toggle('has-tasks', el.children.length > 0);
+    }
+
+    function make(kind, main, sub) {
+      const li = document.createElement('li');
+      li.className = 'orbt';
+      li.dataset.id = 't' + (++seq);
+      const ic = document.createElement('span');
+      ic.className = 'orb-ico';
+      ic.innerHTML = SVG[kind] || SVG.code;
+      const body = document.createElement('div');
+      body.className = 'orbt-body';
+      const k = document.createElement('div');
+      k.className = 'orbt-kind';
+      k.textContent = kind;
+      const m = document.createElement('div');
+      m.className = 'orbt-main';
+      m.textContent = main || '';
+      const s2 = document.createElement('div');
+      s2.className = 'orbt-sub';
+      s2.textContent = sub || '';
+      const items = document.createElement('div');
+      items.className = 'orbt-items';
+      body.append(k, m, s2, items);
+      li.append(ic, body);
+      el.prepend(li);
+      trim();
+      mount();
+      return li;
+    }
+
+    return {
+      /* upsert by tool name: Claude boleh memanggil tool yang sama dua kali
+         berturut, dan dua baris "Read" yang serupa hanya menyemak ruang */
+      upsert(name, label, detail) {
+        const kind = KIND[name] || 'code';
+        const live = el.querySelector('.orbt:not(.done) .orbt-main');
+        const existing = live && live.textContent === (label || name) ? live.closest('.orbt') : null;
+        const li = existing || make(kind, label || name, detail || '');
+        if (existing) {
+          const sub = li.querySelector('.orbt-sub');
+          if (sub && detail) sub.textContent = detail;
+        }
+        if (kind === 'search' && detail) {
+          const ic = li.querySelector('.orb-ico');
+          const url = favicon(/^https?:/.test(detail) ? detail : 'https://' + detail);
+          if (url && ic) ic.innerHTML = '<img alt="" src="' + url + '">';
+        }
+        return li;
+      },
+      /* lengkapkan baris teratas yang belum selesai */
+      done(ok = true) {
+        const li = el.querySelector('.orbt:not(.done)');
+        if (!li) return;
+        li.classList.add('done');
+        if (!ok) li.classList.add('failed');
+        // ikon TIDAK ditukar: favicon laman itu yang memberitahu "ini carian
+        // web tadi". Status siap dibawa oleh opacity dan titik sudut, bukan
+        // dengan memadam satu-satunya penanda jenis kerja.
+      },
+      /* isi senarai item: hasil carian, isi folder, fail yang dijumpai */
+      items(list, opts = {}) {
+        const li = el.querySelector('.orbt:not(.done)') || el.firstElementChild;
+        if (!li || !list || !list.length) return;
+        const box2 = li.querySelector('.orbt-items');
+        if (!box2) return;
+        box2.textContent = '';
+        list.slice(0, opts.max || 4).forEach(t => {
+          const row = document.createElement('div');
+          const o = (t && typeof t === 'object') ? t : { text: t, dir: opts.dir };
+          row.className = 'it' + (o.dir ? ' dir' : '');
+          if (o.url) {
+            // favicon sits left of the text so the row reads as a site, not a
+            // bare string. A failed load leaves the dot marker in place.
+            const im = document.createElement('img');
+            im.alt = '';
+            im.src = favicon(o.url);
+            im.onerror = () => im.remove();
+            row.appendChild(im);
+          }
+          row.appendChild(document.createTextNode(o.text));
+          box2.appendChild(row);
+        });
+        if (list.length > (opts.max || 4)) {
+          const more = document.createElement('div');
+          more.className = 'it';
+          more.textContent = '+' + (list.length - (opts.max || 4)) + ' lagi';
+          box2.appendChild(more);
+        }
+      },
+      clear() { el.textContent = ''; mount(); },
+      count() { return el.children.length; }
+    };
+  })();
+
   // ---------- trace under the orb ----------
   let traceEl = null;
   function trace(d) {
@@ -3876,6 +4277,7 @@ footer {
     if (talkMeta) talkMeta.textContent = 'sesi baru';
     liveBubble = null;
     traceEnd();
+    orbTasks.clear();
     window.jarvisState('idle');
   }
 
@@ -3897,7 +4299,13 @@ footer {
     } else if (kind === 'tool') {
       trace(d);
       act('⚙ ' + d.name + (d.detail ? ' · ' + d.detail : ''));
+      // label reads as the work being done, not the API call
+      const lab = TOOL_LABEL[d.name] || 'kerja';
+      orbTasks.upsert(d.name, lab, d.detail || '');
+      if (d.items && d.items.length) orbTasks.items(d.items, { max: 4 });
     } else if (kind === 'result') {
+      if (d.items && d.items.length) orbTasks.items(d.items, { max: 4 });
+      if (!d.more) orbTasks.done(true);
       if (term && d.text) {
         const l = document.createElement('span');
         l.className = 'dim';
@@ -3915,7 +4323,14 @@ footer {
       } else if (d.url) {
         if (window.stageWeb) window.stageWeb.open(d.url);
       } else {
-        sysNote('⌕ ' + (d.query || '') + ' — ' + ((d.links || []).length) + ' sumber');
+        const links = d.links || [];
+        sysNote('⌕ ' + (d.query || '') + ' — ' + links.length + ' sumber');
+        orbTasks.upsert('WebSearch', 'connecting web', d.query || '');
+        orbTasks.items(links.slice(0, 3).map(l => ({
+          text: l.title || (l.url || '').replace(/^https?:\/\//, ''),
+          url: l.url
+        })), { max: 3 });
+        orbTasks.done(true);
       }
     } else if (kind === 'analysis') {
       window.stageAnalysis && window.stageAnalysis(d);
@@ -3956,6 +4371,7 @@ footer {
         sysNote('✕ ' + (d.error || 'gagal') + ' · ' + d.secs + 's', true);
         window.jarvisState('idle');
         act('Gagal.');
+        orbTasks.done(false);
       } else {
         act('Siap · ' + d.secs + 's');
         if (lastReply && shouldSpeak()) speak(lastReply);
@@ -4003,12 +4419,231 @@ footer {
     window.stageShow('comms');
   };
 
-  /* ── settings → surface ── */
-  window.stageSettings = function (s) {
-    if (!s) return;
-    chatModel = s.chat_model || chatModel;
-    if (s.voice) $('railVoice').textContent = (s.voice_provider || 'tts') + ' · ' + s.voice;
-  };
+  /* ── dock: tiga tab, semua boleh klik ──
+     Tile dibina dari apa yang benar-benar ada pada mesin ini (api.dock_map),
+     bukan dari markup statik. Folder dibuka dalam panel fail HUD sendiri;
+     app dilancarkan. Tab DESKTOP ialah isi Desktop sebenar. */
+  const stageDock = (() => {
+    const row = document.getElementById('dockRow');
+    const tabs = Array.from(document.querySelectorAll('.dock-tabs [data-dock]'));
+    if (!row || !tabs.length) return { load(){}, show(){} };
+    let map = null, which = 'desktop';
+    const DOCK_NAME = { desktop: 'DESKTOP', apps: 'APPS', folders: 'FOLDER' };
+
+    const FOLDER = '<svg viewBox="0 0 24 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1.5 3.5h7l2.5 2.5h11.5v13h-21z"/></svg>';
+
+    const hexOf = name => {
+      const w = String(name || '?').trim().split(/\s+/).filter(Boolean);
+      // "VS Code" mesti jadi VS, bukan VC: bila perkataan pertama sudah
+      // singkatan, ia sendiri jawapannya
+      if (w.length > 1) {
+        return (w[0].length <= 2 ? w[0] : w[0][0] + w[1][0]).toUpperCase();
+      }
+      // "VSCode" -> "VS", "Chrome" -> "CH", "7zip" -> "7Z": dua huruf yang
+      // masih bermakna, bukan dua huruf pertama yang selalu terbaca salah
+      const t = w[0] || '?';
+      const cut = t.slice(1).search(/[A-Z0-9]/);
+      return (cut >= 0 ? t[0] + t[cut + 1] : t.slice(0, 2)).toUpperCase();
+    };
+
+    function paint() {
+      if (!map) return;
+      const list = map[which] || [];
+      row.textContent = '';
+      if (!list.length) {
+        const e = document.createElement('span');
+        e.className = 'dock-empty';
+        e.textContent = which === 'desktop' ? 'Desktop kosong' : 'Tiada entri';
+        row.appendChild(e);
+        return;
+      }
+      list.forEach(it => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'tile' + (it.ok === false ? ' nope' : '');
+        b.title = it.path || it.name;
+        const h = document.createElement('span');
+        h.className = 'hex';
+        h.innerHTML = it.dir ? FOLDER : hexOf(it.name);
+        const n = document.createElement('span');
+        n.className = 'n';
+        n.textContent = it.name;
+        b.append(h, n);
+        b.addEventListener('click', () => go(it));
+        row.appendChild(b);
+      });
+    }
+
+    async function go(it) {
+      if (!api || !api.dock_open) return;
+      if (it.ok === false) { sysNote('"' + it.name + '" tak dijumpai pada mesin ini.', true); return; }
+      act('membuka ' + it.name + '…');
+      const r = await api.dock_open(which, it.name);
+      if (r && r.ok && r.folder) {
+        // folder: masuk panel fail HUD, bukan tetingkap Explorer bertimbun
+        window.stageShow && window.stageShow('files');
+        if (window.stageFiles && window.stageFiles.open) window.stageFiles.open(r.folder);
+        else if (window.stageFiles && window.stageFiles.reload) window.stageFiles.reload(r.folder);
+      } else if (r && r.ok) {
+        act('dibuka · ' + it.name);
+      } else {
+        sysNote('✕ ' + ((r && r.msg) || 'gagal membuka') + ' ' + it.name, true);
+      }
+    }
+
+    function tab(name) {
+      which = name;
+      tabs.forEach(t => {
+        const on = t.dataset.dock === name;
+        t.setAttribute('aria-selected', String(on));
+        if (on) {
+          const n = map ? (map[which] || []).length : 0;
+          t.textContent = (DOCK_NAME[name] || name.toUpperCase()) + (n ? ' · ' + n : '');
+        } else {
+          t.textContent = DOCK_NAME[t.dataset.dock] || t.dataset.dock.toUpperCase();
+        }
+      });
+      paint();
+    }
+
+    async function load(force) {
+      if (!api || !api.dock_map) return;
+      if (!map || force) map = await api.dock_map();
+      if (!map || map.ok === false) return;
+      tabs.forEach(t => t.addEventListener('click', () => tab(t.dataset.dock)));
+      tab(which);
+    }
+
+    return { load, show: tab, refresh: () => load(true) };
+  })();
+  window.stageDock = stageDock;
+
+  /* ── settings: isi, simpan, dan tutup ──
+     Butang gear dalam iconbar dulu TIADA handler langsung — ia butang mati.
+     Sheet ini yang menjadikannya hidup. Setiap kawalan menulis terus melalui
+     api.set_setting() dan menandakan "disimpan" di kaki sheet, jadi tiada
+     butang Simpan yang boleh terlupa ditekan. Muat semula membuang perubahan
+     yang belum ditulis — tetapi setiap satu sudah ditulis, jadi ia hanya
+     membaca semula dari cakera. */
+  (() => {
+    const wrap = $('sheetWrap');
+    const saved = $('sheetSaved');
+    const g = id => $(id);
+    const F = {
+      model: g('setModel'), chat: g('setChatModel'), voice: g('setVoice'),
+      voiceEn: g('setVoiceEn'), rate: g('setRate'), pitch: g('setPitch'),
+      speak: g('setSpeak'), lang: g('setLang')
+    };
+    if (!wrap || !F.model) return;
+
+    let full = null;          // jawapan get_settings(), disimpan untuk reset
+    let flashTimer = 0;
+
+    const opt = (sel, val, label) => {
+      const o = document.createElement('option');
+      o.value = val; o.textContent = label;
+      sel.appendChild(o);
+    };
+
+    function fill(s) {
+      if (!s) return;
+      full = s;
+      const keep = (sel, want) => {
+        if ([...sel.options].some(o => o.value === want)) sel.value = want;
+      };
+      F.model.textContent = '';
+      (s.models || []).forEach(m => opt(F.model, m.id, m.label + ' · ' + m.id));
+      keep(F.model, s.model);
+
+      F.chat.textContent = '';
+      (s.chat_models || []).forEach(m => opt(F.chat, m.id, m.label || m.id));
+      keep(F.chat, s.chat_model);
+
+      F.voice.textContent = '';
+      (s.voices || []).forEach(v => opt(F.voice, v.id, v.label || v.name || v.id));
+      keep(F.voice, s.voice);
+
+      F.voiceEn.textContent = '';
+      (s.en_voices || []).forEach(v => opt(F.voiceEn, v.id, v.label || v.name || v.id));
+      keep(F.voiceEn, s.voice_en);
+
+      F.rate.value = s.voice_rate || '+8%';
+      F.pitch.value = s.voice_pitch || '+0Hz';
+      F.speak.checked = s.speak_replies !== false;
+      F.lang.value = s.reply_language || 'ms';
+
+      chatModel = s.chat_model || chatModel;
+      if (s.voice) $('railVoice').textContent = (s.voice_provider || 'tts') + ' · ' + s.voice;
+    }
+
+    function flash(ok, msg) {
+      if (!saved) return;
+      saved.textContent = msg || (ok ? 'disimpan' : 'gagal');
+      saved.style.color = ok ? 'var(--ok)' : 'var(--bad)';
+      saved.classList.add('on');
+      clearTimeout(flashTimer);
+      flashTimer = setTimeout(() => saved.classList.remove('on'), 1400);
+    }
+
+    async function put(key, value) {
+      if (!api || !api.set_setting) { flash(false, 'bridge tiada'); return; }
+      try {
+        const r = await api.set_setting(key, value);
+        flash(!!(r && r.ok), r && r.ok ? 'disimpan' : ((r && r.msg) || 'gagal'));
+        // label suara di rail mesti ikut serta-merta, bukan selepas restart
+        if (r && r.ok && key === 'voice') {
+          $('railVoice').textContent = ((full && full.voice_provider) || 'tts') + ' · ' + value;
+        }
+        if (r && r.ok && key === 'chat_model') chatModel = value;
+      } catch (e) { flash(false, 'ralat: ' + e.message); }
+    }
+
+    if (F.model) F.model.addEventListener('change', () => put('model', F.model.value));
+    if (F.chat) F.chat.addEventListener('change', () => put('chat_model', F.chat.value));
+    if (F.voice) F.voice.addEventListener('change', () => put('voice', F.voice.value));
+    if (F.voiceEn) F.voiceEn.addEventListener('change', () => put('voice_en', F.voiceEn.value));
+    if (F.lang) F.lang.addEventListener('change', () => put('reply_language', F.lang.value));
+    if (F.speak) F.speak.addEventListener('change', () => put('speak_replies', F.speak.checked));
+    // rate/pitch: tulis bila medan kehilangan fokus atau Enter, bukan setiap ketukan
+    const onText = (el, key, re, fallback, hint) => {
+      if (!el) return;
+      const commit = () => {
+        const v = (el.value || '').trim() || fallback;
+        if (!re.test(v)) {
+          // Jangan pulihkan senyap: nilai yang ditolak kekal di medan supaya
+          // Akmal nampak apa yang dia taip, dan mesej memberitahu bentuknya.
+          flash(false, hint);
+          el.classList.add('bad');
+          return;
+        }
+        el.classList.remove('bad');
+        el.value = v;
+        put(key, v);
+      };
+      el.addEventListener('blur', commit);
+      el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
+    };
+    onText(F.rate, 'voice_rate', /^[+-]\d{1,2}%$/, '+8%', 'ikut bentuk +8%');
+    onText(F.pitch, 'voice_pitch', /^[+-]\d{1,2}Hz$/, '+0Hz', 'ikut bentuk +0Hz');
+
+    async function open() {
+      if (!api || !api.get_settings) return;
+      wrap.hidden = false;
+      [F.rate, F.pitch].forEach(el => el && el.classList.remove('bad'));
+      try { fill(await api.get_settings()); } catch (e) { flash(false, 'gagal baca tetapan'); }
+    }
+    const close = () => { wrap.hidden = true; };
+    window.stageOpenSettings = open;
+    window.stageSettings = fill;      // dipanggil semasa boot dengan versi ringkas
+
+    const gear = $('btnSettings');
+    if (gear) gear.addEventListener('click', open);
+    const cl = $('sheetClose'); if (cl) cl.addEventListener('click', close);
+    const dn = $('sheetDone'); if (dn) dn.addEventListener('click', close);
+    const rs = $('sheetReset'); if (rs) rs.addEventListener('click', open);
+    wrap.addEventListener('mousedown', e => { if (e.target === wrap) close(); });
+    addEventListener('keydown', e => { if (e.key === 'Escape' && !wrap.hidden) { e.stopPropagation(); close(); } });
+  })();
 
   /* ── input wiring ── */
   const cmd = $('cmd');
@@ -4070,6 +4705,7 @@ footer {
   async function boot() {
     bridgeUp();
     try { window.stageSettings(await api.get_settings_core()); } catch (e) {}
+    try { await stageDock.load(); } catch (e) {}
     tickStats();
     tickToday();
     if (window.stageMedia) window.stageMedia.refresh();

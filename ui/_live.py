@@ -333,6 +333,53 @@ def _run():
     lst = api.fs_list("")
     note(lst.get("ok"), "fs_list workdir", "%d entri" % len(lst.get("entries", [])))
 
+    # ── tetapan: gear hidup dan setiap kawalan menulis ──
+    note(js("!!document.getElementById('btnSettings')"), "butang tetapan wujud")
+    js("document.getElementById('btnSettings').click()")
+    time.sleep(0.8)
+    note(js("!document.getElementById('sheetWrap').hasAttribute('hidden')"), "sheet tetapan terbuka")
+    nm, nv = js("document.getElementById('setModel').options.length"), js("document.getElementById('setVoice').options.length")
+    note(nm > 0, "senarai model terisi", "%s pilihan" % nm)
+    note(nv > 0, "senarai suara terisi", "%s pilihan" % nv)
+    # tulis melalui API sebenar, bukan melalui UI, supaya tulisan disahkan
+    js("""window.__sv='-';window.pywebview.api.set_setting('voice_rate','8').then(r=>{
+      window.__sv='buruk='+r.ok;return window.pywebview.api.set_setting('voice_rate','+8%');
+    }).then(r=>{window.__sv+=' baik='+r.ok;});""")
+    time.sleep(2.0)
+    note("baik=true" in str(js("window.__sv")), "rate menolak format salah", js("window.__sv"))
+    js("document.getElementById('sheetDone').click()")
+    note(js("document.getElementById('sheetWrap').hasAttribute('hidden')"), "sheet tetapan tertutup")
+
+    # ── orb: tool sebenar sampai ke senarai, dengan nama ──
+    js("document.getElementById('orbTasks').textContent=''")
+    js("document.querySelector('.orb-box').classList.remove('has-tasks')")
+    api.chat_tool_probe("list_folder", "Downloads")
+    time.sleep(1.2)
+    rows = js("document.querySelectorAll('#orbTasks .orbt').length")
+    note(rows > 0, "orb menerima tool sebenar", "%d baris" % rows)
+    items = js("document.querySelectorAll('#orbTasks .it').length")
+    note(items > 0, "orb menyenaraikan nama item", "%d nama" % items)
+    note(js("document.querySelector('.orb-box').classList.contains('has-tasks')"),
+         "orb bergeser bila senarai wujud")
+    note(js("document.querySelectorAll('#orbTasks .orbt.done').length") > 0, "baris ditanda siap")
+    shot("09-orb")
+
+    # ── dock: tiga tab, tile boleh klik ──
+    nt = js("document.querySelectorAll('#dockRow .tile').length")
+    note(nt > 0, "dock ada tile", "%s tile" % nt)
+    js("document.querySelector('.dock-tabs [data-dock=\"apps\"]').click()")
+    time.sleep(0.5)
+    na = js("document.querySelectorAll('#dockRow .tile').length")
+    note(na > 0 and na != nt, "tab APPS bertukar", "%s tile" % na)
+    dm = api.dock_map()
+    note(dm.get("ok") and len(dm.get("folders", [])) > 0, "dock_map folders",
+         "%d folder, %d app" % (len(dm.get("folders", [])), len(dm.get("apps", []))))
+    dl = api.dock_open("folders", "Downloads")
+    note(bool(dl.get("folder")), "dock_open folder hidup", dl.get("folder", ""))
+    note(api.dock_open("apps", "Tiada App Ini").get("ok") is False, "dock_open app palsu ditolak")
+    note(api._safe_path(M.known_folder("Pictures")) is not None, "shortcut folder dalam skop fail")
+    js("document.querySelector('.dock-tabs [data-dock=\"desktop\"]').click()")
+
     shot("08-akhir")
 
 

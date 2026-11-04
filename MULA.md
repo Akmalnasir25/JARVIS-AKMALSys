@@ -18,10 +18,31 @@ tutup dengan butang tetingkap.
 | taip `tutup notepad` | prompt kuning **"⚠ Tutup tetingkap?"** dengan dua butang — tekan **Tak** untuk uji batal |
 | tekan mic, cakap `Hey Akmal` | orb masuk mod listening, kemudian transkrip |
 | taip `apa khabar` | model chat jawab (`rootsys.cloud`, deepseek-v4.1-flash) |
+| taip `senaraikan Downloads` | senarai tugas muncul di **kanan orb**: jenis kerja, subjek, dan nama item |
+| taip `cari harga minyak` | baris **connecting web** dengan favicon laman, tajuk tiga sumber teratas |
+| tekan gear ⚙ di bar atas | sheet **TETAPAN** terbuka — model, suara, rate, pitch, bahasa, baca-balasan |
+| tukar apa-apa dalam TETAPAN | kaki sheet tulis **disimpan**; label suara di rail ikut serta-merta |
+| isi rate `8` (tanpa +%) | medan jadi merah, kaki tulis **ikut bentuk +8%** — nilai tak disimpan |
 
-Nota: `config.json` ada `"reply_language": "en"`, jadi jawapan model keluar dalam
-English. Tukar ke `"ms"` dalam panel Settings kalau nak BM — tukar serta-merta,
-tak perlu restart.
+### Orb bercakap
+
+Orb ada empat keadaan asas: `standby`, `mendengar`, `berfikir`, `bercakap`.
+Di sebelah kanannya, senarai tugas mengalir semasa kerja berjalan:
+
+| jenis | rupa |
+|---|---|
+| `membaca fail` | ikon fail |
+| `menyemak folder` | ikon folder + nama enam entri pertama, `+N lagi` kalau lebih |
+| `connecting web` | favicon laman sebenar, kemudian tajuk tiga sumber teratas |
+| `menjalankan arahan` | ikon kod |
+
+Baris yang siap jadi pudar dengan titik hijau di sudut ikon — favicon kekal,
+supaya Akmal masih nampak "ini carian web tadi". Bila ada senarai, orb bergeser
+72px ke kiri supaya dua-dua dapat ruang.
+
+Nota: `config.json` ada `"reply_language"`, `"speak_replies"`, `"voice"`,
+`"voice_rate"` dan `"voice_pitch"`. Semua boleh ditukar dari sheet TETAPAN —
+tukar serta-merta, tak perlu restart.
 
 ---
 
@@ -50,6 +71,16 @@ Contoh: `senaraikan fail dalam Downloads dan cari yang lebih 50 MB`.
 
 Panel kiri folder, kanan pratonton. Fail teks boleh dibuka terus;
 butang **Edit** hantar ke editor.
+
+---
+
+### Dock bawah
+
+Tiga tab: **DESKTOP · N**, **APPS**, **FOLDER**. Tile dibina dari apa yang
+benar-benar ada pada mesin ini, bukan markup tetap — Desktop sebenar, 13 app
+dari `shortcuts.json`, 7 folder. Klik folder → masuk panel **FAIL** HUD sendiri,
+bukan tetingkap Explorer bertimbun. Klik app → dilancarkan. Tile yang sasarannya
+tiada pada mesin ini kelihatan pudar dan berkata begitu bila diklik.
 
 ---
 

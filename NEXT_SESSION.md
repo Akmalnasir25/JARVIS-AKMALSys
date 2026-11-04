@@ -506,6 +506,29 @@ WebView2 dan CSS tak boleh menutupnya. Perincian penuh di bahagian APP di atas.
   dan proses tak pernah sampai ke penulisan akhir — versi pertama kehilangan semua
   keputusan sementara lapan PNG terselamat.
 
+- **`#orbTasks` mesti duduk DALAM `.orb-box`, bukan di bawahnya.** Percubaan pertama
+  menambat kad ke dasar kotak 250px dan ia menutup sfera. Penyelesaian: senarai
+  mengalir ke kanan (`left: calc(50% + 108px)`), dan `.orb-box.has-tasks #orb`
+  menggeser orb 72px ke kiri supaya dua-dua dapat ruang.
+- **`done()` tidak boleh menukar favicon jadi tanda semak.** Ikon itu satu-satunya
+  penanda jenis kerja — kalau dipadam, baris "connecting web" jadi baris pudar
+  tanpa makna. Status siap dibawa opacity + titik sudut CSS (`.orbt.done .orb-ico::after`).
+- **`const` peringkat atas dalam `<script>` TIDAK boleh dilihat dari `window.onClaude`.**
+  `TOOL_LABEL` yang ditulis sebelum `const orbTasks` tetapi selepas IIFE lain
+  menghasilkan `ReferenceError: TOOL_LABEL is not defined` hanya apabila tool betul-betul
+  dipanggil. Ujian sentuhan DOM tidak menangkapnya — suapkan `window.onClaude('tool', …)`
+  dalam harness, itu satu-satunya cara.
+- **`js()` dalam `_live.py` tidak menunggu promise.** `evaluate_js` pulang nilai
+  segerak; rantaian `.then()` perlu menulis hasil ke `window.__x` dulu, kemudian
+  `time.sleep()` dan baca semula. Versi pertama pulang `{}` / `None` dan kelihatan
+  seperti API rosak.
+- **`_safe_path` dulu menolak folder shortcut.** Klik `Pictures` pada dock memaparkan
+  "Folder luar kawasan kerja" kerana akar hanya workdir/ROOT/Desktop/Documents/Downloads.
+  Sekarang `shortcuts.json` `folders` masuk senarai akar juga.
+- **Ujian tetapan menulis ke `config.json` sebenar.** `_live.py` menulis
+  `voice_rate` dan `reply_language`; kalau nilai asal berbeza, `git status` akan
+  menunjukkannya. Semak `git diff config.json` selepas setiap larian hidup.
+
 ---
 
 ## Status git
