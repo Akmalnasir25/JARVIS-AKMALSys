@@ -1,0 +1,1668 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Jarvis</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: perspective stage; telemetry glass on the left, comms glass on the right, holo-orb centre, dock + command capsule below */
+:root {
+  --bg: #02060b;
+  --glass: rgba(6, 26, 40, 0.42);
+  --line: rgba(0, 216, 255, 0.26);
+  --line-soft: rgba(0, 216, 255, 0.12);
+  --cyan: #00d8ff;
+  --cyan-2: #5ff3ff;
+  --text: #d4f4ff;
+  --muted: #6c93a3;
+  --amber: #ffb340;
+  --violet: #9d8cff;
+  --ok: #3ee8a0;
+  --bad: #ff5a6e;
+  --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-mono); font-size: 13px; user-select: none; }
+#bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+.floor { position: fixed; left: -50%; right: -50%; bottom: -10%; height: 55%; z-index: 0; pointer-events: none;
+  background-image: linear-gradient(var(--line-soft) 1px, transparent 1px), linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+  background-size: 60px 60px; transform: perspective(500px) rotateX(72deg); transform-origin: bottom;
+  -webkit-mask-image: linear-gradient(to top, #000 10%, transparent 85%); mask-image: linear-gradient(to top, #000 10%, transparent 85%);
+  animation: floor 4s linear infinite; }
+@keyframes floor { to { background-position: 0 60px, 0 0; } }
+.vignette { position: fixed; inset: 0; z-index: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, transparent 40%, rgba(0,0,0,.65) 100%); }
+body::after { content: ""; position: fixed; inset: 0; z-index: 50; pointer-events: none; background: repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.16) 2px 3px); opacity: .4; }
+
+.hud { position: relative; z-index: 1; height: 100%; display: grid; grid-template-columns: 220px minmax(0, 1fr) 410px; grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "top top top" "left core right" "bottom bottom bottom"; gap: 14px 22px; padding: 14px 22px 16px; perspective: 1600px; }
+
+/* ---------- Header ---------- */
+header { grid-area: top; display: flex; align-items: center; gap: 18px; padding-bottom: 10px; position: relative; }
+header::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--cyan) 20%, var(--cyan) 80%, transparent); opacity: .45; }
+.brand { font-family: var(--font-display); font-weight: 700; font-size: 21px; letter-spacing: .42em; color: var(--cyan); text-shadow: 0 0 14px rgba(0,216,255,.7); }
+.brand small { display: block; font-size: 9.5px; letter-spacing: .28em; color: var(--muted); font-weight: 500; text-shadow: none; margin-top: 2px; }
+.spacer { flex: 1; }
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border: 1px solid var(--line); font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; background: rgba(0,216,255,.04); white-space: nowrap; }
+.chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.chip .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.chip .dot.off { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+.clock { text-align: right; font-variant-numeric: tabular-nums; }
+.clock .t { font-family: var(--font-display); font-size: 26px; font-weight: 500; color: var(--cyan); letter-spacing: .08em; line-height: 1; }
+.clock .t small { font-size: 14px; color: var(--muted); }
+.clock .d { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .14em; margin-top: 4px; }
+.winbtns { display: flex; gap: 6px; }
+.winbtns button { width: 32px; height: 28px; padding: 0; font-size: 13px; background: transparent; color: var(--cyan); border: 1px solid var(--line); }
+.winbtns button:hover { background: rgba(0,216,255,.12); }
+.winbtns button svg { width: 15px; height: 15px; vertical-align: middle; }
+.winbtns button.pw { color: var(--amber); border-color: rgba(255,179,64,.35); }
+.winbtns button.pw:hover { background: var(--amber); color: var(--bg); box-shadow: 0 0 14px var(--amber); }
+.powerbox { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; background: rgba(1,4,8,.72); backdrop-filter: blur(6px); }
+.pcard { width: min(420px, 92vw); text-align: center; padding: 28px 26px 22px; background: rgba(6,20,30,.95); border: 1px solid rgba(255,90,110,.45); box-shadow: 0 0 40px rgba(255,90,110,.2); }
+.picon { width: 46px; height: 46px; color: var(--bad); filter: drop-shadow(0 0 10px var(--bad)); }
+.pcard h3 { margin: 12px 0 6px; font-family: var(--font-display); font-size: 18px; letter-spacing: .12em; text-transform: uppercase; color: var(--text); }
+.pcard p { margin: 0 0 20px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.pcard p b { color: var(--bad); font-size: 28px; font-family: var(--font-display); display: block; margin-top: 6px; }
+.pbtns { display: flex; gap: 8px; justify-content: center; }
+.pbtns button { padding: 10px 16px; font-size: 11px; }
+.ghostbtn { background: transparent; color: var(--cyan); border: 1px solid var(--line); }
+.ghostbtn:hover { background: rgba(0,216,255,.1); }
+.dangerbtn { background: var(--bad); color: #fff; border: 0; }
+.dangerbtn:hover { box-shadow: 0 0 18px var(--bad); }
+.winbtns button.x:hover { background: var(--bad); color: var(--bg); box-shadow: 0 0 14px var(--bad); }
+
+/* ---------- Glass panels ---------- */
+aside { display: flex; flex-direction: column; gap: 14px; min-width: 0; min-height: 0; transform-style: preserve-3d; }
+.left { grid-area: left; transform: rotateY(9deg); transform-origin: left center; }
+.right { grid-area: right; transform: rotateY(-9deg); transform-origin: right center; }
+.glass { position: relative; background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line-soft); padding: 14px 16px;
+  box-shadow: inset 0 0 40px rgba(0,216,255,.04), 0 0 30px rgba(0,0,0,.4); }
+.glass::before { content: ""; position: absolute; inset: -1px; pointer-events: none;
+  background: linear-gradient(var(--cyan), var(--cyan)) left top / 14px 2px, linear-gradient(var(--cyan), var(--cyan)) left top / 2px 14px,
+              linear-gradient(var(--cyan), var(--cyan)) right top / 14px 2px, linear-gradient(var(--cyan), var(--cyan)) right top / 2px 14px,
+              linear-gradient(var(--cyan), var(--cyan)) left bottom / 14px 2px, linear-gradient(var(--cyan), var(--cyan)) left bottom / 2px 14px,
+              linear-gradient(var(--cyan), var(--cyan)) right bottom / 14px 2px, linear-gradient(var(--cyan), var(--cyan)) right bottom / 2px 14px;
+  background-repeat: no-repeat; filter: drop-shadow(0 0 4px var(--cyan)); }
+.glass h2 { margin: 0 0 12px; font-family: var(--font-display); font-size: 10.5px; font-weight: 600; letter-spacing: .3em; text-transform: uppercase; color: var(--cyan); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.glass h2 .sub { color: var(--muted); font-weight: 400; letter-spacing: .12em; font-family: var(--font-mono); font-size: 10px; }
+
+.gauges { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 8px; }
+.gauge { position: relative; display: grid; place-items: center; }
+.left { gap: 10px; }
+.left .glass { padding: 10px 12px; }
+.left .glass h2 { margin-bottom: 8px; font-size: 9.5px; }
+.gauges { gap: 6px 4px; }
+.gauge svg { width: 64px; height: 64px; transform: rotate(-90deg); overflow: visible; }
+.gauge .track { fill: none; stroke: rgba(0,216,255,.1); stroke-width: 6; }
+.gauge .ticks { fill: none; stroke: rgba(0,216,255,.35); stroke-width: 2; stroke-dasharray: 1 4.236; }
+.gauge .val { fill: none; stroke: var(--cyan); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 0 100; transition: stroke-dasharray .9s cubic-bezier(.2,.8,.2,1), stroke .3s; filter: drop-shadow(0 0 5px var(--cyan)); }
+.gauge.hot .val { stroke: var(--bad); filter: drop-shadow(0 0 6px var(--bad)); }
+.gauge .lbl { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.gauge .lbl b { font-family: var(--font-display); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.gauge .lbl b small { font-size: 8.5px; color: var(--muted); }
+.gauge .lbl span { font-size: 7.5px; letter-spacing: .18em; color: var(--muted); }
+#spark { width: 100%; height: 30px; display: block; margin-bottom: 4px; }
+.kv { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dashed var(--line-soft); font-variant-numeric: tabular-nums; font-size: 10.5px; }
+.kv:last-child { border-bottom: 0; }
+.kv span:first-child { color: var(--muted); }
+
+/* ---------- Comms ---------- */
+.comms { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.glass.comms { background: transparent; border: 0; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; padding: 4px 2px 0; }
+.glass.comms::before { display: none; }
+.glass.comms h2 { padding-bottom: 8px; border-bottom: 1px solid var(--line-soft); }
+.comms h2 button { font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; text-transform: none; background: none; border: 1px solid var(--line-soft); color: var(--muted); padding: 3px 8px; }
+.comms h2 button:hover { color: var(--cyan); border-color: var(--line); }
+.projbar { position: relative; display: flex; gap: 6px; margin-bottom: 12px; align-items: stretch; }
+.proj { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 7px 10px; background: rgba(0,216,255,.05); border: 1px solid var(--line-soft); color: var(--muted); font-family: var(--font-display); font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; text-align: left; }
+.proj svg { width: 15px; height: 14px; flex: 0 0 auto; }
+.proj span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proj b { font-weight: 400; }
+.proj.on { color: var(--ok); border-color: rgba(62,232,160,.45); background: rgba(62,232,160,.07); box-shadow: 0 0 12px rgba(62,232,160,.15); }
+.pbtn { font-family: var(--font-mono); font-size: 10px; letter-spacing: .02em; text-transform: none; background: none; border: 1px solid var(--line-soft); color: var(--muted); padding: 0 8px; white-space: nowrap; }
+.pbtn:hover, .proj:hover { color: var(--cyan); border-color: var(--line); }
+.projlist { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0; background: rgba(3,14,22,.97); border: 1px solid var(--line); box-shadow: 0 10px 40px rgba(0,0,0,.6), 0 0 20px rgba(0,216,255,.15); padding: 8px; }
+.projlist input { width: 100%; background: rgba(0,216,255,.05); border: 1px solid var(--line-soft); color: var(--text); font: inherit; padding: 7px 9px; outline: none; margin-bottom: 6px; user-select: text; }
+.projlist input:focus { border-color: var(--cyan); }
+.plist { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; }
+.plist button { display: flex; justify-content: space-between; gap: 8px; text-align: left; background: none; border: 0; color: var(--text); font-family: var(--font-mono); font-size: 12px; letter-spacing: 0; text-transform: none; padding: 6px 8px; cursor: pointer; }
+.plist button:hover, .plist button:focus-visible { background: rgba(0,216,255,.1); color: var(--cyan); }
+.plist button small { color: var(--muted); font-size: 10px; }
+.plist button small.saved { color: var(--ok); }
+.plist .none { color: var(--muted); font-style: italic; }
+
+/* ---------- Panel analisis ---------- */
+.analysis { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+.analysis h2 button { font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; text-transform: none; background: none; border: 1px solid var(--line-soft); color: var(--muted); padding: 3px 8px; }
+.analysis h2 button:hover { color: var(--cyan); border-color: var(--line); }
+.ana-title { font-family: var(--font-display); font-size: 17px; font-weight: 600; letter-spacing: .04em; color: var(--text); line-height: 1.3; }
+.ana-sum { font-size: 11.5px; color: var(--muted); line-height: 1.5; margin-top: 2px; }
+.ana-narr { position: relative; padding: 10px 12px 10px 14px; border-left: 2px solid var(--amber); background: rgba(255,179,64,.06); font-family: var(--font-display); font-size: 14px; line-height: 1.5; min-height: 3.4em; color: #ffe8c4; }
+.ana-steps { display: flex; gap: 5px; margin-top: -4px; }
+.ana-steps i { width: 18px; height: 3px; background: rgba(255,179,64,.2); transition: background .3s; }
+.ana-steps i.on { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+.ana-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.acard { position: relative; padding: 4px 2px 12px; opacity: .08; transform: translateY(16px) scale(.92); filter: blur(4px);
+  transition: opacity .6s ease, transform .7s cubic-bezier(.2,.9,.25,1.2), filter .6s ease; }
+.acard.shown { opacity: 1; transform: none; filter: none; }
+.acard::after { content: ""; position: absolute; left: 2px; bottom: 4px; height: 2px; width: 0; background: linear-gradient(90deg, var(--cyan), transparent);
+  box-shadow: 0 0 10px var(--cyan); transition: width 1s cubic-bezier(.2,.8,.2,1) .15s; }
+.acard.shown::after { width: 92%; }
+.acard span { display: block; font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+.acard b { display: block; margin-top: 2px; font-family: var(--font-display); font-size: 30px; font-weight: 600; color: var(--cyan); font-variant-numeric: tabular-nums;
+  line-height: 1.1; overflow-wrap: anywhere; text-shadow: 0 0 18px rgba(0,216,255,.55); transition: color .3s, text-shadow .3s; }
+.acard small { display: block; margin-top: 3px; font-size: 10.5px; color: var(--muted); line-height: 1.4; }
+.acard.focus b { color: var(--amber); text-shadow: 0 0 22px rgba(255,179,64,.75); }
+.acard.focus::after { background: linear-gradient(90deg, var(--amber), transparent); box-shadow: 0 0 12px var(--amber); }
+.acard.focus span { color: var(--amber); }
+.achart { padding: 4px 0; opacity: .08; transform: translateX(18px); transition: opacity .5s ease, transform .6s cubic-bezier(.2,.8,.2,1); }
+.achart.shown { opacity: 1; transform: none; }
+.achart h4 { margin: 0 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line-soft); font-family: var(--font-display); font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--cyan); }
+.arow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto; gap: 8px; align-items: center; padding: 5px 4px; font-size: 11.5px;
+  opacity: 0; transform: translateX(-10px); transition: opacity .4s ease, transform .5s ease, background .3s; }
+.arow.shown { opacity: 1; transform: none; }
+.arow .al { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arow .ab { height: 7px; background: rgba(0,216,255,.08); position: relative; overflow: hidden; }
+.arow .ab i { position: absolute; inset: 0 auto 0 0; width: 0; background: linear-gradient(90deg, var(--cyan-dim), var(--cyan)); box-shadow: 0 0 8px var(--cyan); transition: width 1.1s cubic-bezier(.2,.8,.2,1); }
+.arow .ab i::after { content: ""; position: absolute; right: 0; top: -2px; bottom: -2px; width: 3px; background: #fff; box-shadow: 0 0 8px #fff; opacity: .8; }
+.arow .av { font-variant-numeric: tabular-nums; color: var(--text); text-align: right; }
+.achart.focus h4 { color: var(--amber); border-bottom-color: var(--amber); }
+.arow.focus { background: linear-gradient(90deg, rgba(255,179,64,.16), transparent); box-shadow: inset 2px 0 0 var(--amber); }
+.arow.focus .ab i { background: linear-gradient(90deg, #c97a10, var(--amber)); box-shadow: 0 0 10px var(--amber); }
+.arow.focus .av { color: var(--amber); }
+.ana-follow { display: flex; flex-wrap: wrap; gap: 6px; }
+.ana-follow button { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0; text-transform: none; background: transparent; color: var(--cyan); border: 1px dashed var(--line); padding: 5px 9px; text-align: left; }
+.ana-follow button:hover { border-style: solid; background: rgba(0,216,255,.08); }
+
+/* ---------- Settings ---------- */
+.setcard { width: min(560px, 94vw); max-height: 88vh; overflow-y: auto; padding: 22px 24px; background: rgba(6,20,30,.97); border: 1px solid var(--line); box-shadow: 0 0 40px rgba(0,216,255,.18); }
+.setcard h3 { margin: 0 0 4px; font-family: var(--font-display); font-size: 16px; letter-spacing: .25em; color: var(--cyan); }
+.setcard h4 { margin: 18px 0 8px; font-family: var(--font-display); font-size: 10.5px; letter-spacing: .25em; text-transform: uppercase; color: var(--muted); }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.opt { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 9px 11px; background: rgba(0,216,255,.04); border: 1px solid var(--line-soft); color: var(--text); font-family: var(--font-mono); font-size: 12px; letter-spacing: 0; text-transform: none; cursor: pointer; }
+.opt b { font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: .06em; }
+.opt small { color: var(--muted); font-size: 10.5px; }
+.opt[aria-pressed="true"] { border-color: var(--cyan); background: rgba(0,216,255,.12); box-shadow: 0 0 14px rgba(0,216,255,.25); }
+.opt[aria-pressed="true"] b { color: var(--cyan); }
+.vlist { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.vrow { display: flex; gap: 4px; }
+.vrow .opt { flex: 1; min-width: 0; }
+.vrow .play { width: 34px; flex: 0 0 auto; padding: 0; background: transparent; color: var(--cyan); border: 1px solid var(--line-soft); font-size: 12px; }
+.vrow .play:hover { background: rgba(0,216,255,.12); }
+.sl { display: grid; grid-template-columns: 70px 1fr 60px; gap: 10px; align-items: center; font-size: 11.5px; color: var(--muted); margin-bottom: 6px; }
+.sl input { accent-color: var(--cyan); }
+.sl output { color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.fxrow { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text); cursor: pointer; }
+.fxrow input { width: 18px; height: 18px; accent-color: var(--cyan); }
+.fxrow small { color: var(--muted); }
+.selbox { width: 100%; padding: 9px 10px; background: rgba(0,216,255,.05); color: var(--text); border: 1px solid var(--line-soft); font-family: var(--font-mono); font-size: 12.5px; outline: none; }
+.selbox:focus { border-color: var(--cyan); }
+.selbox option, .selbox optgroup { background: #06141e; color: var(--text); }
+.setfoot { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; gap: 10px; }
+.setfoot small { color: var(--muted); font-size: 10.5px; }
+.winbtns button.gear { color: var(--cyan); }
+.feed { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 6px; user-select: text; }
+.feed::-webkit-scrollbar, .dock-row::-webkit-scrollbar { width: 5px; height: 5px; } .feed::-webkit-scrollbar-thumb, .dock-row::-webkit-scrollbar-thumb { background: var(--line); }
+.msg { display: flex; flex-direction: column; gap: 3px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,216,255,.07); animation: msgIn .35s ease both; }
+@keyframes msgIn { from { opacity: 0; transform: translateY(6px); } }
+.msg .who { font-family: var(--font-display); font-size: 9.5px; letter-spacing: .28em; text-transform: uppercase; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.msg .who i { font-style: normal; letter-spacing: .1em; padding: 1px 6px; border: 1px solid currentColor; font-size: 8.5px; }
+.msg.user { align-items: flex-end; }
+.msg.user .body { color: #ffd9a0; text-align: right; }
+.msg.user .who { color: var(--amber); }
+.msg.ai .who { color: var(--cyan); }
+.msg.ai .who i.ds { color: var(--violet); }
+.msg .body { width: 100%; padding: 2px 0 0; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.msg .body p { margin: 0 0 6px; } .msg .body p:last-child { margin: 0; }
+.msg .body ul, .msg .body ol { margin: 4px 0 6px; padding-left: 18px; }
+.msg .body code { background: rgba(0,216,255,.1); padding: 0 4px; color: var(--cyan-2); }
+.msg .body pre { background: rgba(0,0,0,.35); border: 1px solid var(--line-soft); padding: 8px; overflow-x: auto; margin: 6px 0; }
+.msg .body pre code { background: none; padding: 0; color: var(--text); }
+.msg .body strong { color: #fff; }
+/* jawapan muncul sebagai motion graphic */
+.msg.ai .body { position: relative; }
+.msg.ai .body .w { display: inline-block; animation: wIn .5s cubic-bezier(.2,.8,.2,1) both; }
+.msg.ai .body .w.num { color: var(--cyan); font-weight: 600; text-shadow: 0 0 10px rgba(0,216,255,.55); font-variant-numeric: tabular-nums; }
+@keyframes wIn { from { opacity: 0; transform: translateY(7px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+.msg.ai .body.reveal::after { content: ''; position: absolute; left: -4px; right: -4px; height: 2px; top: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent); box-shadow: 0 0 12px var(--cyan); animation: scanDown var(--scan, 1.6s) ease-in forwards; }
+@keyframes scanDown { 0% { top: 0; opacity: 1; } 90% { opacity: .9; } 100% { top: 100%; opacity: 0; } }
+.msg.ai .who { animation: whoIn .5s ease both; }
+@keyframes whoIn { from { letter-spacing: .6em; opacity: 0; } to { opacity: 1; } }
+.tool { font-size: 11px; color: var(--muted); display: flex; gap: 8px; padding-left: 4px; border-left: 2px solid var(--line); animation: msgIn .3s ease both; overflow: hidden; }
+.tool b { color: var(--cyan); font-weight: 600; white-space: nowrap; }
+.tool span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sys { font-size: 10.5px; color: var(--muted); text-align: center; letter-spacing: .08em; }
+.sys.err { color: var(--bad); }
+.empty { margin: auto; text-align: center; color: var(--muted); font-size: 11.5px; line-height: 1.7; }
+.empty b { color: var(--cyan); font-weight: 600; }
+
+/* ---------- Core ---------- */
+.core { grid-area: core; position: relative; min-width: 0; min-height: 0; }
+#orb { position: absolute; inset: 0; width: 100%; height: 100%; }
+.status { position: absolute; left: 50%; bottom: 3%; transform: translateX(-50%); text-align: center; width: min(640px, 96%); pointer-events: none; }
+.status .state { font-family: var(--font-display); font-size: 12px; font-weight: 600; letter-spacing: .6em; color: var(--cyan); text-shadow: 0 0 10px var(--cyan); text-transform: uppercase; }
+.status .state.thinking { color: var(--amber); text-shadow: 0 0 10px var(--amber); }
+.status .act { margin-top: 6px; font-size: 11px; color: var(--muted); min-height: 1.4em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ---------- Bottom ---------- */
+footer { grid-area: bottom; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 18px; align-items: end; }
+.dock { min-width: 0; }
+.tabs { display: flex; gap: 2px; margin-bottom: 8px; align-items: center; }
+.tabs button { font-family: var(--font-display); font-size: 10px; font-weight: 600; letter-spacing: .25em; background: transparent; color: var(--muted); border: 0; border-bottom: 2px solid transparent; padding: 4px 10px; }
+.tabs button[aria-selected="true"] { color: var(--cyan); border-bottom-color: var(--cyan); text-shadow: 0 0 8px var(--cyan); }
+.tabs .tl { margin-left: auto; font-family: var(--font-mono); font-size: 10px; letter-spacing: .05em; text-transform: none; font-weight: 400; }
+.tabs .tl:hover { color: var(--cyan); }
+.dock-row { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 8px; }
+.tile { flex: 0 0 auto; width: 74px; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; background: none; border: 0; color: var(--text); font: inherit; font-size: 10.5px; text-transform: none; letter-spacing: .02em; cursor: pointer; }
+.hex { width: 50px; height: 56px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: linear-gradient(160deg, rgba(0,216,255,.35), rgba(0,216,255,.06)); display: grid; place-items: center; position: relative; transition: transform .2s, background .2s; }
+.hex::before { content: ""; position: absolute; inset: 1.5px; clip-path: inherit; background: rgba(4,18,28,.92); }
+.hex > * { position: relative; }
+.hex em { font-style: normal; font-family: var(--font-display); font-weight: 700; font-size: 14px; color: var(--cyan); letter-spacing: .04em; }
+.hex em.ext { font-size: 10.5px; color: var(--amber); letter-spacing: .08em; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand img { height: 34px; filter: drop-shadow(0 0 8px rgba(0,216,255,.6)); }
+.hex svg { width: 24px; height: 22px; color: var(--cyan); }
+.tile .n { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); transition: color .2s; }
+.tile:hover .hex, .tile:focus-visible .hex { transform: translateY(-4px) scale(1.06); background: linear-gradient(160deg, var(--cyan), rgba(0,216,255,.25)); filter: drop-shadow(0 0 10px rgba(0,216,255,.6)); }
+.tile:hover .n { color: var(--text); }
+.tile.missing { opacity: .35; cursor: not-allowed; }
+.tile.flash .hex { animation: hexflash .7s ease; }
+@keyframes hexflash { 0% { background: #fff; } 100% { } }
+
+.capsule { position: relative; display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 8px; border: 1px solid var(--line); background: rgba(3,16,26,.75); backdrop-filter: blur(8px); border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(0,216,255,.05), 0 0 30px rgba(0,216,255,.12); transition: box-shadow .2s, border-color .2s; }
+.capsule:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan), 0 0 36px rgba(0,216,255,.35); }
+.engines { display: flex; background: rgba(0,216,255,.06); border-radius: 999px; padding: 3px; flex: 0 0 auto; }
+.engines button { font-family: var(--font-display); font-size: 9.5px; font-weight: 600; letter-spacing: .16em; border: 0; background: transparent; color: var(--muted); padding: 6px 10px; border-radius: 999px; cursor: pointer; }
+.engines button[aria-pressed="true"] { background: var(--cyan); color: var(--bg); box-shadow: 0 0 12px rgba(0,216,255,.6); }
+.engines button[data-e="chat"][aria-pressed="true"] { background: var(--violet); box-shadow: 0 0 12px rgba(157,140,255,.6); }
+#cmd { flex: 1; min-width: 0; background: transparent; border: 0; color: var(--text); font: inherit; font-size: 14px; padding: 9px 6px; outline: none; user-select: text; }
+#cmd::placeholder { color: var(--muted); }
+.round { flex: 0 0 auto; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--cyan); display: grid; place-items: center; cursor: pointer; padding: 0; }
+.round svg { width: 17px; height: 17px; }
+.round[aria-pressed="true"] { background: rgba(0,216,255,.15); border-color: var(--cyan); box-shadow: 0 0 12px rgba(0,216,255,.4); }
+.round.send { background: var(--cyan); color: var(--bg); border-color: var(--cyan); }
+.round.send:hover { box-shadow: 0 0 18px var(--cyan); }
+.round.send.busy { background: var(--bad); border-color: var(--bad); }
+button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.hint { margin-top: 7px; color: var(--muted); font-size: 10px; letter-spacing: .05em; text-align: center; }
+.hint kbd { font-family: inherit; color: var(--cyan); border: 1px solid var(--line-soft); padding: 0 4px; }
+
+/* ---------- Boot ---------- */
+#boot { position: fixed; inset: 0; z-index: 40; background: var(--bg); display: grid; place-items: center; transition: opacity .7s ease .1s; }
+#boot.done { opacity: 0; pointer-events: none; }
+#boot pre { margin: 0; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.9; color: var(--cyan); text-shadow: 0 0 8px rgba(0,216,255,.6); min-width: 420px; }
+#boot pre .ok { color: var(--ok); }
+.hud > * { transition: opacity .8s ease, transform .8s cubic-bezier(.2,.8,.2,1); }
+body.booting .hud > header { opacity: 0; transform: translateY(-14px); }
+body.booting .hud > .left { opacity: 0; transform: rotateY(40deg) translateX(-40px); }
+body.booting .hud > .right { opacity: 0; transform: rotateY(-40deg) translateX(40px); }
+body.booting .hud > footer { opacity: 0; transform: translateY(20px); }
+body.booting .hud > .core { opacity: 0; transform: scale(.85); }
+
+@media (max-width: 1280px) { .hud { grid-template-columns: 200px minmax(0, 1fr) 360px; gap: 12px 16px; } .gauge svg { width: 58px; height: 58px; } }
+.round.mic.live { background: rgba(62,232,160,.18); border-color: var(--ok); color: var(--ok); box-shadow: 0 0 0 0 rgba(62,232,160,.6); animation: micPulse 1.2s ease-out infinite; }
+@keyframes micPulse { to { box-shadow: 0 0 0 14px rgba(62,232,160,0); } }
+.status .state.listening { color: var(--ok); text-shadow: 0 0 10px var(--ok); }
+@media (prefers-reduced-motion: reduce) { .floor, .msg, .tool { animation: none; } .hud > * { transition: none; } }
+
+/* ================= Lapisan "eye-catching" ================= */
+:root { --pink: #ff3d9a; --grad: linear-gradient(135deg, #00e5ff 0%, #7c4dff 55%, #ff3d9a 100%); }
+@property --spin { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+/* latar nebula bergerak */
+.nebula { position: fixed; inset: -20%; z-index: 0; pointer-events: none; filter: blur(60px); opacity: .55;
+  background: radial-gradient(28% 32% at 22% 30%, rgba(0,229,255,.28), transparent 70%),
+              radial-gradient(30% 34% at 78% 24%, rgba(124,77,255,.30), transparent 70%),
+              radial-gradient(26% 30% at 62% 82%, rgba(255,61,154,.20), transparent 70%),
+              radial-gradient(22% 26% at 30% 85%, rgba(0,229,255,.16), transparent 70%);
+  animation: nebula 38s ease-in-out infinite alternate; }
+@keyframes nebula { 0% { transform: translate(0,0) rotate(0deg) scale(1); } 50% { transform: translate(3%,-2%) rotate(8deg) scale(1.08); } 100% { transform: translate(-3%,3%) rotate(-6deg) scale(1.02); } }
+/* halo pelangi di belakang sfera */
+.core::before { content: ""; position: absolute; left: 50%; top: 46%; width: min(62vh, 70%); aspect-ratio: 1; transform: translate(-50%,-50%); border-radius: 50%; pointer-events: none;
+  background: conic-gradient(from var(--spin), rgba(0,229,255,.0), rgba(0,229,255,.35), rgba(124,77,255,.4), rgba(255,61,154,.3), rgba(0,229,255,.0));
+  filter: blur(46px); opacity: .55; animation: spin 14s linear infinite; }
+@keyframes spin { to { --spin: 360deg; } }
+/* jenama berkilau */
+.brand > div { background: linear-gradient(90deg, #00e5ff, #8f7bff, #ff5fae, #00e5ff); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text;
+  color: transparent; animation: shimmer 8s linear infinite; text-shadow: none; filter: drop-shadow(0 0 10px rgba(0,229,255,.45)); }
+.brand > div small { -webkit-text-fill-color: var(--muted); }
+@keyframes shimmer { to { background-position: 300% 0; } }
+.clock .t { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 0 10px rgba(124,77,255,.5)); }
+/* bingkai bercahaya berputar: panel telemetri, kotak arahan */
+.left .glass, .capsule { border-color: transparent; }
+.left .glass::after, .capsule::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1.5px; pointer-events: none;
+  background: conic-gradient(from var(--spin), transparent 0deg, #00e5ff 60deg, #7c4dff 120deg, #ff3d9a 170deg, transparent 230deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: spin 6s linear infinite; }
+.capsule { box-shadow: 0 0 40px rgba(124,77,255,.25), 0 0 80px rgba(0,229,255,.12); }
+.round.send { background: var(--grad); border: 0; }
+.engines button[aria-pressed="true"] { background: var(--grad); color: #fff; }
+/* gauge berwarna gradient */
+.gauge .val { stroke: url(#gGrad); }
+/* dock heksagon berwarna */
+.hex { background: var(--grad); }
+.hex::before { background: rgba(5,12,24,.9); }
+.tile:nth-child(3n+2) .hex { background: linear-gradient(135deg, #7c4dff, #ff3d9a); }
+.tile:nth-child(3n) .hex { background: linear-gradient(135deg, #00e5ff, #3ee8a0); }
+.tile:hover .hex { background: var(--grad); filter: drop-shadow(0 0 14px rgba(255,61,154,.6)); }
+.tabs button[aria-selected="true"] { border-image: var(--grad) 1; }
+/* chip header */
+.chip { background: linear-gradient(135deg, rgba(0,229,255,.08), rgba(124,77,255,.08)); border-color: rgba(124,77,255,.35); }
+/* widget "Hari ini" dalam panel kanan */
+.today { margin: auto 0; display: flex; flex-direction: column; gap: 16px; padding: 6px 4px; }
+.today .wx { display: flex; align-items: center; gap: 16px; }
+.today .wx .ico { font-size: 46px; filter: drop-shadow(0 0 14px rgba(0,229,255,.6)); animation: floaty 5s ease-in-out infinite; }
+@keyframes floaty { 50% { transform: translateY(-6px); } }
+.today .wx b { font-family: var(--font-display); font-size: 44px; font-weight: 600; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; line-height: 1; }
+.today .wx span { display: block; color: var(--muted); font-size: 11.5px; letter-spacing: .08em; margin-top: 4px; }
+.today .pr { display: flex; align-items: center; gap: 14px; }
+.today .pr svg { width: 62px; height: 62px; transform: rotate(-90deg); }
+.today .pr .trk { fill: none; stroke: rgba(124,77,255,.15); stroke-width: 5; }
+.today .pr .arc { fill: none; stroke: url(#pGrad); stroke-width: 5; stroke-linecap: round; transition: stroke-dasharray 1s; }
+.today .pr b { font-family: var(--font-display); font-size: 20px; color: var(--text); display: block; }
+.today .pr span { color: var(--muted); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.today .sug { display: flex; flex-wrap: wrap; gap: 7px; }
+.today .sug button { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0; text-transform: none; color: var(--text); background: rgba(124,77,255,.10);
+  border: 1px solid rgba(124,77,255,.35); padding: 7px 11px; border-radius: 999px; cursor: pointer; transition: transform .2s, box-shadow .2s, background .2s; }
+.today .sug button:hover { transform: translateY(-2px); background: rgba(255,61,154,.16); box-shadow: 0 0 16px rgba(255,61,154,.35); }
+.today h5 { margin: 0; font-family: var(--font-display); font-size: 10px; letter-spacing: .3em; color: var(--muted); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .nebula, .core::before, .brand > div, .left .glass::after, .capsule::after, .today .wx .ico { animation: none; } }
+</style>
+</head>
+<body class="booting">
+<div class="nebula" aria-hidden="true"></div>
+<canvas id="bg" aria-hidden="true"></canvas>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="gGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00e5ff"/><stop offset=".6" stop-color="#7c4dff"/><stop offset="1" stop-color="#ff3d9a"/></linearGradient><linearGradient id="pGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff3d9a"/><stop offset="1" stop-color="#ffb340"/></linearGradient></defs></svg>
+<div class="floor"></div>
+<div class="vignette"></div>
+
+<div id="boot"><pre id="bootText"></pre></div>
+
+<div class="powerbox" id="setBox" hidden role="dialog" aria-modal="true" aria-labelledby="setTitle">
+  <div class="setcard">
+    <h3 id="setTitle">SETTINGS</h3>
+    <h4>Reply language</h4>
+    <div class="seg" id="setLang" style="grid-template-columns:1fr 1fr"><button type="button" class="opt" data-l="ms"><b>Bahasa Melayu</b><small>Gaya santai KL</small></button><button type="button" class="opt" data-l="en"><b>English</b><small>Tanya BM, jawab English penuh</small></button></div>
+    <div id="setEnWrap" style="margin-top:8px"><select id="setEnVoice" class="selbox" aria-label="English voice"></select></div>
+    <h4>Chat model (rootsys)</h4>
+    <select id="setChat" class="selbox" aria-label="Chat model"></select>
+    <h4>Claude model</h4>
+    <div class="seg" id="setModels"></div>
+    <h4>Jarvis voice</h4>
+    <div class="vlist" id="setVoices"></div>
+    <h4>Voice tuning</h4>
+    <div class="sl"><span>Pitch</span><input type="range" id="setPitch" min="-20" max="10" step="1" aria-label="Voice pitch"><output id="setPitchV"></output></div>
+    <div class="sl"><span>Speed</span><input type="range" id="setRate" min="-10" max="30" step="2" aria-label="Voice speed"><output id="setRateV"></output></div>
+    <label class="fxrow" style="margin-bottom:8px"><input type="checkbox" id="setSpeak"> Speak every reply <small>Jarvis reads answers aloud, even typed ones</small></label>
+    <label class="fxrow"><input type="checkbox" id="setFx"> Tech voice FX <small>slight echo &amp; shimmer, like an AI</small></label>
+    <div class="setfoot"><small>Changes save instantly. Tap ▶ to preview.</small><button type="button" class="ghostbtn" id="setDone">Done</button></div>
+  </div>
+</div>
+
+<div class="powerbox" id="powerBox" hidden role="dialog" aria-modal="true" aria-labelledby="pwTitle">
+  <div class="pcard">
+    <svg class="picon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg>
+    <h3 id="pwTitle">Power off this laptop?</h3>
+    <p id="pwText">Save your work first. Unsaved changes in other apps may be lost.</p>
+    <div class="pbtns" id="pwBtns">
+      <button type="button" class="ghostbtn" id="pwCancel">Cancel</button>
+      <button type="button" class="ghostbtn" id="pwRestart">Restart</button>
+      <button type="button" class="dangerbtn" id="pwShutdown">Shut down</button>
+    </div>
+  </div>
+</div>
+
+<div class="hud">
+  <header>
+    <div class="brand"><img src="logo.png" alt=""><div>J.A.R.V.I.S<small>Akmal's personal AI · v0.9</small></div></div>
+    <div class="spacer"></div>
+    <div class="chip" title="Claude Code: works on your PC"><span class="dot" id="dotClaude"></span><span id="lblClaude">Claude Code</span></div>
+    <div class="chip" title="Chat model (rootsys): fast chat"><span class="dot" id="dotChat"></span><span id="lblChat">DeepSeek</span></div>
+    <div class="chip" id="wakeChip" title="Say &quot;Hey Jarvis&quot; anytime"><span class="dot" id="dotWake"></span>Hey Jarvis</div>
+    <div class="chip" id="prayerChip" hidden>🕌 <span id="prayerTxt"></span></div>
+    <div class="clock"><div class="t" id="time">--:--<small>:--</small></div><div class="d" id="date">—</div></div>
+    <div class="winbtns">
+      <button type="button" id="btnSettings" class="gear" title="Settings: Claude model &amp; voice"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+      <button type="button" id="btnPower" class="pw" title="Shut down laptop"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
+      <button type="button" id="btnMin" title="Hide (Esc)">—</button>
+      <button type="button" id="btnQuit" class="x" title="Shut down Jarvis (Ctrl+Q)">✕</button>
+    </div>
+  </header>
+
+  <aside class="left">
+    <section class="glass">
+      <h2>Telemetry <span class="sub" id="mode">live</span></h2>
+      <div class="gauges">
+        <div class="gauge" id="g-cpu"><svg viewBox="0 0 100 100"><circle class="ticks" cx="50" cy="50" r="47" pathLength="100"/><circle class="track" cx="50" cy="50" r="40"/><circle class="val" cx="50" cy="50" r="40" pathLength="100"/></svg><div class="lbl"><b>—</b><span>CPU</span></div></div>
+        <div class="gauge" id="g-ram"><svg viewBox="0 0 100 100"><circle class="ticks" cx="50" cy="50" r="47" pathLength="100"/><circle class="track" cx="50" cy="50" r="40"/><circle class="val" cx="50" cy="50" r="40" pathLength="100"/></svg><div class="lbl"><b>—</b><span>RAM</span></div></div>
+        <div class="gauge" id="g-disk"><svg viewBox="0 0 100 100"><circle class="ticks" cx="50" cy="50" r="47" pathLength="100"/><circle class="track" cx="50" cy="50" r="40"/><circle class="val" cx="50" cy="50" r="40" pathLength="100"/></svg><div class="lbl"><b>—</b><span>DISK C</span></div></div>
+        <div class="gauge" id="g-bat"><svg viewBox="0 0 100 100"><circle class="ticks" cx="50" cy="50" r="47" pathLength="100"/><circle class="track" cx="50" cy="50" r="40"/><circle class="val" cx="50" cy="50" r="40" pathLength="100"/></svg><div class="lbl"><b>—</b><span>BATTERY</span></div></div>
+      </div>
+    </section>
+    <section class="glass">
+      <h2>CPU · 60s <span class="sub" id="cpuNow">—</span></h2>
+      <canvas id="spark" aria-label="CPU usage, last 60 seconds"></canvas>
+      <div class="kv"><span>Memory</span><span id="mem">—</span></div>
+      <div class="kv"><span>↓ Download</span><span id="down">—</span></div>
+      <div class="kv"><span>↑ Upload</span><span id="up">—</span></div>
+      <div class="kv"><span>Processes</span><span id="procs">—</span></div>
+      <div class="kv"><span>Uptime</span><span id="uptime">—</span></div>
+    </section>
+  </aside>
+
+  <main class="core">
+    <canvas id="orb" aria-label="Jarvis hologram core"></canvas>
+    <div class="status"><div class="state" id="state">Standby</div><div class="act" id="act"></div></div>
+  </main>
+
+  <aside class="right">
+    <section class="glass analysis" id="anaPanel" hidden>
+      <h2>Analysis <span><button type="button" id="anaReplay" title="Explain again">replay</button> <button type="button" id="anaClose" title="Back to comms (Esc)">✕ close</button></span></h2>
+      <div><div class="ana-title" id="anaTitle"></div><div class="ana-sum" id="anaSum"></div></div>
+      <div class="ana-steps" id="anaSteps"></div>
+      <div class="ana-cards" id="anaCards"></div>
+      <div id="anaCharts" style="display:flex;flex-direction:column;gap:8px"></div>
+      <div class="ana-follow" id="anaFollow"></div>
+    </section>
+    <section class="glass comms" id="commsPanel">
+      <h2>Comms channel <span><button type="button" id="btnNew" title="Start a new conversation">new session</button></span></h2>
+      <div class="projbar">
+        <button type="button" class="proj" id="projBtn" aria-expanded="false" title="Pick a project folder for Claude">
+          <svg viewBox="0 0 24 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1.5 3.5h7l2.5 2.5h11.5v13h-21z"/></svg>
+          <span id="projName">No project</span><b>▾</b>
+        </button>
+        <button type="button" class="pbtn" id="btnCont" title="Resume the last Claude conversation in this folder, including ones started in VS Code">resume last</button>
+        <button type="button" class="pbtn" id="btnCode" title="Open this project in VS Code">VS Code</button>
+        <div class="projlist" id="projList" hidden>
+          <input type="text" id="projFilter" placeholder="Search projects…" aria-label="Search projects">
+          <div class="plist" id="plist"></div>
+        </div>
+      </div>
+      <div class="feed" id="feed">
+        <div class="empty today" id="empty">
+          <h5>TODAY · IPOH</h5>
+          <div class="wx"><div class="ico" id="tdIco">⛅</div><div><b id="tdTemp">--°</b><span id="tdDesc">Loading weather…</span></div></div>
+          <div class="pr"><svg viewBox="0 0 64 64"><circle class="trk" cx="32" cy="32" r="26"/><circle class="arc" id="tdArc" cx="32" cy="32" r="26" pathLength="100" stroke-dasharray="0 100"/></svg><div><span>Next prayer</span><b id="tdPrayer">—</b><span id="tdLeft"></span></div></div>
+          <h5>TRY SAYING</h5>
+          <div class="sug" id="tdSug"><button type="button">Cuaca hari ni macam mana?</button><button type="button">Analisis disk C aku</button><button type="button">Ada email penting?</button><button type="button">Laporan pagi</button><button type="button">Cari harga emas hari ni</button></div>
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  <footer>
+    <div class="dock">
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" aria-selected="true" data-tab="desktop">DESKTOP</button>
+        <button type="button" role="tab" aria-selected="false" data-tab="apps">APPS</button>
+        <button type="button" role="tab" aria-selected="false" data-tab="folders">FOLDER</button>
+        <button type="button" class="tl" id="btnEdit">edit</button>
+        <button type="button" class="tl" id="btnReload">refresh</button>
+      </div>
+      <div class="dock-row" id="dock"></div>
+    </div>
+    <div>
+      <form class="capsule" id="f" autocomplete="off">
+        <div class="engines" role="group" aria-label="Choose brain">
+          <button type="button" data-e="auto" aria-pressed="true">AUTO</button>
+          <button type="button" data-e="claude" aria-pressed="false">CLAUDE</button>
+          <button type="button" data-e="chat" aria-pressed="false" id="engChat">CHAT</button>
+        </div>
+        <input id="cmd" type="text" placeholder="What can I do for you, Akmal?" aria-label="Command for Jarvis">
+        <button type="button" class="round mic" id="mic" aria-pressed="false" title="Talk to Jarvis (Ctrl+Space)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg></button>
+        <button type="button" class="round" id="voice" aria-pressed="false" title="Speak every reply out loud"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg></button>
+        <button type="submit" class="round send" id="send" title="Send (Enter)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </form>
+      <div class="hint"><kbd>/</kbd> type · <kbd>Enter</kbd> send · <kbd>Ctrl+Space</kbd> talk · <kbd>Tab</kbd> switch brain · <kbd>Esc</kbd> stop / hide · <kbd>Ctrl+Q</kbd> quit</div>
+    </div>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const CYAN = [0, 216, 255], AMBER = [255, 179, 64], VIOLET = [157, 140, 255];
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const pad = n => String(n).padStart(2, '0');
+  const hhmm = d => pad(d.getHours()) + ':' + pad(d.getMinutes());
+  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+  let api = null, state = 'idle', amp = .15, ampTarget = .15, voiceOn = false, busy = false;
+  let stats = {}, items = [], cpuHist = [], tab = 'desktop', engine = 'auto', curEngine = 'claude', lastText = '', typing = null;
+  try { engine = localStorage.getItem('jarvis.engine') || 'auto'; voiceOn = localStorage.getItem('jarvis.voice') === '1'; } catch (e) {}
+
+  const STATES = { idle: 'Standby', thinking: 'Processing', speaking: 'Speaking', listening: 'Listening' };
+  function setState(s) {
+    state = s; $('state').textContent = STATES[s]; $('state').className = 'state ' + s;
+    ampTarget = s === 'speaking' ? .9 : s === 'thinking' ? .5 : .15;
+  }
+  const GREEN = [62, 232, 160];
+  const orbColor = () => state === 'listening' ? GREEN : state === 'thinking' ? AMBER : curEngine === 'chat' && state !== 'idle' ? VIOLET : CYAN;
+
+  // ---------- Jam ----------
+  function tick() {
+    const d = new Date();
+    $('time').innerHTML = hhmm(d) + '<small>:' + pad(d.getSeconds()) + '</small>';
+    $('date').textContent = (window.PLACE ? '📍 ' + window.PLACE + ' · ' : '') + d.toLocaleDateString('ms-MY', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  }
+  tick(); setInterval(tick, 1000);
+
+  // ---------- Telemetri ----------
+  function gauge(id, v, text, hot) {
+    const g = $(id); g.querySelector('.val').style.strokeDasharray = Math.max(0, Math.min(100, v)) + ' 100';
+    g.querySelector('b').innerHTML = text; g.classList.toggle('hot', !!hot);
+  }
+  const fmtRate = kb => kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB/s' : kb.toFixed(0) + ' KB/s';
+  async function pullStats() {
+    if (!api) return;
+    try {
+      stats = await api.get_stats();
+      gauge('g-cpu', stats.cpu, Math.round(stats.cpu) + '<small>%</small>', stats.cpu >= 85);
+      gauge('g-ram', stats.ram, Math.round(stats.ram) + '<small>%</small>', stats.ram >= 85);
+      gauge('g-disk', stats.disk, Math.round(stats.disk) + '<small>%</small>', stats.disk >= 85);
+      if (stats.battery == null) gauge('g-bat', 0, '—', false);
+      else gauge('g-bat', stats.battery, stats.battery + '<small>%' + (stats.plugged ? '⚡' : '') + '</small>', stats.battery <= 20 && !stats.plugged);
+      cpuHist.push(stats.cpu); if (cpuHist.length > 60) cpuHist.shift();
+      $('cpuNow').textContent = Math.round(stats.cpu) + '%';
+      $('mem').textContent = stats.ram_used + ' / ' + stats.ram_total + ' GB';
+      $('down').textContent = fmtRate(stats.down); $('up').textContent = fmtRate(stats.up);
+      $('procs').textContent = stats.procs;
+      const s = Math.floor(Date.now() / 1000 - stats.boot);
+      $('uptime').textContent = Math.floor(s / 3600) + 'h ' + pad(Math.floor(s / 60) % 60) + 'm';
+      drawSpark();
+    } catch (e) {}
+  }
+
+  // ---------- Dock ----------
+  const FOLDER_SVG = '<svg viewBox="0 0 24 22" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M1.5 3.5h7l2.5 2.5h11.5v13h-21z" fill="rgba(0,216,255,.18)"/><path d="M1.5 9h21"/></svg>';
+  const initials = n => { const w = n.split(/\s+/); return (w.length > 1 ? w[0][0] + w[1][0] : n.slice(0, 2)).toUpperCase(); };
+  function renderDock() {
+    const row = $('dock'); row.textContent = '';
+    for (const it of items.filter(x => x.kind === tab)) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'tile' + (it.ok ? '' : ' missing'); b.dataset.id = it.id;
+      b.title = it.ok ? 'Open ' + it.name : it.name + ' not found on this PC';
+      const h = document.createElement('div'); h.className = 'hex';
+      if (it.kind === 'folders' || it.dir) h.innerHTML = FOLDER_SVG;
+      else {
+        const e = document.createElement('em');
+        const isFile = it.kind === 'desktop' && it.ext && !['lnk', 'url', 'exe'].includes(it.ext);
+        e.textContent = isFile ? it.ext.slice(0, 4).toUpperCase() : initials(it.name);
+        if (isFile) e.className = 'ext';
+        h.append(e);
+      }
+      const n = document.createElement('span'); n.className = 'n'; n.textContent = it.name;
+      b.append(h, n); row.append(b);
+    }
+  }
+  async function loadShortcuts() {
+    if (!api) return;
+    const d = await api.get_shortcuts();
+    if (d.error) sysLine(d.error, true);
+    const desk = await api.list_desktop();
+    items = [...desk.map(x => ({ ...x, kind: 'desktop' })), ...d.apps.map(x => ({ ...x, kind: 'apps' })), ...d.folders.map(x => ({ ...x, kind: 'folders' }))];
+    document.querySelector('[data-tab="desktop"]').textContent = 'DESKTOP · ' + desk.length;
+    renderDock();
+  }
+  // muat semula senarai Desktop bila Jarvis dibuka semula
+  addEventListener('focus', () => loadShortcuts());
+  $('dock').addEventListener('wheel', e => { if (e.deltaY) { $('dock').scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+  async function openItem(it, announce) {
+    if (!it.ok) return say(it.name + ' tak jumpa la dalam PC ni Akmal.');
+    const t = document.querySelector('.tile[data-id="' + it.id + '"]');
+    if (t) { t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash'); }
+    const r = await api.open_item(it.id);
+    if (r.ok) {
+      $('act').textContent = '◆ Opened ' + it.name;
+      if (!busy) {
+        if (it.kind === 'desktop') addChain(['Desktop', it.name], it.dir ? 'folder' : 'file');
+        else if (it.kind === 'folders') addChain([it.name], 'folder');
+        else addChain(['⚙ ' + it.name], 'app');
+        keepGraph(9000);
+      }
+      if (announce) say('Okay, buka ' + it.name + '.');
+    }
+    else say('Alamak, ' + it.name + ' tak dapat buka la.');
+  }
+  document.querySelector('.tabs').addEventListener('click', e => {
+    const b = e.target.closest('[data-tab]'); if (!b) return;
+    tab = b.dataset.tab; document.querySelectorAll('[data-tab]').forEach(x => x.setAttribute('aria-selected', x === b)); renderDock();
+  });
+  $('dock').addEventListener('click', e => { const t = e.target.closest('.tile'); if (!t) return; const it = items.find(x => x.id === t.dataset.id); if (it) openItem(it, false); });
+  $('btnEdit').addEventListener('click', () => api && api.edit_shortcuts());
+  $('btnReload').addEventListener('click', () => loadShortcuts());
+
+  // ---------- Feed ----------
+  function esc(s) { return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  function md(src) {
+    const blocks = []; let s = esc(src).replace(/```[\w-]*\n?([\s\S]*?)```/g, (_, c) => { blocks.push(c); return '\u0000' + (blocks.length - 1) + '\u0000'; });
+    s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/^#{1,6}\s+(.+)$/gm, '<strong>$1</strong>');
+    const out = [];
+    for (const para of s.split(/\n{2,}/)) {
+      const lines = para.split('\n');
+      if (lines.every(l => /^\s*[-*•]\s+/.test(l))) out.push('<ul>' + lines.map(l => '<li>' + l.replace(/^\s*[-*•]\s+/, '') + '</li>').join('') + '</ul>');
+      else if (lines.every(l => /^\s*\d+[.)]\s+/.test(l))) out.push('<ol>' + lines.map(l => '<li>' + l.replace(/^\s*\d+[.)]\s+/, '') + '</li>').join('') + '</ol>');
+      else out.push('<p>' + lines.join('<br>') + '</p>');
+    }
+    return out.join('').replace(/<p>\u0000(\d+)\u0000<\/p>|\u0000(\d+)\u0000/g, (_, a, b) => '<pre><code>' + blocks[a ?? b] + '</code></pre>');
+  }
+  const feed = $('feed');
+  function push(el) { $('empty') && $('empty').remove(); feed.append(el); feed.scrollTop = feed.scrollHeight; }
+  function msg(role, text, tag) {
+    const m = document.createElement('div'); m.className = 'msg ' + role;
+    const w = document.createElement('div'); w.className = 'who';
+    w.textContent = role === 'user' ? 'Akmal · ' + hhmm(new Date()) : 'Jarvis';
+    if (tag) { const i = document.createElement('i'); i.textContent = tag; if (/deepseek/i.test(tag)) i.className = 'ds'; w.append(i); }
+    const b = document.createElement('div'); b.className = 'body';
+    if (role === 'user') b.textContent = text; else { b.innerHTML = md(text); revealMessage(b); }
+    m.append(w, b); push(m); return m;
+  }
+  // Pecahkan jawapan kepada perkataan yang muncul berturut-turut; nombor dikira naik
+  function revealMessage(body) {
+    if (reduced) return;
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT), texts = [];
+    while (walker.nextNode()) if (!walker.currentNode.parentElement.closest('pre')) texts.push(walker.currentNode);
+    const words = texts.reduce((s, n) => s + (n.data.match(/\S+/g) || []).length, 0);
+    const step = Math.max(8, Math.min(40, 1800 / Math.max(words, 1)));   // jawapan panjang muncul lebih laju
+    let i = 0;
+    for (const tn of texts) {
+      const frag = document.createDocumentFragment();
+      for (const part of tn.data.split(/(\s+)/)) {
+        if (!part) continue;
+        if (/^\s+$/.test(part)) { frag.append(part); continue; }
+        const sp = document.createElement('span'); sp.className = 'w'; const delay = i++ * step; sp.style.animationDelay = delay + 'ms';
+        sp.textContent = part;
+        if (/^(RM)?\d[\d,.]*(%|k|GB|MB|s)?[,.;:]?$/.test(part) && /\d{2,}|%/.test(part)) { sp.classList.add('num'); setTimeout(() => animateValue(sp, part), delay); }
+        frag.append(sp);
+      }
+      tn.replaceWith(frag);
+    }
+    body.style.setProperty('--scan', Math.max(.8, i * step / 1000 + .4) + 's'); body.classList.add('reveal');
+    setTimeout(() => { const f = $('feed'); f.scrollTop = f.scrollHeight; }, i * step + 100);
+  }
+  function toolLine(name, detail) {
+    const d = document.createElement('div'); d.className = 'tool';
+    const b = document.createElement('b'); b.textContent = '⚙ ' + name;
+    const s = document.createElement('span'); s.textContent = detail || ''; d.title = detail || '';
+    d.append(b, s); push(d);
+  }
+  function sysLine(text, err) { const d = document.createElement('div'); d.className = 'sys' + (err ? ' err' : ''); d.textContent = text; push(d); }
+
+  // ---------- Suara & sari kata ----------
+  function plain(t) { return t.replace(/```[\s\S]*?```/g, ' (kod) ').replace(/[`*#>_]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1').replace(/\s+/g, ' ').trim(); }
+  // Teks untuk dibaca: buang kod dan simbol, potong pada hujung ayat (~450 aksara)
+  function speechText(text) {
+    let t = plain(text).replace(/\(kod\)/g, '').replace(/https?:\/\/\S+/g, 'link');
+    if (t.length > 450) { const cut = t.slice(0, 450); const end = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? ')); t = end > 120 ? cut.slice(0, end + 1) : cut; }
+    return t;
+  }
+  let audioEl = null, analyser = null, actx = null, speakSeq = 0;
+  const shouldSpeak = () => voiceOn || voiceTurn;
+  function stopSpeaking() {
+    speakSeq++;
+    if (audioEl) { try { audioEl.pause(); } catch (e) {} audioEl = null; }
+    analyser = null;
+    try { speechSynthesis.cancel(); } catch (e) {}
+  }
+  // Sambung audio ke penganalisis (untuk sfera) dan efek suara teknologi jika dihidupkan
+  let voiceFx = false;
+  function wireAudio(a) {
+    try {
+      actx = actx || new AudioContext(); if (actx.state === 'suspended') actx.resume();
+      const src = actx.createMediaElementSource(a), an = actx.createAnalyser(); an.fftSize = 512;
+      let out = src;
+      if (voiceFx) {   // gema pendek + kilauan frekuensi tinggi = bunyi "AI"
+        const hp = actx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 140;
+        const shelf = actx.createBiquadFilter(); shelf.type = 'highshelf'; shelf.frequency.value = 3200; shelf.gain.value = 4;
+        const d1 = actx.createDelay(), g1 = actx.createGain(); d1.delayTime.value = .018; g1.gain.value = .32;
+        const d2 = actx.createDelay(), g2 = actx.createGain(); d2.delayTime.value = .11; g2.gain.value = .12;
+        const comp = actx.createDynamicsCompressor();
+        src.connect(hp); hp.connect(shelf); shelf.connect(comp);
+        shelf.connect(d1); d1.connect(g1); g1.connect(comp);
+        shelf.connect(d2); d2.connect(g2); g2.connect(comp);
+        out = comp;
+      }
+      out.connect(an); an.connect(actx.destination); return an;
+    } catch (e) { return null; }
+  }
+  // Bercakap guna suara neural (edge-tts); jika gagal, guna suara Windows
+  async function speak(text, done) {
+    stopSpeaking();
+    const my = speakSeq, t = speechText(text);
+    if (!t) return false;
+    const finish = () => { if (my === speakSeq) { audioEl = null; analyser = null; api && api.set_speaking(false); done && done(); } };
+    if (api) {
+      try {
+        const r = await api.tts(t);
+        if (my !== speakSeq) return true;
+        if (r.ok) {
+          const a = new Audio(r.src); audioEl = a;
+          analyser = wireAudio(a);
+          a.onended = finish; a.onerror = finish;
+          api.set_speaking(true);
+          await a.play();
+          return true;
+        }
+      } catch (e) {}
+    }
+    if (!('speechSynthesis' in window)) return false;
+    try {
+      const u = new SpeechSynthesisUtterance(t), vs = speechSynthesis.getVoices();
+      const v = vs.find(v => /^ms/i.test(v.lang)) || vs.find(v => /en-GB/i.test(v.lang));
+      if (v) { u.voice = v; u.lang = v.lang; } else u.lang = 'ms-MY';
+      u.onend = finish; u.onerror = finish; speechSynthesis.speak(u); return true;
+    } catch (e) { return false; }
+  }
+  function afterSpeech() {
+    if (busy) return;
+    setState('idle');
+    if (voiceTurn && voiceLoop) startListening();  // sambung berbual: dengar semula
+  }
+  async function say(text, tag) {
+    if (tag !== false) msg('ai', text, tag || 'local');
+    setState('speaking');
+    const spoke = shouldSpeak() && await speak(text, afterSpeech);
+    if (!spoke) setTimeout(() => state === 'speaking' && afterSpeech(), 1800);
+  }
+
+  // ---------- Mic ----------
+  let voiceTurn = false, voiceLoop = true, listening = false;
+  function setMic(on) { listening = on; $('mic').setAttribute('aria-pressed', on); $('mic').classList.toggle('live', on); }
+  async function startListening() {
+    if (!api || busy || listening) return;
+    stopSpeaking();
+    const r = await api.listen();
+    if (!r.ok) return;
+    setMic(true); setState('listening'); $('act').textContent = '◆ Go ahead, I\'m listening…';
+  }
+  function stopListening() { if (api && listening) api.stop_listen(); }
+  window.onVoice = (kind, d) => {
+    if (kind === 'level') { if (state === 'listening') ampTarget = .12 + d * 1.2; }
+    else if (kind === 'status') $('act').textContent = '◆ ' + d;
+    else if (kind === 'transcribing') { setMic(false); setState('thinking'); $('act').textContent = '◆ Transcribing…'; }
+    else if (kind === 'text') { setMic(false); voiceTurn = true; $('act').textContent = '◆ Heard: "' + d + '"'; run(d, true); }
+    else if (kind === 'none') { setMic(false); voiceTurn = false; setState('idle'); $('act').textContent = '◆ Didn\'t catch anything. Tap the mic to try again.'; }
+    else if (kind === 'error') { setMic(false); voiceTurn = false; setState('idle'); sysLine('Mic error: ' + d, true); }
+    else if (kind === 'wake') { stopSpeaking(); setMic(true); setState('listening'); $('act').textContent = '◆ Hey Akmal! Cakap je…'; }
+    else if (kind === 'wake_only') { setMic(false); voiceTurn = true; say('Ya Akmal?', false); }
+    else if (kind === 'control') { setMic(false); voiceTurn = false; setState('idle'); msg('user', d.text); sysLine('⌨ ' + d.label); $('act').textContent = '◆ ' + d.label; }
+    else if (kind === 'wake_ready') $('dotWake').className = 'dot ' + (d ? 'on' : 'off');
+  };
+  $('mic').addEventListener('click', () => listening ? stopListening() : startListening());
+
+  // ---------- Otak ----------
+  const PC_TASK = /\b(kod|code|coding|skrip|script|run|jalankan|install|pasang|uninstall|padam|delete|buang|hapus|ubah|edit|tulis|susun|pindah|move|copy|salin|rename|tukar nama|zip|unzip|compress|convert|tukar jadi|python|powershell|cmd|terminal|git|npm|node|projek|project|bina|build|debug|error|bug|fix|betulkan|setting|tetapan|wifi|bluetooth)\b|buat (fail|folder|skrip|app|website|laman)/i;
+  const pickEngine = q => engine !== 'auto' ? engine : (project || PC_TASK.test(q)) ? 'claude' : 'chat';
+
+  // ---------- Projek ----------
+  let project = null, projectPath = null, projects = [];
+  async function setProject(name) {
+    if (!api) return;
+    const r = await api.set_project(name || '');
+    if (!r.ok) { sysLine(r.msg, true); return false; }
+    project = r.name;
+    $('projBtn').classList.toggle('on', !!project);
+    projectPath = r.path || null;
+    $('projName').textContent = project || 'No project';
+    $('cmd').placeholder = project ? 'Command for ' + project + '… (e.g. fix the error in the login file)' : 'What can I do for you, Akmal?';
+    if (project) sysLine('— project: ' + project + (r.resumed ? ' · previous session resumed' : ' · new session') + ' —');
+    else sysLine('— left project mode —');
+    closeProjList();
+    return true;
+  }
+  function renderProjList() {
+    const f = $('projFilter').value.toLowerCase(), box = $('plist'); box.textContent = '';
+    if (project) { const b = document.createElement('button'); b.type = 'button'; b.innerHTML = '<span class="none">✕ Leave project mode</span>'; b.onclick = () => setProject(''); box.append(b); }
+    for (const p of projects.filter(p => p.name.toLowerCase().includes(f))) {
+      const b = document.createElement('button'); b.type = 'button'; b.title = p.path;
+      const n = document.createElement('span'); n.textContent = p.name;
+      const s = document.createElement('small'); s.textContent = p.saved ? '● has session' : ''; if (p.saved) s.className = 'saved';
+      b.append(n, s); b.onclick = () => setProject(p.path); box.append(b);
+    }
+  }
+  async function openProjList() {
+    if (!api) return;
+    projects = await api.list_projects();
+    $('projList').hidden = false; $('projBtn').setAttribute('aria-expanded', 'true');
+    $('projFilter').value = ''; renderProjList(); $('projFilter').focus();
+  }
+  function closeProjList() { $('projList').hidden = true; $('projBtn').setAttribute('aria-expanded', 'false'); }
+  $('projBtn').addEventListener('click', () => $('projList').hidden ? openProjList() : closeProjList());
+  $('projFilter').addEventListener('input', renderProjList);
+  $('projFilter').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); const first = $('plist').querySelector('button span:not(.none)'); if (first) first.parentElement.click(); }
+    if (e.key === 'Escape') { e.stopPropagation(); closeProjList(); $('cmd').focus(); }
+  });
+  document.addEventListener('click', e => { if (!$('projList').hidden && !e.target.closest('.projbar')) closeProjList(); });
+  async function continueLast() {
+    if (!api) return;
+    await api.continue_last();
+    sysLine('— next command resumes the last Claude conversation in ' + (project || 'home folder') + ' —');
+  }
+  $('btnCont').addEventListener('click', continueLast);
+  $('btnCode').addEventListener('click', async () => { if (!api) return; const r = await api.open_in_vscode(); if (!r.ok) sysLine(r.msg, true); else $('act').textContent = '◆ Opened ' + (project || 'home folder') + ' in VS Code'; });
+  const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const findItem = q => { const n = norm(q); if (!n) return null; return items.find(i => norm(i.name) === n) || items.find(i => n === norm(i.name) + 's') || items.find(i => norm(i.name).startsWith(n) && n.length >= 3); };
+
+  async function run(raw, fromVoice) {
+    const q = raw.trim(); if (!q) return;
+    if (!fromVoice) voiceTurn = false;
+    if (api && !fromVoice) { const qc = await api.quick_control(q, false); if (qc.handled) { msg('user', q); sysLine('⌨ ' + qc.label); return; } }
+    if (/^(laporan (pagi|harian)|morning brief|daily brief|brief(ing)?)$/i.test(q.replace(/^(hey |hei )?jarvis[,\s]*/i, ''))) {
+      msg('user', q); $('act').textContent = '◆ Preparing your brief…'; setState('thinking'); api && api.morning_brief(true); return;
+    }
+    if (busy) { sysLine('Still working on the last command. Hit the red button to stop.', true); return; }
+    const s = q.toLowerCase().replace(/^(hey |hei )?jarvis[,\s]*/, '').replace(/^tolong\s+/, '');
+    let m;
+    // arahan pantas, tanpa AI
+    if ((m = s.match(/^(buka|open|lancar)\s+(.+)$/)) && findItem(m[2])) { msg('user', q); return openItem(findItem(m[2]), true); }
+    if ((m = s.match(/^(google|search)\s+(.+)/))) { msg('user', q); if (api) api.search_web(m[2]); return say('Jap Akmal, saya google "' + m[2] + '".'); }
+    if (/^(sembunyi|minimize|hide)$/.test(s)) { msg('user', q); voiceTurn = false; say('Okay Akmal.'); return setTimeout(() => api && api.minimize(), 900); }
+    if (/^(tutup jarvis|keluar|quit|exit)$/.test(s)) { msg('user', q); voiceTurn = false; say('Okay Akmal, saya off dulu. Jumpa lagi.'); return setTimeout(() => api && api.quit(), 2500); }
+    if (/^(stop|diam|senyap|dah|takpe|cukup)( la| lah)?$/.test(s)) { msg('user', q); voiceTurn = false; stopSpeaking(); setState('idle'); return; }
+    if (/^(shutdown|shut down|restart|reboot|(tutup|matikan|off|offkan|shutdown|restart) (laptop|pc|komputer))( la| lah)?$/.test(s)) { msg('user', q); openPower(); return say('Confirm dulu Akmal. Tekan Shut down atau Restart.'); }
+    if (/^(sesi baru|reset)$/.test(s)) return newSession();
+    if ((m = s.match(/^(projek|project)\s+(.+)$/))) return setProject(m[2]);
+    if (/^(tutup|keluar) (projek|project)$/.test(s)) return setProject('');
+    if (/^sambung( sesi)?( terakhir| lepas)?$/.test(s)) return continueLast();
+    if (!api) { msg('user', q); return say('Demo mode. Run main.py to connect the AI brain.'); }
+
+    curEngine = pickEngine(q);
+    msg('user', q);
+    clearGraph(); if (curEngine === 'claude' && projectPath) graph.focus = chainFromPath(projectPath);
+    const r = await api.ask(q, curEngine);
+    if (!r.ok) { sysLine(r.msg, true); return; }
+  }
+
+  window.onClaude = (kind, d) => {
+    if (kind === 'start') {
+      busy = true; lastText = ''; setState('thinking');
+      // kiraan masa supaya nampak Jarvis masih bekerja semasa carian/kerja panjang
+      const t0 = Date.now(); clearInterval(window._busyTick);
+      window._busyTick = setInterval(() => { if (busy && state === 'thinking') $('state').textContent = 'Processing · ' + Math.round((Date.now() - t0) / 1000) + 's'; }, 500); $('send').classList.add('busy'); $('act').textContent = curEngine === 'chat' ? '◆ ' + chatModel + ' is thinking…' : '◆ Claude Code is working…'; }
+    else if (kind === 'init') { window._tag = curEngine === 'chat' ? (d.model || chatModel) : 'Claude · ' + (d.model || '').replace(/^claude-/, ''); }
+    else if (kind === 'tool') { toolLine(d.name, d.detail); $('act').textContent = '⚙ ' + d.name + (d.detail ? ' · ' + d.detail : ''); graphFromTool(d.name, d.full || d.detail); }
+    else if (kind === 'result') graphFromResult(d.text);
+    else if (kind === 'graph') graphFromTool('graph', d.full);
+    else if (kind === 'analysis') showAnalysis(d);
+    else if (kind === 'note') sysLine('↻ ' + d.text);
+    else if (kind === 'web') {
+      // hanya carian terkini yang kembang; hasil lama mengecut masuk ke nod carian masing-masing
+      for (const n of graph.nodes.values()) if (n.kind === 'link' && !n.dying) n.dying = nowMs();
+      const q = (d.query || '').slice(0, 34);
+      const olderQueries = [...graph.nodes.values()].filter(n => n.kind === 'web' && n.parent && !n.dying && n.label !== q);
+      olderQueries.slice(0, Math.max(0, olderQueries.length - 1)).forEach(n => { n.dying = nowMs(); });
+      const parent = addChain(['Web', q], 'web'), hosts = [];
+      parent.dying = 0; if (parent.parent) parent.parent.dying = 0;
+      for (const l of (d.links || []).slice(0, 5)) {
+        let host = ''; try { host = new URL(l.url).hostname.replace(/^www\./, ''); } catch (e) {}
+        const n = addNode(parent, (l.title || host).replace(/\s+/g, ' ').slice(0, 90), 'link');
+        n.sub = host; n.host = host; n.url = l.url; n.dying = 0; n.born = nowMs();
+        if (host && !hosts.includes(host)) hosts.push(host);
+      }
+      graph.focus = parent; if (hosts.length) toolLine('Sources', hosts.slice(0, 4).join(' · '));
+    }
+    else if (kind === 'text') {
+      const blk = d.text.match(/```jarvis-analysis\s*([\s\S]*?)```/);
+      if (blk) { const a = parseLoose(blk[1]); if (a) showAnalysis(a); else sysLine('Analysis format error', true); d.text = d.text.replace(blk[0], '').trim(); if (!d.text) return; }
+      lastText = d.text; msg('ai', d.text, window._tag); setState('speaking'); setTimeout(() => busy && setState('thinking'), 1200); }
+    else if (kind === 'done') {
+      busy = false; clearInterval(window._busyTick); $('send').classList.remove('busy'); keepGraph(25000);
+      if (!d.ok) sysLine('✕ ' + (d.error || 'Failed.') + ' · ' + d.secs + 's', true);
+      else { sysLine('✓ done · ' + d.secs + 's'); $('act').textContent = '◆ Finished in ' + d.secs + 's'; }
+      if (anaPlaying) { /* suara analisis sedang berjalan */ }
+      else if (lastText && shouldSpeak()) { setState('speaking'); speak(lastText, afterSpeech).then(ok => { if (!ok) afterSpeech(); }); }
+      else { setState('idle'); voiceTurn = false; }
+    }
+  };
+
+  window.onPrayer = d => {
+    msg('ai', '🕌 **' + d.name + '** dalam ' + d.mins + ' minit (' + d.time + ')', 'prayer');
+    clearGraph(); addChain(['🕌 ' + d.name + ' ' + d.time], 'cmd'); keepGraph(15000);
+    setState('speaking'); speak('Akmal, lagi ' + d.mins + ' minit masuk waktu ' + d.name + '.', afterSpeech).then(ok => { if (!ok) afterSpeech(); });
+    refreshPrayer();
+  };
+  window.onBrief = text => {
+    msg('ai', text, 'daily brief');
+    setState('speaking'); speak(text, afterSpeech).then(ok => { if (!ok) afterSpeech(); });
+  };
+  async function refreshPrayer() {
+    if (!api) return;
+    try { const p = await api.next_prayer(); $('prayerChip').hidden = !p.name; if (p.name) { $('prayerTxt').textContent = p.name + ' ' + p.time; $('prayerChip').title = p.mins + ' min to ' + p.name + ' (JAKIM)'; } } catch (e) {}
+  }
+
+  window.onReminder = message => {
+    msg('ai', '⏰ **Reminder:** ' + message, 'reminder');
+    clearGraph(); addChain(['⏰ ' + message.slice(0, 24)], 'cmd'); keepGraph(15000);
+    setState('speaking'); speak('Akmal, peringatan. ' + message, afterSpeech).then(ok => { if (!ok) afterSpeech(); });
+  };
+
+  async function newSession() {
+    if (api) await api.new_session();
+    feed.textContent = ''; sysLine('— new session started —'); $('act').textContent = '';
+  }
+
+
+  // ---------- Mod analisis: panel data + terangkan satu-satu dengan suara ----------
+  function parseLoose(s) {   // JSON dari AI kadang-kadang ada koma lebih atau petik melengkung
+    const tries = [s, s.replace(/[\u201c\u201d]/g, '"').replace(/[\u2018\u2019]/g, "'").replace(/,\s*([}\]])/g, '$1').replace(/^\s*\/\/.*$/gm, '')];
+    for (const x of tries) { try { return JSON.parse(x); } catch (e) {} }
+    const m = s.match(/\{[\s\S]*\}/); if (m && m[0] !== s) return parseLoose(m[0]);
+    return null;
+  }
+  let anaToken = 0, anaPlaying = false, anaData = null, anaNodes = {};
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  function playSrc(src) {   // main audio TTS yang dah disediakan; selesai bila habis
+    return new Promise(res => {
+      stopSpeaking(); const my = speakSeq;
+      const a = new Audio(src); audioEl = a;
+      analyser = wireAudio(a);
+      const end = () => { if (my === speakSeq) { audioEl = null; analyser = null; } api && api.set_speaking(false); res(); };
+      a.onended = end; a.onerror = end;
+      api && api.set_speaking(true);
+      a.play().catch(end);
+    });
+  }
+  function animateValue(el, str) {   // kira naik untuk angka: "RM102,431.28" -> 0 ... 102,431.28
+    const m = String(str).match(/^(.*?)(-?[\d,]*\.?\d+)(.*)$/);
+    if (!m || reduced) { el.textContent = str; return; }
+    const target = parseFloat(m[2].replace(/,/g, '')), dec = (m[2].split('.')[1] || '').length, comma = m[2].includes(',');
+    const t0 = performance.now(), D = 1100;
+    const fmt = v => { let s = v.toFixed(dec); if (comma) { const [i, f] = s.split('.'); s = i.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (f ? '.' + f : ''); } return m[1] + s + m[3]; };
+    (function step(now) { const k = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - k, 3); el.textContent = fmt(target * e); if (k < 1) requestAnimationFrame(step); })(t0);
+  }
+  function anaEl(target) {
+    const m = /^(card|chart):(\d+)(?::(\d+))?$/.exec(target || ''); if (!m) return null;
+    if (m[1] === 'card') return $('anaCards').children[+m[2]] || null;
+    const ch = $('anaCharts').children[+m[2]]; if (!ch) return null;
+    return m[3] != null ? ch.querySelectorAll('.arow')[+m[3]] || ch : ch;
+  }
+  // Dedahkan kad/graf/bar dengan animasi kali pertama ia disebut
+  function revealChart(box) {
+    if (box.classList.contains('shown')) return;
+    box.classList.add('shown');
+    box.querySelectorAll('.arow').forEach((row, j) => setTimeout(() => {
+      row.classList.add('shown'); const bi = row.querySelector('.ab i'); if (bi) bi.style.width = bi.dataset.w;
+      const av = row.querySelector('.av'); if (av && av.dataset.v) animateValue(av, av.dataset.v);
+    }, 120 + j * 140));
+  }
+  function revealEl(el) {
+    if (!el) return;
+    if (el.classList.contains('acard') && !el.classList.contains('shown')) { el.classList.add('shown'); animateValue(el.querySelector('b'), el.dataset.v || ''); }
+    else if (el.classList.contains('achart')) revealChart(el);
+    else if (el.classList.contains('arow')) revealChart(el.closest('.achart'));
+  }
+  function revealAll() {
+    document.querySelectorAll('.analysis .acard:not(.shown), .analysis .achart:not(.shown)').forEach((el, i) => setTimeout(() => revealEl(el), i * 180));
+  }
+  function focusTarget(target) {
+    document.querySelectorAll('.analysis .focus').forEach(e => e.classList.remove('focus'));
+    const el = anaEl(target); if (el) { revealEl(el); el.classList.add('focus'); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+    const n = anaNodes[target] || anaNodes[(target || '').split(':').slice(0, 2).join(':')];
+    if (n) { n.touched = nowMs(); graph.focus = n; }
+  }
+  function renderAnalysis(a) {
+    anaData = a; anaNodes = {};
+    $('commsPanel').hidden = true; $('anaPanel').hidden = false; $('anaPanel').scrollTop = 0;
+    $('anaTitle').textContent = a.title || 'Analysis'; $('anaSum').textContent = a.summary || '';
+    $('anaFollow').textContent = '';
+    $('anaSteps').innerHTML = (a.points || []).map(() => '<i></i>').join('');
+    const cards = $('anaCards'); cards.textContent = '';
+    (a.cards || []).slice(0, 6).forEach((c, i) => {
+      const d = document.createElement('div'); d.className = 'acard'; d.dataset.v = c.value ?? '';
+      const l = document.createElement('span'); l.textContent = c.label || '';
+      const v = document.createElement('b'); const n = document.createElement('small'); n.textContent = c.note || '';
+      d.append(l, v, n); cards.append(d);
+    });
+    const charts = $('anaCharts'); charts.textContent = '';
+    (a.charts || []).slice(0, 3).forEach((c, ci) => {
+      const box = document.createElement('div'); box.className = 'achart';
+      const h = document.createElement('h4'); h.textContent = c.title || ''; box.append(h);
+      const rows = (c.items || []).slice(0, 8), max = Math.max(...rows.map(r => Math.abs(+r.value || 0)), 1);
+      rows.forEach(r => {
+        const row = document.createElement('div'); row.className = 'arow';
+        const l = document.createElement('span'); l.className = 'al'; l.textContent = r.label || ''; l.title = r.label || '';
+        const b = document.createElement('span'); b.className = 'ab'; const bi = document.createElement('i'); b.append(bi);
+        const v = document.createElement('span'); v.className = 'av'; v.dataset.v = r.display || String(r.value ?? ''); v.textContent = v.dataset.v;
+        row.append(l, b, v); box.append(row);
+        bi.dataset.w = (Math.abs(+r.value || 0) / max * 100) + '%';
+      });
+      charts.append(box);
+    });
+    // hologram: cabang untuk setiap kad & graf
+    clearGraph();
+    const root = addChain(['📊 ' + (a.title || 'Analysis').slice(0, 26)], 'cmd');
+    (a.cards || []).slice(0, 6).forEach((c, i) => { anaNodes['card:' + i] = addNode(root, (c.label || '') + ': ' + (c.value || ''), 'data'); });
+    (a.charts || []).slice(0, 3).forEach((c, ci) => {
+      const cn = addNode(root, c.title || 'Chart', 'data'); anaNodes['chart:' + ci] = cn;
+      (c.items || []).slice(0, 5).forEach((r, j) => { anaNodes['chart:' + ci + ':' + j] = addNode(cn, (r.label || '') + ' ' + (r.display || r.value || ''), 'data'); });
+    });
+    keepGraph(180000);
+    msg('ai', '📊 **' + (a.title || 'Analysis') + '**' + (a.summary ? ' — ' + a.summary : ''), 'analysis');
+  }
+  async function narrate(a) {
+    const my = ++anaToken; anaPlaying = true;
+    const pts = (a.points || []).slice(0, 8);
+    // sediakan semua suara serentak supaya tiada jeda antara poin
+    const srcs = pts.map(p => api ? api.tts(speechText(p.text || '')).catch(() => ({ ok: false })) : Promise.resolve({ ok: false }));
+    await sleep(500);
+    if (reduced) revealAll();
+    for (let i = 0; i < pts.length; i++) {
+      if (my !== anaToken) return;
+      setState('speaking'); focusTarget(pts[i].target);
+      [...$('anaSteps').children].forEach((e, j) => e.classList.toggle('on', j <= i));
+      const r = await srcs[i];
+      if (my !== anaToken) return;
+      if (r && r.ok) await playSrc(r.src); else await sleep(1600 + (pts[i].text || '').length * 45);
+      await sleep(250);
+    }
+    if (my !== anaToken) return;
+    anaPlaying = false; focusTarget(null); revealAll(); keepGraph(30000);
+    if (!busy) setState('idle');
+    const f = $('anaFollow'); f.textContent = '';
+    (a.followups || []).slice(0, 4).forEach(q => { const b = document.createElement('button'); b.type = 'button'; b.textContent = '↳ ' + q; b.onclick = () => run(q); f.append(b); });
+  }
+  function stopAnalysis() { anaToken++; anaPlaying = false; stopSpeaking(); focusTarget(null); revealAll(); if (!busy) setState('idle'); }
+  function showAnalysis(a) { if (!a || !(a.points || []).length) return; renderAnalysis(a); narrate(a); }
+  $('anaClose').addEventListener('click', () => { stopAnalysis(); $('anaPanel').hidden = true; $('commsPanel').hidden = false; });
+  $('anaReplay').addEventListener('click', () => { if (anaData) { stopAnalysis(); showAnalysis(anaData); } });
+
+
+  // Nama model chat (rootsys) dipaparkan di header, butang enjin dan tag mesej
+  let chatModel = 'chat';
+  function setChatName(id) {
+    chatModel = id; $('lblChat').textContent = id;
+    const short = id.split('-')[0].replace(/^hy\d.*/, 'hunyuan').toUpperCase();
+    $('engChat').textContent = short; document.querySelectorAll('.chatName').forEach(e => e.textContent = short);
+  }
+
+
+  // ---------- Widget "Hari ini" ----------
+  const WX_ICON = d => /ribut/.test(d) ? '⛈️' : /hujan|gerimis/.test(d) ? '🌧️' : /mendung/.test(d) ? '☁️' : /berawan/.test(d) ? '⛅' : /kabus/.test(d) ? '🌫️' : '☀️';
+  async function refreshToday() {
+    if (!api || !$('empty')) return;
+    try {
+      const d = await api.today_info();
+      if (d.weather) { $('tdTemp').textContent = d.weather.temp + '°'; $('tdIco').textContent = WX_ICON(d.weather.desc);
+        $('tdDesc').textContent = d.weather.desc + ' · terasa ' + d.weather.feels + '° · hujan ' + d.weather.rain_chance + '%'; }
+      if (d.prayer && d.prayer.name) { $('tdPrayer').textContent = d.prayer.name + ' ' + d.prayer.time;
+        const m = d.prayer.mins; $('tdLeft').textContent = (m >= 60 ? Math.floor(m / 60) + 'j ' : '') + (m % 60) + 'm lagi';
+        $('tdArc').setAttribute('stroke-dasharray', Math.max(3, 100 - Math.min(100, m / 3.6)) + ' 100'); }
+    } catch (e) {}
+  }
+  document.addEventListener('click', e => { const b = e.target.closest('#tdSug button'); if (b) run(b.textContent); });
+
+  // ---------- Settings: model Claude & suara ----------
+  let settings = null, settingsLoaded = false;
+  const PREVIEW = 'Okay Akmal, sistem Jarvis dah online. Semua ready, apa yang saya boleh bantu hari ni?';
+  async function openSettings() { if (!api) return; settings = await api.get_settings(); renderSettings(); $('setBox').hidden = false; }
+  function closeSettings() { $('setBox').hidden = true; stopSpeaking(); }
+  function renderSettings() {
+    const s = settings, mk = (cls, label, note, on) => { const b = document.createElement('button'); b.type = 'button'; b.className = cls; b.setAttribute('aria-pressed', on);
+      const x = document.createElement('b'); x.textContent = label; const y = document.createElement('small'); y.textContent = note; b.append(x, y); return b; };
+    document.querySelectorAll('#setLang .opt').forEach(b => b.setAttribute('aria-pressed', b.dataset.l === (s.reply_language || 'ms')));
+    $('setEnWrap').hidden = s.reply_language !== 'en';
+    $('setEnVoice').innerHTML = (s.en_voices || []).map(v => '<option value="' + v.id + '"' + (v.id === s.voice_en ? ' selected' : '') + '>English voice: ' + v.label + ' · ' + v.note + '</option>').join('');
+    const sel = $('setChat'); sel.textContent = ''; const groups = {};
+    s.chat_models.forEach(m => { let g = groups[m.group]; if (!g) { g = groups[m.group] = document.createElement('optgroup'); g.label = m.group; sel.append(g); }
+      const o = document.createElement('option'); o.value = m.id; o.textContent = m.id + (m.note ? '  ·  ' + m.note : ''); o.selected = m.id === s.chat_model; g.append(o); });
+    $('setModels').textContent = '';
+    s.models.forEach(m => { const b = mk('opt', m.label, m.note, m.id === s.model); b.onclick = () => saveSetting('model', m.id); $('setModels').append(b); });
+    $('setVoices').textContent = '';
+    s.voices.forEach(v => {
+      const row = document.createElement('div'); row.className = 'vrow';
+      const b = mk('opt', v.label, v.note, v.id === s.voice); b.onclick = () => { saveSetting('voice', v.id); previewVoice(v.id); };
+      const p = document.createElement('button'); p.type = 'button'; p.className = 'play'; p.textContent = '▶'; p.title = 'Preview ' + v.label; p.onclick = () => previewVoice(v.id);
+      row.append(b, p); $('setVoices').append(row);
+    });
+    $('setPitch').value = parseInt(s.voice_pitch) || 0; $('setPitchV').textContent = s.voice_pitch;
+    $('setRate').value = parseInt(s.voice_rate) || 0; $('setRateV').textContent = s.voice_rate;
+    $('setFx').checked = !!s.voice_fx; $('setSpeak').checked = s.speak_replies !== false;
+  }
+  async function saveSetting(key, val) {
+    const r = await api.set_setting(key, val);
+    if (!r.ok) { sysLine(r.msg, true); return; }
+    settings[key] = val; renderSettings();
+    if (key === 'model') { $('lblClaude').textContent = 'Claude · ' + val; sysLine('— Claude model: ' + val + ' —'); }
+    if (key === 'voice_fx') voiceFx = val;
+    if (key === 'speak_replies') setVoice(val, true);
+    if (key === 'chat_model') { setChatName(val); sysLine('— chat model: ' + val + ' —'); }
+  }
+  async function previewVoice(id) {
+    const en = settings.reply_language === 'en';
+    const r = await api.tts(en ? 'Good evening, Akmal. All systems are online. How can I help you today?' : PREVIEW, id || (en ? settings.voice_en : settings.voice), settings.voice_rate, settings.voice_pitch);
+    if (r.ok) { setState('speaking'); await playSrc(r.src); if (!busy) setState('idle'); }
+  }
+  const signed = (v, unit) => (v >= 0 ? '+' : '') + v + unit;
+  $('setPitch').addEventListener('input', e => { $('setPitchV').textContent = signed(+e.target.value, 'Hz'); });
+  $('setRate').addEventListener('input', e => { $('setRateV').textContent = signed(+e.target.value, '%'); });
+  $('setPitch').addEventListener('change', async e => { await saveSetting('voice_pitch', signed(+e.target.value, 'Hz')); previewVoice(); });
+  $('setRate').addEventListener('change', async e => { await saveSetting('voice_rate', signed(+e.target.value, '%')); previewVoice(); });
+  $('setFx').addEventListener('change', async e => { await saveSetting('voice_fx', e.target.checked); previewVoice(); });
+  $('btnSettings').addEventListener('click', openSettings);
+  $('setDone').addEventListener('click', closeSettings);
+  $('setChat').addEventListener('change', e => saveSetting('chat_model', e.target.value));
+  $('setSpeak').addEventListener('change', e => saveSetting('speak_replies', e.target.checked));
+  $('setLang').addEventListener('click', async e => { const b = e.target.closest('[data-l]'); if (!b) return; await saveSetting('reply_language', b.dataset.l); sysLine('— reply language: ' + (b.dataset.l === 'en' ? 'English' : 'Bahasa Melayu') + ' —'); previewVoice(); });
+  $('setEnVoice').addEventListener('change', async e => { await saveSetting('voice_en', e.target.value); previewVoice(); });
+
+  // ---------- Power (shutdown/restart dengan pengesahan) ----------
+  let pwTimer = null;
+  function resetPower() {
+    clearInterval(pwTimer); pwTimer = null;
+    $('pwTitle').textContent = 'Power off this laptop?';
+    $('pwText').textContent = 'Save your work first. Unsaved changes in other apps may be lost.';
+    $('pwRestart').hidden = false; $('pwShutdown').hidden = false; $('pwCancel').textContent = 'Cancel';
+  }
+  function openPower() { resetPower(); $('powerBox').hidden = false; $('pwCancel').focus(); }
+  async function closePower() {
+    if (pwTimer) { clearInterval(pwTimer); pwTimer = null; if (api) await api.power('cancel'); sysLine('— shutdown cancelled —'); }
+    $('powerBox').hidden = true; resetPower();
+  }
+  async function doPower(action) {
+    if (!api) return;
+    const r = await api.power(action);
+    if (!r.ok) { sysLine('Power error: ' + (r.msg || 'failed'), true); return closePower(); }
+    voiceTurn = false;
+    say(action === 'restart' ? 'Okay Akmal, saya restart laptop.' : 'Okay Akmal, saya shutdown laptop. Jumpa lagi.', false);
+    let n = 5;
+    $('pwTitle').textContent = action === 'restart' ? 'Restarting…' : 'Shutting down…';
+    $('pwRestart').hidden = true; $('pwShutdown').hidden = true; $('pwCancel').textContent = 'Cancel'; $('pwCancel').focus();
+    const upd = () => { $('pwText').innerHTML = 'Laptop will ' + (action === 'restart' ? 'restart' : 'power off') + ' in<b>' + n + '</b>'; };
+    upd(); pwTimer = setInterval(() => { n = Math.max(0, n - 1); upd(); }, 1000);
+  }
+  $('btnPower').addEventListener('click', openPower);
+  $('pwCancel').addEventListener('click', closePower);
+  $('pwRestart').addEventListener('click', () => doPower('restart'));
+  $('pwShutdown').addEventListener('click', () => doPower('shutdown'));
+
+  // ---------- Kawalan ----------
+  function setEngine(e) {
+    engine = e; document.querySelectorAll('.engines button').forEach(b => b.setAttribute('aria-pressed', b.dataset.e === e));
+    try { localStorage.setItem('jarvis.engine', e); } catch (x) {}
+  }
+  function setVoice(on, fromSettings) {
+    if (api && !fromSettings && settingsLoaded) api.set_setting('speak_replies', !!on);
+    voiceOn = on; $('voice').setAttribute('aria-pressed', on);
+    if (!on && !voiceTurn) stopSpeaking();
+    try { localStorage.setItem('jarvis.voice', on ? '1' : '0'); } catch (x) {}
+  }
+  setEngine(engine); setVoice(voiceOn);
+  document.querySelector('.engines').addEventListener('click', e => { const b = e.target.closest('[data-e]'); if (b) { setEngine(b.dataset.e); $('cmd').focus(); } });
+  $('voice').addEventListener('click', () => setVoice(!voiceOn));
+  $('f').addEventListener('submit', e => {
+    e.preventDefault();
+    if (busy) { api && api.stop(); $('act').textContent = '◆ Stopping…'; return; }
+    run($('cmd').value); $('cmd').value = '';
+  });
+  $('btnNew').addEventListener('click', newSession);
+  $('btnMin').addEventListener('click', () => api && api.minimize());
+  $('btnQuit').addEventListener('click', () => api && api.quit());
+  document.addEventListener('keydown', e => {
+    if (e.key === '/' && document.activeElement !== $('cmd')) { e.preventDefault(); $('cmd').focus(); }
+    else if (e.key === 'Tab' && document.activeElement === $('cmd')) { e.preventDefault(); const o = ['auto', 'claude', 'chat']; setEngine(o[(o.indexOf(engine) + 1) % 3]); }
+    else if (e.code === 'Space' && e.ctrlKey) { e.preventDefault(); listening ? stopListening() : startListening(); }
+    else if (e.key === 'Escape') {
+      if (!$('setBox').hidden) closeSettings();
+      else if (!$('powerBox').hidden) closePower();
+      else if (anaPlaying) stopAnalysis();
+      else if (!$('anaPanel').hidden) { $('anaPanel').hidden = true; $('commsPanel').hidden = false; }
+      else if (listening) stopListening();
+      else if (state === 'speaking') { voiceTurn = false; stopSpeaking(); setState('idle'); }
+      else if (document.activeElement === $('cmd') && $('cmd').value) $('cmd').value = '';
+      else api && api.minimize();
+    }
+    else if (e.ctrlKey && e.key.toLowerCase() === 'q') api && api.quit();
+  });
+
+  // ---------- Kanvas ----------
+  const DPR = Math.min(1.5, devicePixelRatio || 1);
+  function fit(c) { const r = c.getBoundingClientRect(); c.width = Math.max(1, r.width * DPR); c.height = Math.max(1, r.height * DPR); const ctx = c.getContext('2d'); ctx.setTransform(DPR, 0, 0, DPR, 0, 0); return { ctx, w: r.width, h: r.height }; }
+  let oc, bc, sc;
+  const refit = () => { oc = fit($('orb')); bc = fit($('bg')); sc = fit($('spark')); drawSpark(); };
+
+  // titik sfera (fibonacci) dan zarah latar
+  const logo = new Image(); logo.src = 'logo.png';
+  const N = 340, sphere = [];
+  for (let i = 0; i < N; i++) { const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * 2.39996; sphere.push([Math.cos(th) * r, y, Math.sin(th) * r]); }
+  const parts = Array.from({ length: 64 }, () => ({ x: Math.random(), y: Math.random(), vx: (Math.random() - .5) * .00012, vy: (Math.random() - .5) * .00012 }));
+
+  function drawBg() {
+    const { ctx, w, h } = bc; ctx.clearRect(0, 0, w, h);
+    const g = ctx.createRadialGradient(w / 2, h * .45, 0, w / 2, h * .45, Math.max(w, h) * .6);
+    g.addColorStop(0, rgba(orbColor(), .10)); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    for (const p of parts) { if (!reduced) { p.x = (p.x + p.vx + 1) % 1; p.y = (p.y + p.vy + 1) % 1; } }
+    ctx.lineWidth = 1;
+    for (let i = 0; i < parts.length; i++) {
+      const a = parts[i], ax = a.x * w, ay = a.y * h;
+      for (let j = i + 1; j < parts.length; j++) {
+        const b = parts[j], dx = ax - b.x * w, dy = ay - b.y * h, d2 = dx * dx + dy * dy;
+        if (d2 < 15000) { ctx.strokeStyle = rgba(CYAN, .12 * (1 - d2 / 15000)); ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(b.x * w, b.y * h); ctx.stroke(); }
+      }
+      ctx.fillStyle = rgba(CYAN, .45); ctx.fillRect(ax - 1, ay - 1, 2, 2);
+    }
+  }
+
+  function rot(p, ay, ax) {
+    const [x, y, z] = p, cy = Math.cos(ay), sy = Math.sin(ay), cx = Math.cos(ax), sx = Math.sin(ax);
+    const x1 = x * cy + z * sy, z1 = -x * sy + z * cy;
+    return [x1, y * cx - z1 * sx, y * sx + z1 * cx];
+  }
+  function ring3d(ctx, cx, cy, R, tiltX, tiltZ, spin, col, alpha, width, dash) {
+    const pts = [];
+    for (let i = 0; i <= 96; i++) {
+      const a = i / 96 * 6.2832 + spin; let p = [Math.cos(a), 0, Math.sin(a)];
+      const cz = Math.cos(tiltZ), sz = Math.sin(tiltZ); p = [p[0] * cz - p[1] * sz, p[0] * sz + p[1] * cz, p[2]];
+      p = rot(p, 0, tiltX); pts.push(p);
+    }
+    for (let i = 0; i < 96; i++) {
+      if (dash && i % 4 > 1) continue;
+      const a = pts[i], b = pts[i + 1], depth = (a[2] + 1) / 2;
+      ctx.strokeStyle = rgba(col, alpha * (.25 + depth * .75)); ctx.lineWidth = width * (.6 + depth * .6);
+      ctx.beginPath(); ctx.moveTo(cx + a[0] * R, cy + a[1] * R); ctx.lineTo(cx + b[0] * R, cy + b[1] * R); ctx.stroke();
+    }
+    const head = pts[0], dz = (head[2] + 1) / 2;
+    ctx.fillStyle = rgba(col, .5 + dz * .5); ctx.beginPath(); ctx.arc(cx + head[0] * R, cy + head[1] * R, 2 + dz * 2.5, 0, 6.3); ctx.fill();
+  }
+
+  function drawOrb(t) {
+    const { ctx, w, h } = oc; ctx.clearRect(0, 0, w, h);
+    const cx = w / 2, cy = h * .46, R0 = Math.min(w * .30, h * .25), R = R0 * orbScale, col = orbColor(), sp = reduced ? .2 : 1;
+    ctx.lineCap = 'round';
+
+    // cincin skala luar + arka CPU
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(t * .00005 * sp);
+    for (let i = 0; i < 180; i++) {
+      const a = i / 180 * 6.2832, L = i % 15 === 0, r0 = R * 1.36, r1 = R * (L ? 1.43 : 1.39);
+      ctx.strokeStyle = rgba(CYAN, L ? .7 : .22); ctx.lineWidth = L ? 1.6 : 1;
+      ctx.beginPath(); ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0); ctx.lineTo(Math.cos(a) * r1, Math.sin(a) * r1); ctx.stroke();
+    }
+    ctx.restore();
+    const cpu = (stats.cpu || 0) / 100;
+    ctx.strokeStyle = rgba(cpu > .85 ? [255, 90, 110] : CYAN, .8); ctx.lineWidth = 2.5; ctx.shadowColor = rgba(CYAN, .8); ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(cx, cy, R * 1.48, -Math.PI / 2, -Math.PI / 2 + Math.max(.01, cpu) * 6.2832); ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(-t * .00025 * sp); ctx.strokeStyle = rgba(col, .55); ctx.lineWidth = 3;
+    for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc(0, 0, R * 1.3, i * 1.5708 + .2, i * 1.5708 + .9); ctx.stroke(); }
+    ctx.restore();
+
+    // cincin giroskop 3D
+    ring3d(ctx, cx, cy, R * 1.18, 1.2, .35, t * .0009 * sp, col, .8, 1.8, false);
+    ring3d(ctx, cx, cy, R * 1.08, -1.0, -.6, -t * .0012 * sp, CYAN, .55, 1.3, true);
+    ring3d(ctx, cx, cy, R * 1.25, 1.45, -.15 + Math.sin(t * .0003) * .2, t * .0006 * sp, CYAN, .35, 1, false);
+
+    // sfera titik
+    const ay = t * .00035 * sp, ax = .35 + Math.sin(t * .0002) * .15, pulse = 1 + amp * .1;
+    const proj = [];
+    for (let i = 0; i < N; i++) {
+      const p = rot(sphere[i], ay, ax), wob = 1 + (state !== 'idle' ? Math.sin(i * 12.9 + t * .01) * amp * .06 : 0);
+      proj.push([cx + p[0] * R * .82 * pulse * wob, cy + p[1] * R * .82 * pulse * wob, p[2]]);
+    }
+    proj.sort((a, b) => a[2] - b[2]);
+    for (const [x, y, z] of proj) { const d = (z + 1) / 2; ctx.fillStyle = rgba(col, .15 + d * .8); ctx.beginPath(); ctx.arc(x, y, .6 + d * 1.6, 0, 6.3); ctx.fill(); }
+
+    // teras: cahaya lembut + logo Tuan Akmal
+    const cr = R * (.3 + amp * .08 + Math.sin(t * .003 * sp) * .015);
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr * 2.2);
+    g.addColorStop(0, rgba(col, .55)); g.addColorStop(.35, rgba(col, .22)); g.addColorStop(1, rgba(col, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, cr * 2.2, 0, 6.3); ctx.fill();
+    if (logo.complete && logo.naturalWidth) {
+      const lw = R * (.95 + amp * .08 + Math.sin(t * .003 * sp) * .02), lh = lw * logo.naturalHeight / logo.naturalWidth;
+      const fy = reduced ? 0 : Math.sin(t * .0015) * R * .02;
+      ctx.save(); ctx.shadowColor = rgba(col, .9); ctx.shadowBlur = 18 + amp * 25;
+      ctx.drawImage(logo, cx - lw / 2, cy - lh / 2 + fy, lw, lh);
+      ctx.restore();
+    }
+
+    // bar suara mengelilingi teras
+    ctx.save(); ctx.translate(cx, cy);
+    for (let i = 0; i < 90; i++) {
+      const a = i / 90 * 6.2832, n = (Math.sin(i * 1.3 + t * .007) + Math.sin(i * .37 - t * .005) + 2) / 4, r0 = R * .9, len = R * (.02 + amp * .2 * n);
+      ctx.strokeStyle = rgba(col, .25 + n * .6); ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0); ctx.lineTo(Math.cos(a) * (r0 + len), Math.sin(a) * (r0 + len)); ctx.stroke();
+    }
+    ctx.restore();
+
+    // bacaan kecil
+    ctx.font = '10px "JetBrains Mono", Consolas, monospace'; ctx.fillStyle = rgba(CYAN, .65);
+    ctx.textAlign = 'center'; ctx.fillText('CPU ' + String(Math.round(cpu * 100)).padStart(3, '0') + '%', cx, cy - R * 1.56);
+    ctx.textAlign = 'left'; ctx.fillText('AZM ' + ((ay * 57.3) % 360).toFixed(1).padStart(5, '0') + '°', cx + R * 1.12, cy - R * 1.12);
+    ctx.fillText('AMP ' + (amp * 100).toFixed(0).padStart(3, '0'), cx + R * 1.12, cy + R * 1.18);
+    ctx.textAlign = 'right'; ctx.fillText(api ? 'SYS.ONLINE' : 'SYS.DEMO', cx - R * 1.12, cy - R * 1.12);
+    ctx.fillText(engine.toUpperCase() + ' MODE', cx - R * 1.12, cy + R * 1.18);
+    drawGraph(ctx, cx, cy, R0, w, h, t);
+  }
+
+  // ---------- Peta tugasan: cabang folder/fail yang Jarvis sentuh ----------
+  const graph = { nodes: new Map(), roots: 0, focus: null, until: 0 };
+  const KIND = { folder: CYAN, file: [255, 214, 150], web: VIOLET, link: [140, 225, 255], cmd: GREEN, app: [120, 190, 255], data: AMBER };
+  // ---------- Ikon nod peta ----------
+  const EXT_COL = { pdf: [255, 95, 95], doc: [90, 155, 255], docx: [90, 155, 255], xls: [60, 205, 125], xlsx: [60, 205, 125], csv: [60, 205, 125],
+    ppt: [255, 145, 60], pptx: [255, 145, 60], jpg: [190, 125, 255], jpeg: [190, 125, 255], png: [190, 125, 255], gif: [190, 125, 255],
+    mp4: [255, 95, 165], mov: [255, 95, 165], mp3: [255, 95, 165], zip: [210, 185, 95], rar: [210, 185, 95], txt: [200, 215, 225] };
+  const extOf = n => (n.label.match(/\.([a-z0-9]{1,5})$/i) || [, ''])[1].toLowerCase();
+  const nodeColor = n => n.kind === 'file' ? (EXT_COL[extOf(n)] || KIND.file) : (KIND[n.kind] || CYAN);
+  const favicons = new Map();
+  function favicon(host) {
+    if (!host) return null;
+    if (!favicons.has(host)) { const im = new Image(); im.src = 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(host); favicons.set(host, im); }
+    const im = favicons.get(host); return im.complete && im.naturalWidth > 0 ? im : null;
+  }
+  function globe(ctx, x, y, r, col, a) {
+    ctx.strokeStyle = rgba(col, a); ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 6.3); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x, y, r * .45, r, 0, 0, 6.3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - r, y); ctx.lineTo(x + r, y); ctx.moveTo(x - r * .85, y - r * .5); ctx.lineTo(x + r * .85, y - r * .5);
+    ctx.moveTo(x - r * .85, y + r * .5); ctx.lineTo(x + r * .85, y + r * .5); ctx.stroke();
+  }
+  function drawIcon(ctx, n, r, col, alpha) {
+    const x = n.x, y = n.y;
+    ctx.save();
+    if (n.kind === 'folder') {
+      const w = r * 2.5, h = r * 1.9;
+      ctx.fillStyle = rgba(col, .95 * alpha);
+      ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w * .46, 5, 2); ctx.fill();
+      ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2 + 3, w, h - 3, 3); ctx.fill();
+      ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.fillRect(x - w / 2 + 2, y - h / 2 + 7, w - 4, 1.5);
+    } else if (n.kind === 'file') {
+      const w = r * 1.8, h = r * 2.3, f = r * .7, ext = extOf(n).toUpperCase().slice(0, 4);
+      ctx.fillStyle = rgba(col, .95 * alpha);
+      ctx.beginPath(); ctx.moveTo(x - w / 2, y - h / 2); ctx.lineTo(x + w / 2 - f, y - h / 2); ctx.lineTo(x + w / 2, y - h / 2 + f);
+      ctx.lineTo(x + w / 2, y + h / 2); ctx.lineTo(x - w / 2, y + h / 2); ctx.closePath(); ctx.fill();
+      ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(0,0,0,.25)';
+      ctx.beginPath(); ctx.moveTo(x + w / 2 - f, y - h / 2); ctx.lineTo(x + w / 2 - f, y - h / 2 + f); ctx.lineTo(x + w / 2, y - h / 2 + f); ctx.fill();
+      if (ext) { ctx.fillStyle = '#04121c'; ctx.font = '700 8px "JetBrains Mono", Consolas, monospace'; ctx.textAlign = 'center'; ctx.fillText(ext, x, y + 4); }
+    } else if (n.kind === 'link') {
+      ctx.fillStyle = 'rgba(4,16,26,.95)'; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.3); ctx.fill();
+      ctx.shadowBlur = 0; ctx.strokeStyle = rgba(col, .9 * alpha); ctx.lineWidth = 2; ctx.stroke();
+      const im = favicon(n.host);
+      if (im) { ctx.globalAlpha = alpha; ctx.save(); ctx.beginPath(); ctx.arc(x, y, r - 3, 0, 6.3); ctx.clip(); ctx.drawImage(im, x - r * .7, y - r * .7, r * 1.4, r * 1.4); ctx.restore(); }
+      else globe(ctx, x, y, r * .6, col, alpha);
+    } else if (n.kind === 'web') {
+      ctx.fillStyle = 'rgba(4,16,26,.95)'; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.3); ctx.fill();
+      ctx.shadowBlur = 0; globe(ctx, x, y, r * .78, col, alpha);
+    } else {  // app / arahan / peringatan
+      ctx.fillStyle = rgba(col, .95 * alpha); ctx.beginPath(); ctx.roundRect(x - r, y - r, r * 2, r * 2, 5); ctx.fill();
+      ctx.shadowBlur = 0; ctx.fillStyle = '#04121c'; ctx.textAlign = 'center';
+      const glyph = /^(\S+)\s/.test(n.label) && /[^\w]/.test(n.label[0]) ? n.label.split(' ')[0] : n.label.slice(0, 2).toUpperCase();
+      ctx.font = '700 11px "JetBrains Mono", "Segoe UI Emoji", sans-serif'; ctx.fillText(glyph, x, y + 4);
+    }
+    ctx.restore();
+  }
+
+  let HOME = '', orbScale = 1;
+  const nowMs = () => performance.now();
+  const isFileName = s => /\.[a-z0-9]{1,5}$/i.test(s) && !/^\./.test(s);
+
+  function clearGraph() { graph.nodes.clear(); graph.roots = 0; graph.focus = null; }
+  function keepGraph(ms) { graph.until = nowMs() + ms; }
+  function addNode(parent, label, kind) {
+    const key = (parent ? parent.key + '\\' : '') + label.toLowerCase();
+    let n = graph.nodes.get(key);
+    if (!n) {
+      if (graph.nodes.size >= 34) pruneGraph();
+      n = { key, label, kind, parent, depth: parent ? parent.depth + 1 : 0, kids: 0, idx: parent ? parent.kids++ : graph.roots++, born: nowMs(), x: null, y: null, a: 0 };
+      graph.nodes.set(key, n);
+    }
+    n.touched = nowMs(); if (kind !== 'folder' || n.kind === 'folder') n.kind = kind;
+    return n;
+  }
+  function pruneGraph() {
+    const leaves = [...graph.nodes.values()].filter(n => ![...graph.nodes.values()].some(c => c.parent === n)).sort((a, b) => a.touched - b.touched);
+    for (const n of leaves.slice(0, 6)) graph.nodes.delete(n.key);
+  }
+  function addChain(segs, leafKind) {
+    let p = null;
+    segs.forEach((s, i) => { p = addNode(p, s, i === segs.length - 1 ? leafKind : 'folder'); });
+    return p;
+  }
+  function chainFromPath(path) {
+    let p = path.replace(/\//g, '\\').replace(/\\+$/, '');
+    let segs = (HOME && p.toLowerCase().startsWith(HOME.toLowerCase()) ? p.slice(HOME.length) : p).split('\\').filter(s => s && !/[*?]/.test(s));
+    if (!segs.length) segs = ['Home'];
+    if (segs.length > 3) segs = [segs[0], segs[segs.length - 2], segs[segs.length - 1]];
+    const leaf = segs[segs.length - 1];
+    return addChain(segs, isFileName(leaf) ? 'file' : 'folder');
+  }
+  function extractPaths(s) {
+    const t = s.replace(/\$env:USERPROFILE|%USERPROFILE%|\$HOME|~(?=[\\/])/gi, HOME);
+    const out = [], re = /["']([A-Za-z]:[\\/][^"'\r\n]*)["']|([A-Za-z]:[\\/][^\s"'|;,)]+)/g; let m;
+    while ((m = re.exec(t))) out.push((m[1] || m[2]).replace(/[\\/][^\\/]*[*?][^\\/]*$/, '').replace(/[.,:]$/, ''));
+    return [...new Set(out)].filter(p => p.length > 3);
+  }
+  // Tool Claude digunakan → tambah cabang
+  function graphFromTool(name, full) {
+    const s = full || '';
+    if (name === 'WebSearch') { graph.focus = addChain(['Web', s.slice(0, 34)], 'web'); return; }
+    if (name === 'WebFetch') { graph.focus = addChain(['Web', (s.match(/https?:\/\/([^/\s]+)/) || [, 'link'])[1]], 'web'); return; }
+    const paths = extractPaths(s);
+    if (paths.length) { paths.slice(0, 4).forEach(p => { graph.focus = chainFromPath(p); }); return; }
+    const lower = s.toLowerCase();
+    const hits = items.filter(i => i.kind === 'desktop' && i.name.length > 2 && lower.includes(i.name.toLowerCase()));
+    if (hits.length) { hits.slice(0, 3).forEach(i => { graph.focus = addChain(['Desktop', i.name], i.dir ? 'folder' : 'file'); }); return; }
+    const cmd = (s.trim().split(/[\s|;(]/)[0] || name).slice(0, 22);
+    addChain(['⚙ ' + cmd], 'cmd');
+  }
+  // Hasil arahan (senarai fail) → cabang anak pada folder yang sedang diproses
+  function graphFromResult(text) {
+    const parent = graph.focus; if (!parent || parent.kind !== 'folder') return;
+    let added = 0;
+    for (const raw of text.split(/\r?\n/)) {
+      if (added >= 10) break;
+      const line = raw.trim(); if (!line || /^(Directory:|Mode\s|----|Name\s*$)/i.test(line)) continue;
+      let name = null, dir = false;
+      const cols = line.split(/\s{2,}/), mode = cols.find(c => /^[d-][a-z-]{4,5}$/i.test(c));
+      if (mode && cols.length > 1) {  // jadual Get-ChildItem: Mode/Tarikh/Saiz/Name dalam apa-apa susunan
+        const rest = cols.filter(c => c !== mode && !/^[\d\/.:\- ]+(AM|PM)?$/i.test(c));
+        name = rest[rest.length - 1]; dir = mode[0].toLowerCase() === 'd';
+        // jadual standard: saiz fail dan nama cuma dipisah satu ruang ("2048 surat.docx")
+        if (!dir && name && rest.length < cols.length - 1) name = name.replace(/^\d+ /, '');
+      }
+      else if (/^[A-Za-z]:[\\/]/.test(line) || /^\/[a-z]\//.test(line)) { name = line.split(/[\\/]/).filter(Boolean).pop(); dir = !isFileName(name || ''); }
+      else if (/^[^\s:<>|"\\/][^:<>|"\\/]{0,58}\.[a-z0-9]{1,5}$/i.test(line)) name = line;
+      if (!name || name.length > 60) continue;
+      addNode(parent, name, dir ? 'folder' : 'file'); added++;
+    }
+  }
+
+  // Tetikus atas peta: hover tunjuk label penuh, klik hasil carian buka laman
+  let mouse = null, hoverNode = null;
+  $('orb').addEventListener('mousemove', e => { const r = $('orb').getBoundingClientRect(); mouse = { x: e.clientX - r.left, y: e.clientY - r.top }; });
+  $('orb').addEventListener('mouseleave', () => { mouse = null; });
+  $('orb').addEventListener('click', () => { if (hoverNode && hoverNode.url && api) api.open_url(hoverNode.url); });
+
+  function drawGraph(ctx, cx, cy, R, w, h, t) {
+    const target = graph.nodes.size ? .55 : 1; orbScale += (target - orbScale) * .05;
+    if (!graph.nodes.size) { hoverNode = null; $('orb').style.cursor = ''; return; }
+    const left = graph.until - nowMs();
+    if (!busy && left <= 0) { clearGraph(); return; }
+    const alpha = busy ? 1 : Math.min(1, left / 2500), now = nowMs();
+    // nod yang sedang "mati": anak ikut induk, buang selepas animasi mengecut
+    for (const n of graph.nodes.values()) if (!n.dying && n.parent && n.parent.dying) n.dying = n.parent.dying;
+    for (const [k, n] of graph.nodes) if (n.dying && now - n.dying > 550) graph.nodes.delete(k);
+    // kira semula susunan anak (selepas ada yang dibuang)
+    const count = new Map(); let roots = 0;
+    for (const n of graph.nodes.values()) { if (n.parent) { n.idx = count.get(n.parent) || 0; count.set(n.parent, n.idx + 1); } else n.idx = roots++; }
+    for (const n of graph.nodes.values()) n.kids = count.get(n) || 0;
+    const nodes = [...graph.nodes.values()].sort((a, b) => a.depth - b.depth);
+    const dense = nodes.length > 12;
+    const rx = Math.min(w * .46 - 70, Math.max(R * 1.9, w * .26)), ry = Math.min(h * .42 - 30, Math.max(R * 1.5, h * .24)), slots = Math.max(roots, 5);
+    const L = 70, Rt = w - 70, T = 40, B = h - 60;
+    const clampX = x => Math.max(L, Math.min(Rt, x)), clampY = y => Math.max(T, Math.min(B, y));
+    const room = (px, py, a) => { const dx = Math.cos(a), dy = Math.sin(a);
+      return Math.min(dx > 1e-3 ? (Rt - px) / dx : dx < -1e-3 ? (L - px) / dx : 1e9, dy > 1e-3 ? (B - py) / dy : dy < -1e-3 ? (T - py) / dy : 1e9); };
+    const sway = reduced ? 0 : 1;
+    for (const n of nodes) {   // akar mengelilingi sfera; anak dalam kipas yang berayun perlahan
+      if (!n.parent) {
+        n.a = -Math.PI / 2 + n.idx * (6.2832 / slots) + .3 + Math.sin(t * .00025 + n.idx) * .05 * sway;
+        n.tx = cx + Math.cos(n.a) * rx; n.ty = cy + Math.sin(n.a) * ry;
+      } else {
+        const p = n.parent, pk = Math.max(p.kids, 1);
+        if (p.fanAt !== t) {
+          const out = p.parent ? p.a : Math.atan2(p.ty - cy, p.tx - cx);
+          let best = out, bestRoom = room(p.tx, p.ty, out);
+          for (const off of [.7, -.7, 1.4, -1.4, 2.1, -2.1, Math.PI]) {
+            const r2 = room(p.tx, p.ty, out + off); if (r2 > bestRoom * 1.35) { best = out + off; bestRoom = r2; }
+          }
+          p.fanA = best; p.fanRoom = bestRoom; p.fanAt = t;
+        }
+        const fan = Math.min(Math.PI * 1.7, .42 * pk + .25);
+        const swing = (n.kind === 'link' ? .14 : .05) * sway;   // hasil carian berayun mengelilingi nod carian
+        n.a = p.fanA + (pk === 1 ? 0 : (n.idx / (pk - 1) - .5) * fan) + Math.sin(t * .0006 + n.idx * 1.7) * swing;
+        const breathe = 1 + Math.sin(t * .0011 + n.idx * 2.1) * .04 * sway;
+        const rad = Math.max(85, Math.min(55 + 22 * Math.sqrt(pk), p.fanRoom - 20)) * (pk > 5 && n.idx % 2 ? 1.4 : 1) * breathe;
+        const shrink = n.dying ? 1 - Math.min(1, (now - n.dying) / 550) : 1;   // mengecut masuk ke induk
+        n.tx = p.tx + Math.cos(n.a) * rad * shrink; n.ty = p.ty + Math.sin(n.a) * rad * shrink;
+      }
+      n.tx = clampX(n.tx); n.ty = clampY(n.ty);
+    }
+    for (let it = 0; it < 4; it++) {   // tolak nod yang bertindih
+      for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+        const A = nodes[i], Bn = nodes[j]; if (A.dying || Bn.dying) continue;
+        const bw = dense ? 96 : 122, dx = Bn.tx - A.tx, dy = Bn.ty - A.ty, ox = bw - Math.abs(dx), oy = 46 - Math.abs(dy);
+        if (ox <= 0 || oy <= 0) continue;
+        if (ox / bw < oy / 46) { const s = (dx >= 0 ? 1 : -1) * ox / 2; if (A.parent) A.tx = clampX(A.tx - s); Bn.tx = clampX(Bn.tx + s); }
+        else { const s = (dy >= 0 ? 1 : -1) * oy / 2; if (A.parent) A.ty = clampY(A.ty - s); Bn.ty = clampY(Bn.ty + s); }
+      }
+    }
+    for (const n of nodes) {
+      if (n.x == null) { n.x = n.parent ? n.parent.x : cx; n.y = n.parent ? n.parent.y : cy; }
+      const k = n.dying ? .25 : .12; n.x += (n.tx - n.x) * k; n.y += (n.ty - n.y) * k;
+    }
+    // nod di bawah tetikus
+    hoverNode = null;
+    if (mouse) { let best = 22; for (const n of nodes) { const d = Math.hypot(n.x - mouse.x, n.y - mouse.y); if (d < best && !n.dying) { best = d; hoverNode = n; } } }
+    $('orb').style.cursor = hoverNode && hoverNode.url ? 'pointer' : '';
+    const fade = n => alpha * (n.dying ? Math.max(0, 1 - (now - n.dying) / 550) : 1);
+
+    ctx.save(); ctx.font = '600 13px "JetBrains Mono", Consolas, monospace'; ctx.textAlign = 'center';
+    for (const n of nodes) {   // garisan + zarah data mengalir
+      const col = KIND[n.kind] || CYAN, g = Math.min(1, (now - n.born) / 450), a = fade(n);
+      let px, py;
+      if (n.parent) { px = n.parent.x; py = n.parent.y; } else { const d = Math.hypot(n.x - cx, n.y - cy) || 1; px = cx + (n.x - cx) / d * R * .62 * orbScale / .7; py = cy + (n.y - cy) / d * R * .62 * orbScale / .7; }
+      const mx = (px + n.x) / 2 + (n.y - py) * .12, my = (py + n.y) / 2 - (n.x - px) * .12;
+      const hot = now - n.touched < 3500 || (busy && n === graph.focus) || n === hoverNode;
+      ctx.strokeStyle = rgba(col, (hot ? .6 : .3) * a); ctx.lineWidth = hot ? 2 : 1.3;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.quadraticCurveTo(mx, my, px + (n.x - px) * g, py + (n.y - py) * g); ctx.stroke();
+      for (let i = 0; i < (hot ? 3 : 1); i++) {
+        const u = ((t * (hot ? .0009 : .0003)) + i / 3 + n.idx * .17) % 1, v = 1 - u;
+        const qx = v * v * px + 2 * v * u * mx + u * u * n.x, qy = v * v * py + 2 * v * u * my + u * u * n.y;
+        ctx.fillStyle = rgba(col, (hot ? .95 : .35) * a); ctx.beginPath(); ctx.arc(qx, qy, hot ? 3.2 : 1.8, 0, 6.3); ctx.fill();
+      }
+    }
+    for (const n of nodes) {   // nod + ikon + label
+      const col = nodeColor(n), g = Math.min(1, (now - n.born) / 450), s = g < 1 ? 1 + Math.sin(g * Math.PI) * .5 : 1, a = fade(n);
+      const recent = now - n.born < 9000, hot = now - n.touched < 3500 || (busy && n === graph.focus);
+      // nod lama & tak aktif dikecilkan supaya peta tak sesak
+      const quiet = dense && !hot && !recent && n.parent && n !== hoverNode;
+      const r = ({ folder: 10, file: 9, link: 13, web: 11 }[n.kind] || 10) * s * (quiet ? .7 : 1);
+      ctx.globalAlpha = quiet ? .55 : 1;
+      ctx.shadowColor = rgba(col, .9); ctx.shadowBlur = hot ? 22 : 12;
+      drawIcon(ctx, n, r, col, a);
+      ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+      if (now - n.born < 1100) {   // gelombang "ping" bila nod muncul
+        const k = (now - n.born) / 1100; ctx.strokeStyle = rgba(col, (1 - k) * .8 * a); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(n.x, n.y, r + 4 + k * 34, 0, 6.3); ctx.stroke();
+      }
+      if (hot) { ctx.strokeStyle = rgba(col, .6 * a); ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(n.x, n.y, r + 8 + Math.sin(t * .008) * 3, 0, 6.3); ctx.stroke(); }
+      if (quiet || n.dying) continue;   // label hanya untuk nod aktif/baru
+      const max = dense ? (n.kind === 'link' ? 22 : 16) : (n.kind === 'link' ? 30 : 26), label = n.label.length > max ? n.label.slice(0, max - 1) + '…' : n.label;
+      const ly = n.y + r + 8, tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(2,6,11,.78)'; ctx.fillRect(n.x - tw / 2 - 6, ly - 2, tw + 12, n.sub ? 32 : 19);
+      ctx.fillStyle = rgba(n.kind === 'file' ? [245, 232, 210] : [222, 248, 255], (n.depth ? .88 : 1) * a * g);
+      ctx.fillText(label, n.x, ly + 12);
+      if (n.sub) { ctx.save(); ctx.font = '11px "JetBrains Mono", Consolas, monospace'; ctx.fillStyle = rgba(col, .85 * a * g); ctx.fillText(n.sub, n.x, ly + 26); ctx.restore(); }
+    }
+    if (hoverNode) {   // kotak maklumat penuh bila hover
+      const n = hoverNode, lines = [n.label, n.sub || '', n.url ? '↗ click to open' : ''].filter(Boolean);
+      ctx.font = '600 12px "JetBrains Mono", Consolas, monospace';
+      const bw = Math.min(w - 20, Math.max(...lines.map(l => ctx.measureText(l).width)) + 20), bh = lines.length * 17 + 12;
+      let bx = n.x + 18, by = n.y - bh / 2; if (bx + bw > w - 8) bx = n.x - bw - 18; by = Math.max(6, Math.min(h - bh - 6, by));
+      ctx.fillStyle = 'rgba(3,14,22,.95)'; ctx.fillRect(bx, by, bw, bh);
+      ctx.strokeStyle = rgba(nodeColor(n), .9); ctx.lineWidth = 1; ctx.strokeRect(bx + .5, by + .5, bw - 1, bh - 1);
+      ctx.textAlign = 'left';
+      lines.forEach((l, i) => { ctx.fillStyle = i === 0 ? '#e6faff' : rgba(nodeColor(n), .9); ctx.fillText(l, bx + 10, by + 20 + i * 17, bw - 20); });
+    }
+    ctx.restore();
+  }
+
+  function drawSpark() {
+    if (!sc) return; const { ctx, w, h } = sc; ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = rgba(CYAN, .1); ctx.lineWidth = 1;
+    for (const y of [.25, .5, .75]) { ctx.beginPath(); ctx.moveTo(0, h * y); ctx.lineTo(w, h * y); ctx.stroke(); }
+    if (cpuHist.length < 2) return;
+    const x = i => w - 4 - (cpuHist.length - 1 - i) * ((w - 8) / 59), y = v => h - 3 - v / 100 * (h - 6);
+    ctx.beginPath(); cpuHist.forEach((v, i) => i ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)));
+    ctx.strokeStyle = rgba(CYAN, 1); ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.lineTo(x(cpuHist.length - 1), h); ctx.lineTo(x(0), h); ctx.closePath();
+    const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, rgba(CYAN, .3)); g.addColorStop(1, rgba(CYAN, 0)); ctx.fillStyle = g; ctx.fill();
+    ctx.fillStyle = rgba(CYAN, 1); ctx.beginPath(); ctx.arc(x(cpuHist.length - 1), y(cpuHist[cpuHist.length - 1]), 2.5, 0, 6.3); ctx.fill();
+  }
+
+  const wave = new Uint8Array(512);
+  function loop(t) {
+    if (document.hidden) { setTimeout(() => requestAnimationFrame(loop), 500); return; }  // jimat CPU bila disembunyi
+    if (analyser && state === 'speaking') {  // sfera ikut suara sebenar Jarvis
+      analyser.getByteTimeDomainData(wave);
+      let sum = 0; for (let i = 0; i < wave.length; i++) { const v = (wave[i] - 128) / 128; sum += v * v; }
+      ampTarget = .2 + Math.min(1, Math.sqrt(sum / wave.length) * 5);
+      amp += (ampTarget - amp) * .3;
+    } else amp += (ampTarget + (state === 'speaking' ? (Math.random() - .5) * .35 : 0) - amp) * .07;
+    drawBg(); drawOrb(t); requestAnimationFrame(loop);
+  }
+
+  // ---------- Boot ----------
+  function greeting() { const h = new Date().getHours(); return h < 12 ? 'Pagi Akmal!' : h < 15 ? 'Tengah hari dah Akmal.' : h < 19 ? 'Petang Akmal!' : 'Malam Akmal!'; }
+  async function bootSequence(lines) {
+    const pre = $('bootText');
+    if (reduced) { pre.innerHTML = lines.map(l => l[0] + (l[1] ? ' <span class="ok">[OK]</span>' : '')).join('\n'); }
+    else for (const [text, ok] of lines) {
+      const line = document.createElement('div'); pre.append(line);
+      for (let i = 1; i <= text.length; i += 2) { line.textContent = text.slice(0, i); await new Promise(r => setTimeout(r, 8)); }
+      line.textContent = text; if (ok) { const s = document.createElement('span'); s.className = 'ok'; s.textContent = ' [' + ok + ']'; line.append(s); }
+      await new Promise(r => setTimeout(r, 90));
+    }
+    await new Promise(r => setTimeout(r, reduced ? 200 : 350));
+    $('boot').classList.add('done'); document.body.classList.remove('booting');
+  }
+
+  async function boot() {
+    refit(); addEventListener('resize', refit); requestAnimationFrame(loop);
+    if (window.pywebview && window.pywebview.api) api = window.pywebview.api;
+    let info = { ok: false, chat: false, model: '', chat_model: '' };
+    if (api) { try { info = await api.claude_info(); } catch (e) {} }
+    HOME = info.home || '';
+    try { const st = await api.get_settings(); voiceFx = !!st.voice_fx; setVoice(st.speak_replies !== false, true); } catch (e) {}
+    settingsLoaded = true;
+    window.PLACE = (info.location || '').split(',')[0].trim();
+    $('dotClaude').className = 'dot ' + (info.ok ? 'on' : 'off');
+    $('dotChat').className = 'dot ' + (info.chat ? 'on' : 'off');
+    if (info.model) $('lblClaude').textContent = 'Claude · ' + info.model;
+    if (info.chat_model) setChatName(info.chat_model);
+    await bootSequence([
+      ['> INITIALIZING J.A.R.V.I.S CORE v0.9', 'OK'],
+      ['> LOADING SYSTEM TELEMETRY', api ? 'OK' : 'DEMO'],
+      ['> LINKING CLAUDE CODE', info.ok ? 'OK' : 'FAIL'],
+      ['> LINKING DEEPSEEK', info.chat ? 'OK' : 'FAIL'],
+      ['> VOICE MODULE · MS-MY', api ? 'OK' : 'DEMO'],
+      ['> WELCOME BACK, AKMAL', ''],
+    ]);
+    if (!api) { $('mode').textContent = 'demo'; say('Demo mode. Run main.py for full control.', false); return; }
+    await loadShortcuts(); await pullStats(); setInterval(pullStats, 1000);
+    refreshPrayer(); setInterval(refreshPrayer, 30000); refreshToday(); setInterval(refreshToday, 60000);
+    try { const w = await api.wake_status(); $('dotWake').className = 'dot ' + (w.on ? 'on' : 'off'); } catch (e) {}
+    const br = await api.morning_brief(false);
+    if (br.ok) { setState('thinking'); $('act').textContent = '◆ Preparing your daily brief…'; }
+    else say(greeting() + ' Semua sistem on, ready nak buat kerja.', false);
+    $('cmd').focus();
+  }
+  let booted = false;
+  const once = () => { if (!booted) { booted = true; boot(); } };
+  window.addEventListener('pywebviewready', once);
+  setTimeout(once, 1500);
+})();
+</script>
+</body>
+</html>

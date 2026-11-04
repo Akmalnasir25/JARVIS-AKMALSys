@@ -1,0 +1,26 @@
+{
+  "folders": [
+    { "name": "Desktop",   "known": "Desktop" },
+    { "name": "Documents", "known": "Documents" },
+    { "name": "Downloads", "known": "Downloads" },
+    { "name": "Pictures",  "known": "Pictures" },
+    { "name": "Videos",    "known": "Videos" },
+    { "name": "Akmal",     "path": "~" },
+    { "name": "Jarvis",    "path": "~/jarvis-desktop" }
+  ],
+  "apps": [
+    { "name": "VS Code",      "path": "%LOCALAPPDATA%/Programs/Microsoft VS Code/Code.exe" },
+    { "name": "Chrome",       "path": "%ProgramFiles%/Google/Chrome/Application/chrome.exe" },
+    { "name": "Edge",         "path": "%ProgramFiles(x86)%/Microsoft/Edge/Application/msedge.exe" },
+    { "name": "Word",         "path": "%ProgramFiles%/Microsoft Office/root/Office16/WINWORD.EXE" },
+    { "name": "Excel",        "path": "%ProgramFiles%/Microsoft Office/root/Office16/EXCEL.EXE" },
+    { "name": "PowerPoint",   "path": "%ProgramFiles%/Microsoft Office/root/Office16/POWERPNT.EXE" },
+    { "name": "Telegram",     "startmenu": "Telegram" },
+    { "name": "Explorer",     "command": "explorer" },
+    { "name": "Terminal",     "command": "powershell" },
+    { "name": "Notepad",      "command": "notepad" },
+    { "name": "Kalkulator",   "command": "calc" },
+    { "name": "Task Manager", "command": "taskmgr" },
+    { "name": "Tetapan",      "command": "ms-settings:" }
+  ]
+}

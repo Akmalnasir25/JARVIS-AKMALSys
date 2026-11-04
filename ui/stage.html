@@ -1,0 +1,2868 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jarvis Stage</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap">
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Instrument cluster layout.
+   left  168px  meter stack (LED columns, not dials)
+   rail   54px  vertical panel selector 1–9
+   stage  rest  one panel mounted at a time
+   right 292px  comms log
+   ───────────────────────────────────────────────────────────── */
+:root {
+  color-scheme: dark;
+
+  --bg:        #05030f;
+  --bg-deep:   #020106;
+  --panel:     rgba(17, 8, 33, 0.70);
+  --panel-2:   rgba(11, 5, 22, 0.60);
+  --raised:    rgba(28, 13, 50, 0.92);
+
+  --line:      rgba(180, 120, 255, 0.18);
+  --line-soft: rgba(180, 120, 255, 0.075);
+  --line-hard: rgba(180, 120, 255, 0.44);
+
+  --ink:       #d2ecf6;
+  --ink-dim:   #84a8b9;
+  --ink-faint: #43616f;
+
+  --cyan:      #b478ff;
+  --cyan-2:    #dcb6ff;
+  --violet:    #8fb8ff;
+  --amber:     #ffb340;
+  --ok:        #38e6a0;
+  --bad:       #ff5f70;
+
+  --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 12.5px/1.5 var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* ── ambient ground ───────────────────────────────────────── */
+#bg { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; }
+
+.floor {
+  position: fixed; left: -45%; right: -45%; bottom: -14%; height: 52%;
+  z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(var(--line-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+  background-size: 64px 64px;
+  transform: perspective(520px) rotateX(74deg);
+  transform-origin: bottom;
+  -webkit-mask-image: linear-gradient(to top, #000 8%, transparent 78%);
+  mask-image: linear-gradient(to top, #000 8%, transparent 78%);
+  animation: floorDrift 5.5s linear infinite;
+}
+@keyframes floorDrift { to { background-position: 0 64px, 0 0; } }
+
+.vignette {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(ellipse 80% 66% at 52% 44%, transparent 26%, rgba(0,0,0,.78) 100%);
+}
+.scanlines {
+  position: fixed; inset: 0; z-index: 60; pointer-events: none;
+  background: repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.16) 2px 3px);
+  opacity: .32;
+}
+
+/* ── shell grid ───────────────────────────────────────────── */
+.hud {
+  position: relative; z-index: 1;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 168px 54px minmax(0, 1fr) 292px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "top  top  top   top"
+    "left rail stage right"
+    "bot  bot  bot   bot";
+  gap: 10px 10px;
+  padding: 0 14px 12px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+}
+
+/* ── header ───────────────────────────────────────────────── */
+header {
+  grid-area: top;
+  display: flex; align-items: center; gap: 14px;
+  height: 52px;
+  position: relative;
+}
+header::after {
+  content: ""; position: absolute; left: -14px; right: -14px; bottom: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line) 6%, var(--cyan) 50%, var(--line) 94%, transparent);
+  opacity: .5;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand img {
+  width: 26px; height: 26px; object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(180,120,255,.65));
+}
+.brand b {
+  display: block; font: 700 17px/1 var(--font-display);
+  letter-spacing: .34em; color: var(--cyan);
+  text-shadow: 0 0 18px rgba(180,120,255,.6);
+}
+.brand small {
+  display: block; margin-top: 3px;
+  font: 500 8px/1 var(--font-mono);
+  letter-spacing: .24em; color: var(--ink-faint); text-transform: uppercase;
+}
+.spacer { flex: 1; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--line-soft);
+  background: rgba(180,120,255,.025);
+  font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ink-dim); white-space: nowrap;
+}
+.chip .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-faint); }
+.chip .dot.on  { background: var(--ok);  box-shadow: 0 0 8px var(--ok); }
+.chip .dot.off { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
+.chip.warn { border-color: rgba(255,179,64,.4); color: var(--amber); }
+
+.clock { text-align: right; font-variant-numeric: tabular-nums; }
+.clock b {
+  display: block; font: 500 25px/1 var(--font-display);
+  color: var(--cyan); letter-spacing: .05em;
+  text-shadow: 0 0 22px rgba(180,120,255,.45);
+}
+.clock b small { font-size: 13px; color: var(--ink-faint); }
+.clock span {
+  display: block; margin-top: 3px;
+  font-size: 8.5px; letter-spacing: .15em; text-transform: uppercase; color: var(--ink-faint);
+}
+
+.iconbar { display: flex; gap: 4px; }
+.iconbar button {
+  width: 28px; height: 26px; padding: 0;
+  display: grid; place-items: center;
+  background: transparent; border: 1px solid var(--line-soft);
+  color: var(--cyan); cursor: pointer;
+  transition: background .13s, border-color .13s, color .13s;
+}
+.iconbar button:hover { background: rgba(180,120,255,.13); border-color: var(--line-hard); }
+.iconbar button svg { width: 13px; height: 13px; }
+.iconbar button.quit:hover { background: var(--bad); color: var(--bg-deep); border-color: var(--bad); }
+.iconbar button.power:hover { background: var(--amber); color: var(--bg-deep); border-color: var(--amber); }
+
+/* ── shared surfaces ──────────────────────────────────────── */
+.glass {
+  position: relative;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--line-soft);
+  padding: 11px 12px;
+  min-width: 0;
+}
+.glass::before {
+  content: ""; position: absolute; inset: -1px; pointer-events: none;
+  background:
+    linear-gradient(var(--cyan), var(--cyan)) left  top    / 10px 1px,
+    linear-gradient(var(--cyan), var(--cyan)) left  top    / 1px 10px,
+    linear-gradient(var(--cyan), var(--cyan)) right top    / 10px 1px,
+    linear-gradient(var(--cyan), var(--cyan)) right top    / 1px 10px,
+    linear-gradient(var(--cyan), var(--cyan)) left  bottom / 10px 1px,
+    linear-gradient(var(--cyan), var(--cyan)) left  bottom / 1px 10px,
+    linear-gradient(var(--cyan), var(--cyan)) right bottom / 10px 1px,
+    linear-gradient(var(--cyan), var(--cyan)) right bottom / 1px 10px;
+  background-repeat: no-repeat;
+  opacity: .7;
+}
+
+h2 {
+  margin: 0 0 9px;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 6px;
+  font: 600 8.5px/1 var(--font-mono);
+  letter-spacing: .24em; text-transform: uppercase;
+  color: var(--cyan);
+}
+h2 .sub {
+  font-weight: 400; font-size: 8px; letter-spacing: .12em;
+  color: var(--ink-faint); text-transform: uppercase;
+}
+
+/* ── left: meter stack ────────────────────────────────────── */
+aside.left {
+  grid-area: left;
+  display: flex; flex-direction: column; gap: 9px;
+  min-height: 0; overflow-y: auto;
+  scrollbar-width: none;
+}
+aside.left::-webkit-scrollbar { display: none; }
+
+.meters {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;
+  height: 138px;
+}
+.meter { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.meter .tube {
+  position: relative; flex: 1; min-height: 0;
+  background: rgba(180,120,255,.04);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+/* LED segmentation */
+.meter .tube::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(to top,
+    transparent 0 2px, rgba(5,3,15,.92) 2px 3px);
+}
+.meter .fill {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 0%;
+  background: linear-gradient(to top, rgba(180,120,255,.9), rgba(180,120,255,.30));
+  box-shadow: 0 -4px 14px rgba(180,120,255,.55);
+  transition: height .5s cubic-bezier(.22,.9,.3,1), background .3s;
+}
+.meter.hot  .fill { background: linear-gradient(to top, rgba(255,179,64,.95), rgba(255,179,64,.28)); box-shadow: 0 -4px 14px rgba(255,179,64,.6); }
+.meter.crit .fill { background: linear-gradient(to top, rgba(255,95,112,.95), rgba(255,95,112,.28)); box-shadow: 0 -4px 14px rgba(255,95,112,.6); }
+.meter .v {
+  font: 600 11px/1 var(--font-display);
+  color: var(--ink); text-align: center; font-variant-numeric: tabular-nums;
+}
+.meter.hot  .v { color: var(--amber); }
+.meter.crit .v { color: var(--bad); }
+.meter .l {
+  font-size: 6.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-faint); text-align: center;
+}
+
+#spark { width: 100%; height: 52px; display: block; margin-bottom: 8px; }
+
+.kv {
+  display: flex; justify-content: space-between; gap: 6px;
+  padding: 3px 0;
+  font-size: 10px;
+  border-bottom: 1px solid rgba(180,120,255,.045);
+}
+.kv:last-child { border-bottom: 0; }
+.kv span:first-child { color: var(--ink-faint); letter-spacing: .05em; }
+.kv span:last-child { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.ind { display: flex; flex-direction: column; gap: 5px; }
+.ind div {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 7.5px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.led {
+  width: 5px; height: 5px; flex: 0 0 auto;
+  border-radius: 50%; background: var(--ink-faint);
+}
+.led.on  { background: var(--ok); box-shadow: 0 0 7px var(--ok); }
+.led off  { background: var(--ink-faint); }
+
+/* ── rail: vertical panel selector ────────────────────────── */
+nav.rail {
+  grid-area: rail;
+  display: flex; flex-direction: column; gap: 2px;
+  min-height: 0; max-height: 100%;
+  overflow-y: auto; scrollbar-width: none;
+}
+nav.rail::-webkit-scrollbar { display: none; }
+.stage-tab {
+  position: relative;
+  flex: 0 0 52px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  padding: 0;
+  background: rgba(17,8,33,.55);
+  border: 1px solid var(--line-soft);
+  color: var(--ink-faint); cursor: pointer;
+  transition: color .14s, background .14s, border-color .14s;
+}
+.stage-tab::before {
+  content: ""; position: absolute; left: -1px; top: 50%; transform: translateY(-50%);
+  width: 1px; height: 0; background: var(--cyan);
+  transition: height .18s;
+}
+.stage-tab b { font: 600 12px/1 var(--font-display); letter-spacing: .02em; }
+.stage-tab span {
+  font-size: 6px; letter-spacing: .08em; text-transform: uppercase;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.stage-tab:hover { color: var(--ink-dim); background: rgba(180,120,255,.05); }
+.stage-tab[aria-selected="true"] {
+  color: var(--cyan);
+  background: rgba(180,120,255,.09);
+  border-color: var(--line);
+}
+.stage-tab[aria-selected="true"]::before { height: 70%; }
+.stage-tab[aria-selected="true"] span { color: var(--cyan-2); }
+
+/* ── stage ────────────────────────────────────────────────── */
+main.stage-wrap {
+  grid-area: stage;
+  display: flex; flex-direction: column;
+  min-width: 0; min-height: 0;
+}
+
+.stage {
+  position: relative;
+  flex: 1; min-height: 0;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+.stage::before {
+  content: ""; position: absolute; inset: -1px; z-index: 20; pointer-events: none;
+  background:
+    linear-gradient(var(--cyan), var(--cyan)) left  top    / 22px 1px,
+    linear-gradient(var(--cyan), var(--cyan)) left  top    / 1px 22px,
+    linear-gradient(var(--cyan), var(--cyan)) right top    / 22px 1px,
+    linear-gradient(var(--cyan), var(--cyan)) right top    / 1px 22px,
+    linear-gradient(var(--cyan), var(--cyan)) left  bottom / 22px 1px,
+    linear-gradient(var(--cyan), var(--cyan)) left  bottom / 1px 22px,
+    linear-gradient(var(--cyan), var(--cyan)) right bottom / 22px 1px,
+    linear-gradient(var(--cyan), var(--cyan)) right bottom / 1px 22px;
+  background-repeat: no-repeat;
+  opacity: .85;
+}
+
+/* ghost panel numeral — paints under the content but over the stage ground */
+.stage .ghost {
+  position: absolute; right: 24px; bottom: 14px;
+  z-index: 0; pointer-events: none;
+  font: 700 min(16vh, 132px)/0.78 var(--font-display);
+  letter-spacing: -.04em;
+  color: rgba(180,120,255,.045);
+  -webkit-text-stroke: 1px rgba(180,120,255,.28);
+  transition: opacity .3s;
+}
+
+.pane { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; min-height: 0; }
+.pane[hidden] { display: none !important; }
+/* the numeral keeps being readable behind the orb/talk without sitting on top of text */
+.pane > .pane-head,
+.pane > .core-body,
+.pane > .media-shell,
+.pane > .files-shell,
+.pane > .browse-shell,
+.pane > .docs-shell,
+.pane > .ana-shell,
+.pane > .stage-rail { position: relative; z-index: 1; }
+.pane > .pane-head,
+.pane > .stage-rail { background: transparent; }
+#pane-comms .core-body,
+#pane-comms .talk { background: transparent; }
+.pane::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(180,120,255,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(180,120,255,.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: radial-gradient(ellipse 74% 64% at 50% 46%, #000 18%, transparent 80%);
+  mask-image: radial-gradient(ellipse 74% 64% at 50% 46%, #000 18%, transparent 80%);
+}
+.pane > * { position: relative; z-index: 1; }
+
+.pane-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 13px;
+  border-bottom: 1px solid var(--line-soft);
+  background: linear-gradient(90deg, rgba(180,120,255,.045), transparent 60%);
+  flex: 0 0 auto;
+}
+.pane-head .title {
+  font: 600 9.5px/1 var(--font-display);
+  letter-spacing: .22em; text-transform: uppercase; color: var(--cyan);
+}
+.pane-head .meta { font-size: 8.5px; letter-spacing: .1em; color: var(--ink-faint); }
+.pane-head .grow { flex: 1; }
+.pane-body { flex: 1; min-height: 0; overflow-y: auto; padding: 13px; }
+.pane-body.tight { padding: 0; }
+.pane-body::-webkit-scrollbar { width: 5px; }
+.pane-body::-webkit-scrollbar-thumb { background: var(--line); }
+
+.btn {
+  padding: 3px 8px;
+  background: transparent; border: 1px solid var(--line-soft);
+  font: 500 8px/1 var(--font-mono); letter-spacing: .13em; text-transform: uppercase;
+  color: var(--cyan); cursor: pointer;
+  transition: background .13s, border-color .13s;
+}
+.btn:hover { background: rgba(180,120,255,.12); border-color: var(--line-hard); }
+.btn.solid { background: rgba(180,120,255,.14); }
+
+.placeholder {
+  height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 24px; text-align: center;
+}
+.placeholder .glyph {
+  width: 58px; height: 58px;
+  display: grid; place-items: center;
+  border: 1px dashed var(--line);
+  color: var(--cyan); opacity: .55;
+}
+.placeholder .glyph svg { width: 24px; height: 24px; }
+.placeholder b {
+  font: 600 10.5px/1 var(--font-display);
+  letter-spacing: .26em; text-transform: uppercase; color: var(--ink-dim);
+}
+.placeholder p {
+  margin: 0; max-width: 46ch;
+  font-size: 10px; line-height: 1.7; color: var(--ink-faint);
+}
+.placeholder .phase {
+  font-size: 8px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--amber); border: 1px solid rgba(255,179,64,.28);
+  padding: 3px 8px;
+}
+
+/* ── COMMS core (orb lives here) ──────────────────────────── */
+.core-body {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+}
+/* the orb gets its own bounded box: a % height on a canvas inside a
+   flex column resolves to 0, which is what blanked it in v1.1 */
+.orb-box {
+  position: relative;
+  flex: 0 0 auto;
+  height: 250px;
+  min-height: 130px;
+  margin: 4px 0 2px;
+}
+#orb { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.core-state {
+  flex: 0 0 auto;
+  text-align: center; pointer-events: none;
+  padding-bottom: 6px;
+}
+.core-state b {
+  display: block;
+  font: 600 11px/1 var(--font-display);
+  letter-spacing: .5em; text-transform: uppercase; color: var(--cyan);
+  text-shadow: 0 0 18px rgba(180,120,255,.65);
+}
+.core-state span {
+  display: block; margin-top: 6px;
+  font-size: 8.5px; letter-spacing: .2em; text-transform: uppercase; color: var(--ink-faint);
+}
+
+.stage-rail {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 14px;
+  padding: 6px 13px;
+  border-top: 1px solid var(--line-soft);
+  background: rgba(0,0,0,.28);
+  font-size: 7.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint);
+}
+.stage-rail .grow { flex: 1; }
+.stage-rail .dim { letter-spacing: .1em; text-transform: none; }
+.stage-rail .led { margin-right: 5px; vertical-align: middle; }
+
+/* ── COMMS panel: transcript lives in the stage, not the side rail ── */
+.core-body { display: flex; flex-direction: column; min-height: 0; }
+.talk {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 6px 13px 10px;
+  display: flex; flex-direction: column; gap: 9px;
+  border-top: 1px solid var(--line-soft);
+}
+.talk::-webkit-scrollbar { width: 4px; }
+.talk::-webkit-scrollbar-thumb { background: var(--line); }
+.talk .msg .bubble { font-size: 11.5px; }
+.talk { justify-content: flex-start; }
+.talk-empty {
+  margin: auto; padding: 14px 0; text-align: left; max-width: 320px;
+  font: 400 9.5px/1.9 var(--font-mono);
+  color: var(--ink-faint); letter-spacing: .04em;
+}
+.talk-empty b { display: block; color: var(--ink-dim); font-weight: 500; margin-bottom: 3px; }
+
+/* thinking trace, one line per tool call */
+.trace {
+  display: flex; flex-direction: column; gap: 2px;
+  margin: 2px 0 0; padding: 0 0 0 10px;
+  border-left: 1px solid rgba(255,179,64,.22);
+  font: 400 9px/1.75 var(--font-mono);
+  color: var(--amber); opacity: .82;
+}
+.trace.gone { display: none; }
+.trace span::before { content: "› "; opacity: .55; }
+
+/* ── MEDIA panel ──────────────────────────────────────────── */
+.media-shell { display: flex; flex-direction: column; height: 100%; }
+.media-screen {
+  position: relative; flex: 1; min-height: 0;
+  background: #000;
+  display: grid; place-items: center;
+  overflow: hidden;
+}
+.media-screen video,
+.media-screen audio {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  background: #000; object-fit: contain; outline: 0; z-index: 1;
+}
+/* audio has no picture — a full-bleed black <audio> box just eats the pane,
+   so audio gets a slim bar and the list keeps the room. */
+.media-screen audio { display: none; }
+.media-screen.playing .film,
+.media-screen.playing .centre { display: none; }
+.media-screen.audio-only.playing { flex: 0 0 64px; min-height: 64px; }
+.media-screen .film {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(circle at 32% 30%, rgba(180,120,255,.14), transparent 55%),
+    radial-gradient(circle at 70% 72%, rgba(156,139,255,.12), transparent 55%),
+    linear-gradient(160deg, #061018, #010407);
+}
+.media-screen .centre {
+  position: relative; z-index: 2; text-align: center; padding: 20px;
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+}
+.media-screen .centre b {
+  font: 600 10.5px/1 var(--font-display);
+  letter-spacing: .28em; text-transform: uppercase; color: var(--ink-dim);
+}
+.media-screen .centre span { font-size: 8.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-faint); }
+.media-screen .badge {
+  position: absolute; top: 10px; left: 12px; z-index: 2;
+  font-size: 7.5px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--amber); border: 1px solid rgba(255,179,64,.28); padding: 3px 7px;
+}
+.reel {
+  width: 46px; height: 46px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  position: relative;
+}
+.reel::before, .reel::after {
+  content: ""; position: absolute; inset: 8px;
+  border: 1px solid var(--line-soft); border-radius: 50%;
+}
+.reel::after { inset: 18px; border-color: var(--cyan); opacity: .7; }
+
+.media-bar {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 13px;
+  border-top: 1px solid var(--line-soft);
+  background: rgba(5,3,15,.94);
+  position: relative; z-index: 2;
+}
+.media-bar button {
+  width: 26px; height: 24px; padding: 0;
+  display: grid; place-items: center;
+  background: transparent; border: 1px solid var(--line-soft);
+  color: var(--cyan); cursor: pointer;
+}
+.media-bar button:hover { background: rgba(180,120,255,.12); }
+.media-bar button svg { width: 12px; height: 12px; }
+.media-bar .tc { font-size: 9px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.media-bar .track { flex: 1; height: 2px; background: rgba(180,120,255,.12); position: relative; }
+.media-bar .track i { position: absolute; left: 0; top: -3px; width: 2px; height: 8px; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+
+.media-list { flex: 0 0 auto; max-height: 34%; overflow-y: auto; border-top: 1px solid var(--line-soft); background: rgba(5,3,15,.94); position: relative; z-index: 2; }
+.media-row {
+  display: grid; grid-template-columns: 34px minmax(0,1fr) 42px;
+  gap: 9px; align-items: center;
+  padding: 6px 13px;
+  font-size: 9.5px; color: var(--ink-dim);
+  border-bottom: 1px solid rgba(180,120,255,.04);
+  cursor: pointer;
+}
+.media-row:hover { background: rgba(180,120,255,.05); color: var(--ink); }
+.media-row.active { background: rgba(180,120,255,.09); color: var(--cyan); }
+.media-row .tag {
+  font-size: 7px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-faint); border: 1px solid var(--line-soft); padding: 2px 0; text-align: center;
+}
+.media-row .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.media-row .d { font-size: 8px; color: var(--ink-faint); text-align: right; }
+
+/* ── TERMINAL panel ───────────────────────────────────────── */
+.term {
+  height: 100%; overflow-y: auto; padding: 11px 13px;
+  font: 400 11px/1.62 var(--font-mono);
+  white-space: pre-wrap; word-break: break-word;
+  color: var(--ink-dim);
+  user-select: text;
+}
+.term .cmd { color: var(--cyan-2); }
+.term .ok  { color: var(--ok); }
+.term .err { color: var(--bad); }
+.term .amb { color: var(--amber); }
+.term .dim { color: var(--ink-faint); }
+.caret {
+  display: inline-block; width: 6px; height: 12px; vertical-align: -2px;
+  background: var(--cyan); animation: blink 1.1s steps(1) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ── FILES panel ──────────────────────────────────────────── */
+.files-shell { display: grid; grid-template-columns: 218px minmax(0,1fr); height: 100%; min-height: 0; }
+.tree { min-height: 0; overflow-y: auto; border-right: 1px solid var(--line-soft); padding: 8px 0; }
+.node {
+  display: flex; align-items: center; gap: 7px;
+  padding: 3px 12px;
+  font-size: 10px; color: var(--ink-dim);
+  cursor: pointer; white-space: nowrap;
+}
+.node:hover { background: rgba(180,120,255,.06); color: var(--ink); }
+.node.sel { background: rgba(180,120,255,.11); color: var(--cyan); }
+.node .ic { display: grid; place-items: center; width: 12px; color: var(--ink-faint); flex: 0 0 auto; }
+.node.sel .ic { color: var(--cyan); }
+.node .ic svg { width: 11px; height: 11px; }
+.node .ext {
+  margin-left: auto; font-size: 7px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.node.depth1 { padding-left: 24px; }
+.node.depth2 { padding-left: 38px; }
+.preview { display: flex; flex-direction: column; min-height: 0; }
+.preview-body { flex: 1; min-height: 0; overflow: auto; padding: 10px 0; }
+/* real file previews: plain <pre>, no highlighter yet — one less dependency */
+.preview-body pre {
+  margin: 0; padding: 0 13px;
+  font: 400 10.5px/1.75 var(--font-mono);
+  color: var(--ink); white-space: pre-wrap; word-break: break-word;
+  user-select: text;
+}
+.preview-body .empty {
+  display: grid; place-items: center; height: 100%;
+  font-size: 10px; color: var(--ink-faint);
+}
+.node.dir .ic { color: var(--cyan); }
+.node.sel { background: rgba(180,120,255,.1); color: var(--cyan); }
+.tree-empty { padding: 10px 13px; font-size: 9.5px; color: var(--ink-faint); }
+.code-line { display: flex; gap: 12px; padding: 0 13px; font-size: 10.5px; line-height: 1.7; }
+.code-line .ln { width: 22px; text-align: right; color: var(--ink-faint); opacity: .55; flex: 0 0 auto; user-select: none; }
+.code-line .tx { white-space: pre; color: var(--ink); }
+.tok-c { color: var(--ink-faint); }
+.tok-k { color: #dcb6ff; }
+.tok-f { color: var(--violet); }
+.tok-s { color: var(--ok); }
+
+/* ── BROWSER panel ────────────────────────────────────────── */
+.browse-shell { display: flex; flex-direction: column; height: 100%; }
+.browse-bar {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 11px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.browse-bar .url {
+  flex: 1; min-width: 0;
+  padding: 5px 9px;
+  background: rgba(0,0,0,.34); border: 1px solid var(--line-soft);
+  font-size: 10px; color: var(--ink-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.browse-body { flex: 1; min-height: 0; position: relative; display: grid; place-items: center; }
+
+/* ── DOCS panel ───────────────────────────────────────────── */
+.docs-shell { display: grid; grid-template-columns: 196px minmax(0,1fr); height: 100%; min-height: 0; }
+.doc-side { border-right: 1px solid var(--line-soft); padding: 10px 0; overflow-y: auto; }
+.doc-side .item {
+  padding: 5px 13px; font-size: 10px; color: var(--ink-dim); cursor: pointer;
+}
+.doc-side .item:hover { background: rgba(180,120,255,.06); }
+.doc-side .item.sel { color: var(--cyan); background: rgba(180,120,255,.1); }
+
+/* ── ANALYSIS panel ───────────────────────────────────────── */
+.ana-shell { padding: 14px; display: flex; flex-direction: column; gap: 11px; height: 100%; overflow-y: auto; }
+.ana-title { font: 600 15px/1.3 var(--font-display); letter-spacing: .03em; color: var(--ink); }
+.ana-sum { font-size: 10.5px; line-height: 1.6; color: var(--ink-dim); }
+.ana-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 9px; }
+.ana-card {
+  border: 1px solid var(--line-soft); background: rgba(180,120,255,.035);
+  padding: 9px 11px; position: relative;
+  opacity: .18; transform: translateY(10px) scale(.97);
+  transition: opacity .5s ease, transform .6s cubic-bezier(.2,.9,.25,1.15), border-color .3s;
+}
+.ana-card::after {
+  content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 0;
+  background: linear-gradient(90deg, var(--cyan), transparent);
+  transition: width .9s cubic-bezier(.2,.8,.2,1) .12s;
+}
+.ana-card.shown { opacity: 1; transform: none; }
+.ana-card.shown::after { width: 96%; }
+.ana-card b { display: block; font: 600 19px/1 var(--font-display); color: var(--cyan); font-variant-numeric: tabular-nums; }
+.ana-card span { display: block; margin-top: 5px; font-size: 8px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
+.ana-card small { display: block; margin-top: 4px; font-size: 9px; line-height: 1.45; color: var(--ink-dim); }
+.ana-card.focus { border-color: var(--line-hard); }
+.ana-card.focus b, .ana-card.focus span { color: var(--amber); }
+.ana-card.focus::after { background: linear-gradient(90deg, var(--amber), transparent); }
+
+.ana-charts { display: flex; flex-direction: column; gap: 11px; }
+.ana-charts:empty, .ana-cards:empty, .ana-points:empty, .ana-follow:empty { display: none; }
+.achart { border: 1px solid var(--line-soft); padding: 10px 12px 12px; }
+.achart h4 {
+  margin: 0 0 9px; padding-bottom: 6px; border-bottom: 1px solid var(--line-soft);
+  font: 600 8.5px/1 var(--font-display); letter-spacing: .2em; text-transform: uppercase; color: var(--cyan);
+}
+.arow { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.25fr) auto; gap: 9px; align-items: center; padding: 4px 0; font-size: 10px; }
+.arow .al { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-dim); }
+.arow .ab {
+  height: 8px; position: relative; overflow: hidden;
+  background: rgba(180,120,255,.07);
+  border: 1px solid var(--line-soft);
+}
+.arow .ab i {
+  position: absolute; inset: 0 auto 0 0; width: 0;
+  background: linear-gradient(90deg, rgba(180,120,255,.55), var(--cyan-2));
+  box-shadow: 0 0 9px rgba(180,120,255,.55);
+  transition: width .8s cubic-bezier(.2,.8,.2,1);
+}
+.arow .av { font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; }
+.arow.focus { background: rgba(255,179,64,.1); box-shadow: inset 2px 0 0 var(--amber); }
+.arow.focus .al, .arow.focus .av { color: var(--amber); }
+.arow.focus .ab i { background: linear-gradient(90deg, #8a5a10, var(--amber)); }
+.achart.focus h4 { color: var(--amber); border-bottom-color: var(--line-hard); }
+
+.ana-points { display: flex; flex-direction: column; gap: 5px; }
+.ana-point {
+  padding: 6px 9px 6px 11px; border-left: 2px solid var(--line-soft);
+  font-size: 10px; line-height: 1.6; color: var(--ink-faint);
+  transition: color .25s, border-color .25s, background .25s;
+}
+.ana-point.on { border-left-color: var(--amber); background: rgba(255,179,64,.06); color: var(--ink); }
+.ana-follow { display: flex; flex-wrap: wrap; gap: 6px; }
+.ana-follow button {
+  padding: 4px 9px; background: transparent; border: 1px solid var(--line-soft);
+  font: 500 8.5px/1.4 var(--font-mono); color: var(--cyan); cursor: pointer; text-align: left;
+}
+.ana-follow button:hover { border-color: var(--line-hard); background: rgba(180,120,255,.07); }
+
+/* ── NATIVE panel ─────────────────────────────────────────── */
+.native-note {
+  margin: 14px; padding: 14px;
+  border: 1px dashed var(--line);
+  display: grid; gap: 8px;
+  font-size: 10px; line-height: 1.7; color: var(--ink-faint);
+}
+.native-note b { color: var(--amber); letter-spacing: .16em; text-transform: uppercase; font-size: 9px; }
+
+/* ── right: comms log ─────────────────────────────────────── */
+aside.right {
+  grid-area: right;
+  display: flex; flex-direction: column;
+  min-height: 0;
+}
+.comms { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 0; }
+.comms-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.comms-head h2 { margin: 0; }
+
+.feed {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 11px;
+}
+.feed::-webkit-scrollbar { width: 4px; }
+.feed::-webkit-scrollbar-thumb { background: var(--line); }
+
+/* log entries, not chat bubbles */
+.msg {
+  position: relative;
+  display: flex; flex-direction: column; gap: 3px;
+  padding-left: 9px;
+  border-left: 1px solid var(--line-soft);
+}
+.msg .who {
+  font-size: 7px; letter-spacing: .22em; text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.msg .bubble {
+  font-size: 11px; line-height: 1.66; color: var(--ink);
+  user-select: text; white-space: pre-wrap; word-break: break-word;
+}
+.msg.me { border-left-color: var(--cyan); }
+.msg.me .who { color: var(--cyan-2); }
+.msg.me .bubble { color: var(--cyan-2); }
+.msg.jarvis .bubble { color: var(--ink); }
+
+.today { display: flex; flex-direction: column; gap: 10px; padding: 2px 0 6px; }
+.today h5 {
+  margin: 0; font: 600 7.5px/1 var(--font-mono);
+  letter-spacing: .24em; text-transform: uppercase; color: var(--cyan); opacity: .85;
+}
+.wxrow { display: flex; align-items: center; gap: 10px; }
+.wxrow .ico { display: grid; place-items: center; width: 24px; height: 24px; color: var(--cyan); }
+.wxrow b { display: block; font: 600 18px/1 var(--font-display); color: var(--ink); }
+.wxrow span { display: block; margin-top: 2px; font-size: 9px; color: var(--ink-faint); }
+
+.pray {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 9px;
+  border: 1px solid var(--line-soft);
+  background: rgba(180,120,255,.025);
+}
+.pray svg { width: 30px; height: 30px; transform: rotate(-90deg); flex: 0 0 auto; }
+.pray .trk { fill: none; stroke: rgba(180,120,255,.12); stroke-width: 4; }
+.pray .arc { fill: none; stroke: var(--cyan); stroke-width: 4; stroke-linecap: round; }
+.pray span { display: block; font-size: 7.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
+.pray b { display: block; margin-top: 2px; font: 600 11.5px/1 var(--font-display); color: var(--ink); }
+.pray em { display: block; margin-top: 2px; font-size: 8.5px; font-style: normal; color: var(--cyan); }
+
+.sug { display: flex; flex-direction: column; gap: 4px; }
+.sug button {
+  text-align: left; padding: 5px 9px;
+  background: transparent; border: 0; border-left: 1px solid var(--line-soft);
+  font: 400 9.5px/1.5 var(--font-mono); color: var(--ink-dim);
+  cursor: pointer; transition: color .13s, border-color .13s, background .13s;
+}
+.sug button:hover { color: var(--cyan); border-left-color: var(--cyan); background: rgba(180,120,255,.05); }
+
+/* right rail second half: morning brief + panel map */
+.feed h5.sec {
+  margin: 6px 0 2px; font: 600 7.5px/1 var(--font-mono);
+  letter-spacing: .24em; text-transform: uppercase; color: var(--cyan); opacity: .85;
+}
+.brief {
+  padding: 7px 9px;
+  border: 1px solid var(--line-soft);
+  background: rgba(180,120,255,.025);
+  font: 400 9.5px/1.75 var(--font-mono);
+  color: var(--ink-dim);
+  user-select: text; white-space: pre-wrap; max-height: 190px; overflow-y: auto;
+  text-align: left;
+}
+.brief::-webkit-scrollbar { width: 4px; }
+.brief::-webkit-scrollbar-thumb { background: var(--line); }
+.pane-map { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.pane-map button {
+  padding: 4px 7px; text-align: left;
+  background: transparent; border: 1px solid var(--line-soft);
+  font: 400 9px/1.4 var(--font-mono); color: var(--ink-dim); cursor: pointer;
+  transition: color .13s, border-color .13s, background .13s;
+}
+.pane-map button:hover { color: var(--cyan); border-color: var(--line-hard); background: rgba(180,120,255,.06); }
+
+/* ── footer ───────────────────────────────────────────────── */
+footer {
+  grid-area: bot;
+  display: grid; grid-template-columns: minmax(0, 1fr) 560px;
+  gap: 12px; align-items: end;
+  padding-top: 2px;
+}
+.dock { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.dock-tabs { display: flex; gap: 2px; }
+.dock-tabs button {
+  padding: 3px 9px;
+  background: transparent; border: 0; border-bottom: 1px solid var(--line-soft);
+  font: 600 8px/1 var(--font-mono); letter-spacing: .15em; text-transform: uppercase;
+  color: var(--ink-faint); cursor: pointer;
+}
+.dock-tabs button[aria-selected="true"] { color: var(--cyan); border-bottom-color: var(--cyan); }
+.dock-row { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; }
+.dock-row::-webkit-scrollbar { display: none; }
+.tile {
+  flex: 0 0 auto; width: 52px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 5px 2px;
+  background: transparent; border: 1px solid var(--line-soft);
+  cursor: pointer; transition: border-color .13s, background .13s, transform .13s;
+}
+.tile:hover { border-color: var(--line); background: rgba(180,120,255,.07); transform: translateY(-2px); }
+.tile .hex {
+  width: 24px; height: 24px; display: grid; place-items: center;
+  background: rgba(180,120,255,.09);
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  font: 600 9px/1 var(--font-display); color: var(--cyan);
+}
+.tile .hex svg { width: 12px; height: 12px; }
+.tile .n {
+  max-width: 100%; font-size: 7px; letter-spacing: .02em; color: var(--ink-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.capsule {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 7px;
+  background: var(--panel);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--line);
+}
+.capsule .mode {
+  display: flex; gap: 1px; padding: 1px;
+  background: rgba(0,0,0,.36); border: 1px solid var(--line-soft);
+}
+.capsule .mode button {
+  padding: 4px 7px; background: transparent; border: 0;
+  font: 600 7.5px/1 var(--font-mono); letter-spacing: .12em;
+  color: var(--ink-faint); cursor: pointer;
+}
+.capsule .mode button[aria-pressed="true"] { background: rgba(180,120,255,.16); color: var(--cyan); }
+.capsule input {
+  flex: 1; min-width: 0;
+  padding: 6px 2px; background: transparent; border: 0; outline: 0;
+  font: 400 12px/1 var(--font-mono); color: var(--ink);
+}
+.capsule input::placeholder { color: var(--ink-faint); }
+.capsule .round {
+  width: 28px; height: 28px; flex: 0 0 auto;
+  display: grid; place-items: center;
+  background: transparent; border: 1px solid var(--line-soft);
+  color: var(--cyan); cursor: pointer;
+}
+.capsule .round:hover { background: rgba(180,120,255,.14); }
+.capsule .round svg { width: 13px; height: 13px; }
+.capsule .round.send { background: rgba(180,120,255,.16); border-color: var(--line-hard); }
+.hint {
+  margin-top: 4px; text-align: right;
+  font-size: 7.5px; letter-spacing: .06em; color: var(--ink-faint);
+}
+.hint kbd {
+  padding: 1px 4px;
+  border: 1px solid var(--line-soft);
+  font: inherit; color: var(--ink-dim);
+}
+
+/* ── narrow ───────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  .hud { grid-template-columns: 150px 48px minmax(0,1fr) 262px; }
+}
+@media (max-width: 1080px) {
+  .hud { grid-template-columns: 44px minmax(0,1fr); grid-template-areas: "top top" "rail stage" "bot bot"; }
+  aside.left, aside.right { display: none; }
+}
+@media (max-width: 860px) {
+  html, body { overflow: auto; height: auto; }
+  .hud { height: auto; min-height: 100vh; grid-template-columns: minmax(0,1fr); grid-template-areas: "top" "stage" "bot"; }
+  nav.rail { display: none; }
+  main.stage-wrap { min-height: 520px; }
+  footer { grid-template-columns: minmax(0,1fr); }
+  .files-shell, .docs-shell { grid-template-columns: minmax(0,1fr); }
+  .tree, .doc-side { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="bg" aria-hidden="true"></canvas>
+<div class="floor" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+<div class="scanlines" aria-hidden="true"></div>
+
+<div class="hud">
+
+  <!-- ══════════ HEADER ══════════ -->
+  <header>
+    <div class="brand">
+      <img src="logo.png" alt="">
+      <div>
+        <b>J.A.R.V.I.S</b>
+        <small>Akmal · stage v1.1</small>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="chip" title="Claude Code — kerja PC">
+      <span class="dot on"></span><span>Claude</span>
+    </div>
+    <div class="chip" title="Model chat — rootsys">
+      <span class="dot on"></span><span>DeepSeek</span>
+    </div>
+    <div class="chip" title="Kata kunci bangun">
+      <span class="dot on"></span><span>Hey Jarvis</span>
+    </div>
+    <div class="chip warn" title="Waktu solat">
+      <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 3a9 9 0 1 0 0 18a11 11 0 0 1 0-18z"/></svg>
+      <span>Asar · 16:42</span>
+    </div>
+    <div class="clock">
+      <b id="clock">--:--<small>:--</small></b>
+      <span id="today">—</span>
+    </div>
+    <div class="iconbar">
+      <button type="button" title="Tetapan">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+        </svg>
+      </button>
+      <button type="button" class="power" title="Tutup laptop">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M12 3v9"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>
+        </svg>
+      </button>
+      <button type="button" title="Sembunyi">—</button>
+      <button type="button" class="quit" title="Tutup Jarvis">✕</button>
+    </div>
+  </header>
+
+  <!-- ══════════ LEFT: METERS ══════════ -->
+  <aside class="left">
+    <section class="glass">
+      <h2>Telemetry <span class="sub" id="mode">live</span></h2>
+      <div class="meters">
+        <div class="meter" id="g-cpu">
+          <div class="tube"><i class="fill"></i></div>
+          <div class="v">34</div>
+          <div class="l">CPU</div>
+        </div>
+        <div class="meter" id="g-ram">
+          <div class="tube"><i class="fill"></i></div>
+          <div class="v">71</div>
+          <div class="l">RAM</div>
+        </div>
+        <div class="meter hot" id="g-disk">
+          <div class="tube"><i class="fill"></i></div>
+          <div class="v">73</div>
+          <div class="l">DSK</div>
+        </div>
+        <div class="meter" id="g-bat">
+          <div class="tube"><i class="fill"></i></div>
+          <div class="v">88</div>
+          <div class="l">BAT</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="glass">
+      <h2>CPU · 60s <span class="sub" id="cpuNow">34%</span></h2>
+      <canvas id="spark" aria-label="Penggunaan CPU, 60 saat terakhir"></canvas>
+      <div class="kv"><span>Memori</span><span>12.4 / 15.9 GB</span></div>
+      <div class="kv"><span>↓ Turun</span><span>1.8 MB/s</span></div>
+      <div class="kv"><span>↑ Naik</span><span>240 KB/s</span></div>
+      <div class="kv"><span>Proses</span><span>231</span></div>
+      <div class="kv"><span>Hidup</span><span>6j 12m</span></div>
+    </section>
+
+    <section class="glass">
+      <h2>Saluran</h2>
+      <div class="ind">
+        <div><i class="led on"></i>mic</div>
+        <div><i class="led on"></i>tts · google</div>
+        <div><i class="led on"></i>claude</div>
+        <div><i class="led on"></i>deepseek</div>
+        <div><i class="led"></i>wake</div>
+      </div>
+    </section>
+  </aside>
+
+  <!-- ══════════ RAIL: PANEL SELECTOR ══════════ -->
+  <nav class="rail" role="tablist" aria-label="Panel stage">
+    <button type="button" class="stage-tab" role="tab" aria-selected="true"  data-pane="comms"><b>1</b><span>Comms</span></button>
+    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="media"><b>2</b><span>Media</span></button>
+    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="term"><b>3</b><span>Term</span></button>
+    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="files"><b>4</b><span>Fail</span></button>
+    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="editor"><b>5</b><span>Edit</span></button>
+    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="browse"><b>6</b><span>Web</span></button>
+    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="docs"><b>7</b><span>Dok</span></button>
+    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="ana"><b>8</b><span>Ana</span></button>
+    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="native"><b>9</b><span>App</span></button>
+  </nav>
+
+  <!-- ══════════ STAGE ══════════ -->
+  <main class="stage-wrap">
+    <div class="stage" id="stage">
+      <div class="ghost" id="ghost" aria-hidden="true">1</div>
+
+      <!-- ── 1 COMMS ── -->
+      <section class="pane" id="pane-comms" role="tabpanel">
+        <div class="pane-head">
+          <span class="title">Comms</span>
+          <span class="meta" id="talkMeta">sesi baru</span>
+          <span class="grow"></span>
+          <button type="button" class="btn" id="btnNewSession">Sesi baru</button>
+        </div>
+        <div class="core-body">
+          <div class="orb-box">
+            <canvas id="orb" aria-label="Teras Jarvis"></canvas>
+          </div>
+          <div class="core-state">
+            <b id="state">Standby</b>
+            <span id="act">Menunggu arahan</span>
+          </div>
+          <div class="talk" id="talk">
+            <div class="talk-empty">
+              <b>Stage sedia.</b>
+              Taip di bawah atau tekan Ctrl+Space untuk bercakap. <kbd>1</kbd>–<kbd>9</kbd> tukar panel.
+            </div>
+          </div>
+        </div>
+        <div class="stage-rail">
+          <span><i class="led on" id="ledMic"></i>mic</span>
+          <span><i class="led on" id="ledTts"></i>tts</span>
+          <span><i class="led" id="ledClaude"></i>claude</span>
+          <span><i class="led" id="ledChat"></i>chat</span>
+          <span class="grow"></span>
+          <span class="dim" id="railVoice">google · ms-MY-Wavenet-D</span>
+        </div>
+      </section>
+
+      <!-- ── 2 MEDIA ── -->
+      <section class="pane" id="pane-media" role="tabpanel" hidden>
+        <div class="media-shell">
+          <div class="media-screen" id="mediaScreen">
+            <div class="film"></div>
+            <span class="badge" id="mediaBadge">Range server · 206 Partial</span>
+            <div class="centre">
+              <div class="reel"></div>
+              <b id="mediaTitle">Belum ada medium</b>
+              <span id="mediaHint">media/ · mp4 · mkv · mp3</span>
+            </div>
+          </div>
+          <div class="media-bar">
+            <button type="button" aria-label="Sebelum" id="mediaPrev">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14l-10-7z"/></svg>
+            </button>
+            <button type="button" aria-label="Main" id="mediaPlay">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>
+            </button>
+            <button type="button" aria-label="Selepas" id="mediaNext">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l10-7z"/></svg>
+            </button>
+            <span class="tc" id="mediaCur">00:00</span>
+            <div class="track" id="mediaTrack"><i id="mediaHead" style="left:0"></i></div>
+            <span class="tc" id="mediaDur">--:--</span>
+          </div>
+          <div class="media-list" id="mediaList">
+            <div class="media-row active"><span class="tag">—</span><span class="n">folder media/ kosong</span><span class="d">—</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 3 TERMINAL ── -->
+      <section class="pane" id="pane-term" role="tabpanel" hidden>
+        <div class="pane-head">
+          <span class="title">Terminal</span>
+          <span class="meta" id="termMeta">claude · stream-json</span>
+          <span class="grow"></span>
+          <button type="button" class="btn" id="termClear">Bersih</button>
+        </div>
+        <div class="pane-body tight">
+          <div class="term" id="term"><span class="dim">Stage terminal · semua tool call Claude dipaparkan di sini.</span>
+<span class="dim">Tulis arahan di kotak bawah — panel ini bukan shell interaktif.</span>
+
+<span class="cmd">PS C:\Users\akmal\jarvis-desktop&gt;</span> <span class="caret"></span></div>
+        </div>
+      </section>
+
+      <!-- ── 4 FAIL ── -->
+      <section class="pane" id="pane-files" role="tabpanel" hidden>
+        <div class="files-shell">
+          <div class="tree" id="tree">
+            <div class="tree-empty">memuatkan…</div>
+          </div>
+          <div class="preview">
+            <div class="pane-head">
+              <span class="title" id="fileName">—</span>
+              <span class="meta" id="fileMeta">pilih fail di kiri</span>
+              <span class="grow"></span>
+              <button type="button" class="btn solid" id="fileOpen">Buka luar</button>
+            </div>
+            <div class="preview-body" id="fileBody">
+              <div class="empty">Pilih fail untuk dipaparkan di sini.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 5 EDITOR ── -->
+      <section class="pane" id="pane-editor" role="tabpanel" hidden>
+        <div class="pane-head">
+          <span class="title">Editor</span>
+          <span class="meta">codemirror 6 · belum dipasang</span>
+          <span class="grow"></span>
+          <button type="button" class="btn">Simpan</button>
+        </div>
+        <div class="pane-body">
+          <div class="placeholder">
+            <div class="glyph">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <b>Editor penuh</b>
+            <p>CodeMirror 6 dimuat lazy. Tulis hanya di dalam workdir yang dikonfigurasi — semakan <code>Path.resolve().is_relative_to(WORKDIR)</code>.</p>
+            <span class="phase">Fasa 5</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 6 BROWSER ── -->
+      <section class="pane" id="pane-browse" role="tabpanel" hidden>
+        <div class="browse-shell">
+          <div class="browse-bar">
+            <button type="button" class="btn">←</button>
+            <button type="button" class="btn">→</button>
+            <div class="url">https:// — masukkan alamat</div>
+            <button type="button" class="btn">Buka</button>
+          </div>
+          <div class="browse-body">
+            <div class="placeholder">
+              <div class="glyph">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z"/></svg>
+              </div>
+              <b>Browser dalam HUD</b>
+              <p>Iframe untuk laman yang benarkan embed. Laman yang sekat <code>X-Frame-Options</code> guna navigasi WebView2 dengan snapshot DOM — bukan tetingkap luar.</p>
+              <span class="phase">Fasa 6</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 7 DOKUMEN ── -->
+      <section class="pane" id="pane-docs" role="tabpanel" hidden>
+        <div class="docs-shell">
+          <div class="doc-side">
+            <div class="item sel">Dokumen terkini</div>
+            <div class="item">PDF</div>
+            <div class="item">Word</div>
+            <div class="item">Excel</div>
+          </div>
+          <div class="pane-body">
+            <div class="placeholder">
+              <div class="glyph">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+              </div>
+              <b>PDF · DOCX · XLSX</b>
+              <p>PDF.js untuk PDF, docx-preview untuk Word, SheetJS untuk Excel. Semua di dalam stage — tiada Adobe, tiada Word.</p>
+              <span class="phase">Fasa 6</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 8 ANALISIS ── -->
+      <section class="pane" id="pane-ana" role="tabpanel" hidden>
+        <div class="pane-head">
+          <span class="title">Analisis</span>
+          <span class="meta" id="anaMeta">menunggu dash</span>
+          <span class="grow"></span>
+          <button type="button" class="btn" id="anaReplay">Main semula</button>
+        </div>
+        <div class="ana-shell">
+          <div class="ana-title" id="anaTitle">Belum ada analisis</div>
+          <div class="ana-sum" id="anaSum">Tanya sesuatu yang perlukan angka — "berapa besar folder ni", "bandingkan penggunaan RAM minggu ni". Jarvis bina dash di sini.</div>
+          <div class="ana-cards" id="anaCards"></div>
+          <div class="ana-charts" id="anaCharts"></div>
+          <div class="ana-points" id="anaPoints"></div>
+          <div class="ana-follow" id="anaFollow"></div>
+        </div>
+      </section>
+
+      <!-- ── 9 NATIVE ── -->
+      <section class="pane" id="pane-native" role="tabpanel" hidden>
+        <div class="pane-head">
+          <span class="title">Native app</span>
+          <span class="meta">hwnd overlay</span>
+        </div>
+        <div class="native-note">
+          <b>Pilihan · Fasa 7</b>
+          <span>JS ukur rect stage → Python SetParent + SetWindowPos. DPI: CSS px × devicePixelRatio. Bila tukar panel, ShowWindow(hwnd, SW_HIDE) wajib — kalau tidak app duduk atas WebView2.</span>
+          <span>Batasan jujur: app yang di-embed curi fokus. 90% keperluan sudah selesai dengan panel HTML.</span>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- ══════════ RIGHT: COMMS LOG ══════════ -->
+  <aside class="right">
+    <section class="glass comms">
+      <div class="comms-head">
+        <h2>Hari ini <span class="sub" id="todayTag">live</span></h2>
+      </div>
+
+      <div class="feed" id="todayFeed">
+        <div class="today">
+          <h5 id="wxPlace">Hari ini · Ipoh</h5>
+          <div class="wxrow">
+            <span class="ico">
+              <svg viewBox="0 0 32 32" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                <circle cx="12" cy="12" r="4.2"/>
+                <path d="M12 4.2v2M12 17.8v2M4.2 12h2M17.8 12h2M6.5 6.5l1.4 1.4M16.1 16.1l1.4 1.4M17.5 6.5l-1.4 1.4M7.9 16.1l-1.4 1.4"/>
+                <path d="M13 24h13a3.4 3.4 0 0 0 .3-6.8 5 5 0 0 0-9.6-1.3A3.7 3.7 0 0 0 13 24z" fill="rgba(180,120,255,.10)"/>
+              </svg>
+            </span>
+            <div><b id="wxTemp">—</b><span id="wxDesc">memuatkan…</span></div>
+          </div>
+          <div class="pray">
+            <svg viewBox="0 0 64 64"><circle class="trk" cx="32" cy="32" r="26"/><circle class="arc" cx="32" cy="32" r="26" pathLength="100" stroke-dasharray="0 100"/></svg>
+            <div><span>Solat seterusnya</span><b id="prayName">—</b><em id="prayLeft">—</em></div>
+          </div>
+          <h5>Hari ini</h5>
+          <div class="brief" id="briefBox">
+            <span>Laporan pagi muncul di sini bila Claude Code siap mengumpul cuaca, solat dan email.</span>
+          </div>
+        </div>
+
+        <h5 class="sec">Cuba tanya</h5>
+        <div class="sug">
+          <button type="button">Main video dalam media/</button>
+          <button type="button">Analisis disk C aku</button>
+          <button type="button">Ada email penting?</button>
+          <button type="button">Tengok skrin ni</button>
+        </div>
+
+        <h5 class="sec">Panel</h5>
+        <div class="pane-map">
+          <button type="button" data-goto="comms">1 Comms</button>
+          <button type="button" data-goto="media">2 Media</button>
+          <button type="button" data-goto="term">3 Terminal</button>
+          <button type="button" data-goto="files">4 Fail</button>
+          <button type="button" data-goto="editor">5 Editor</button>
+          <button type="button" data-goto="browse">6 Web</button>
+          <button type="button" data-goto="docs">7 Dokumen</button>
+          <button type="button" data-goto="ana">8 Analisis</button>
+          <button type="button" data-goto="native">9 App</button>
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  <!-- ══════════ FOOTER ══════════ -->
+  <footer>
+    <div class="dock">
+      <div class="dock-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected="true">DESKTOP · 6</button>
+        <button type="button" role="tab" aria-selected="false">APPS · 13</button>
+        <button type="button" role="tab" aria-selected="false">FOLDER · 7</button>
+      </div>
+      <div class="dock-row">
+        <button type="button" class="tile"><span class="hex">EL</span><span class="n">eLawatan</span></button>
+        <button type="button" class="tile"><span class="hex">VS</span><span class="n">VS Code</span></button>
+        <button type="button" class="tile"><span class="hex">CH</span><span class="n">Chrome</span></button>
+        <button type="button" class="tile"><span class="hex">TM</span><span class="n">Terminal</span></button>
+        <button type="button" class="tile"><span class="hex"><svg viewBox="0 0 24 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1.5 3.5h7l2.5 2.5h11.5v13h-21z"/></svg></span><span class="n">Projek</span></button>
+        <button type="button" class="tile"><span class="hex"><svg viewBox="0 0 24 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1.5 3.5h7l2.5 2.5h11.5v13h-21z"/></svg></span><span class="n">Muat turun</span></button>
+        <button type="button" class="tile"><span class="hex">MD</span><span class="n">Nota</span></button>
+        <button type="button" class="tile"><span class="hex">XL</span><span class="n">Bajet</span></button>
+      </div>
+    </div>
+
+    <div>
+      <form class="capsule" autocomplete="off" onsubmit="return false">
+        <div class="mode" role="group" aria-label="Pilih otak">
+          <button type="button" aria-pressed="true">AUTO</button>
+          <button type="button" aria-pressed="false">CLAUDE</button>
+          <button type="button" aria-pressed="false">CHAT</button>
+        </div>
+        <input id="cmd" type="text" placeholder="Apa yang boleh saya buat, Akmal?" aria-label="Arahan untuk Jarvis">
+        <button type="button" class="round" aria-label="Bercakap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>
+        </button>
+        <button type="button" class="round" aria-label="Baca setiap balasan">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
+        </button>
+        <button type="submit" class="round send" aria-label="Hantar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </form>
+      <div class="hint"><kbd>/</kbd> taip · <kbd>1–9</kbd> panel · <kbd>Ctrl+Space</kbd> cakap · <kbd>Esc</kbd> henti</div>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+/* ─────────────────────────────────────────────────────────────
+   Stage controller — one pane mounted at a time.
+   Contract for real panels: mount(root, ctx) / unmount() /
+   onResize(rect). The switcher below is what that will plug into.
+   ───────────────────────────────────────────────────────────── */
+(() => {
+  const tabs  = [...document.querySelectorAll('.stage-tab')];
+  const panes = Object.fromEntries(
+    [...document.querySelectorAll('.pane')].map(p => [p.id.replace('pane-', ''), p])
+  );
+  const order = tabs.map(t => t.dataset.pane);
+  const ghost = document.getElementById('ghost');
+
+  let current = 'comms';
+  // Declared here, not down in the BRIDGE block: the panel modules below run
+  // before that block and touch `api` at module scope. Sharing one binding is
+  // the point — a second `let api` would be a redeclaration, and moving the
+  // declaration late throws ReferenceError (TDZ) and kills the whole file.
+  let api = null;
+
+  function show(name, focusTab = true) {
+    if (!panes[name]) return;
+    for (const [key, pane] of Object.entries(panes)) pane.hidden = key !== name;
+    for (const tab of tabs) tab.setAttribute('aria-selected', String(tab.dataset.pane === name));
+    if (focusTab) {
+      const tab = tabs.find(t => t.dataset.pane === name);
+      if (tab) tab.scrollIntoView({ block: 'nearest' });
+    }
+    if (ghost) ghost.textContent = String(order.indexOf(name) + 1);
+    current = name;
+    try { history.replaceState(null, '', '#' + name); } catch (e) { location.hash = name; }
+    document.dispatchEvent(new CustomEvent('stage:change', { detail: { pane: name } }));
+  }
+
+  tabs.forEach(tab => tab.addEventListener('click', () => show(tab.dataset.pane)));
+  window.stageShow = show;   // Python and panel modules drive the stage through this
+
+  function fromHash() {
+    const want = location.hash.replace('#', '');
+    if (panes[want] && want !== current) show(want, false);
+  }
+  addEventListener('hashchange', fromHash);
+
+  addEventListener('keydown', e => {
+    const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName || '');
+    if (typing) return;
+
+    if (/^[1-9]$/.test(e.key)) {
+      const name = order[Number(e.key) - 1];
+      if (name) { show(name); e.preventDefault(); }
+      return;
+    }
+    if (e.altKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+      const i = order.indexOf(current);
+      const next = order[(i + (e.key === 'ArrowRight' ? 1 : order.length - 1)) % order.length];
+      show(next);
+      e.preventDefault();
+    }
+  });
+
+  /* ── clock ── */
+  const clockEl = document.getElementById('clock');
+  const todayEl = document.getElementById('today');
+  const MONTHS  = ['Jan','Feb','Mac','Apr','Mei','Jun','Jul','Ogos','Sep','Okt','Nov','Dis'];
+  const DAYS    = ['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];
+
+  function tick() {
+    const d = new Date();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    clockEl.innerHTML = `${hh}:${mm}<small>:${String(d.getSeconds()).padStart(2, '0')}</small>`;
+    todayEl.textContent = `${DAYS[d.getDay()]} · ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  }
+  tick();
+  setInterval(tick, 1000);
+
+  /* ── meters: fill height, hot / crit states ──
+     invert: for battery — low value is the alarm, not high */
+  window.stageMeter = function (id, pct, opts) {
+    const m = document.getElementById(id);
+    if (!m) return;
+    const o = opts || {};
+    const v = Math.max(0, Math.min(pct, 100));
+    m.querySelector('.fill').style.height = v + '%';
+    m.querySelector('.v').textContent = Math.round(v);
+    const hot  = o.invert ? v <= 20 : v >= 85;
+    const crit = o.invert ? v <= 10 : v >= 96;
+    m.classList.toggle('hot', hot && !crit);
+    m.classList.toggle('crit', crit);
+  };
+
+  /* ── live telemetry ──
+     Python pushes a snapshot every 2 s through window.stageStats(). Nothing here
+     polls; if the bridge is dead the demo numbers stay put and #mode says so. */
+  const kv = document.querySelectorAll('aside.left .kv span:last-child');
+  const modeEl = document.getElementById('mode');
+  const cpuNow = document.getElementById('cpuNow');
+  const stateEl = document.getElementById('railVoice');
+
+  const cpuHist = new Array(60).fill(0);
+  let haveStats = false;
+
+  function pushCpu(v) {
+    cpuHist.push(v); cpuHist.shift();
+  }
+
+  window.stageStats = function (s) {
+    if (!s) return;
+    haveStats = true;
+    if (modeEl) modeEl.textContent = 'live';
+    const cpu = s.cpu ?? 0, ram = s.ram ?? 0, disk = s.disk ?? 0;
+    stageMeter('g-cpu', cpu);
+    stageMeter('g-ram', ram);
+    stageMeter('g-disk', disk);
+    if (s.battery != null) {
+      stageMeter('g-bat', s.battery, { invert: true });
+      document.querySelector('#g-bat .l').textContent = s.plugged ? 'BAT ⚡' : 'BAT';
+    } else {
+      const m = document.getElementById('g-bat');
+      if (m) { m.querySelector('.fill').style.height = '0%'; m.querySelector('.v').textContent = '—'; }
+      document.querySelector('#g-bat .l').textContent = 'BAT';
+    }
+    pushCpu(cpu);
+    if (cpuNow) cpuNow.textContent = Math.round(cpu) + '%';
+    if (kv.length >= 5) {
+      kv[0].textContent = `${s.ram_used} / ${s.ram_total} GB`;
+      kv[1].textContent = fmtRate(s.down);
+      kv[2].textContent = fmtRate(s.up);
+      kv[3].textContent = String(s.procs ?? '—');
+      kv[4].textContent = fmtUptime(s.uptime);
+    }
+    drawSpark();
+    setLed('ledMic', s.mic);
+    setLed('ledTts', s.tts);
+    setLed('ledClaude', s.claude);
+    setLed('ledChat', s.chat);
+    if (stateEl && s.voice) stateEl.textContent = s.voice;
+  };
+
+  function setLed(id, on) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('on', !!on);
+  }
+
+  const fmtRate = v => v == null ? '—'
+    : v >= 1024 ? (v / 1024).toFixed(1) + ' MB/s'
+    : v >= 1 ? v.toFixed(0) + ' KB/s' : '0 KB/s';
+
+  function fmtUptime(sec) {
+    if (!sec) return '—';
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+    return h ? `${h}j ${m}m` : `${m}m`;
+  }
+
+  /* ── sparkline: real CPU history, demo curve only until the first snapshot ── */
+  const spark = document.getElementById('spark');
+  const DEMO = [28,34,30,41,38,46,35,52,44,39,48,42,36,33,40,45,38,34,29,35,42,48,44,37,31,36,41,47,43,38];
+
+  function drawSpark() {
+    if (!spark) return;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const w = spark.clientWidth || 140, h = spark.clientHeight || 52;
+    spark.width  = Math.round(w * dpr);
+    spark.height = Math.round(h * dpr);
+    const g = spark.getContext('2d');
+    if (!g) return;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+
+    const source = haveStats ? cpuHist.filter((_, i) => i >= cpuHist.length - 30) : DEMO;
+    const pts = source.length > 1 ? source : [0, 0];
+    const stepX = w / (pts.length - 1);
+    const y = v => h - (v / 100) * (h - 4) - 2;
+
+    g.strokeStyle = 'rgba(180,120,255,.055)';
+    g.lineWidth = 1;
+    for (let i = 1; i < 4; i++) {
+      const gy = Math.round((h / 4) * i) + .5;
+      g.beginPath(); g.moveTo(0, gy); g.lineTo(w, gy); g.stroke();
+    }
+
+    const grad = g.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(180,120,255,.30)');
+    grad.addColorStop(1, 'rgba(180,120,255,0)');
+
+    g.beginPath();
+    g.moveTo(0, h);
+    pts.forEach((v, i) => g.lineTo(i * stepX, y(v)));
+    g.lineTo(w, h);
+    g.closePath();
+    g.fillStyle = grad;
+    g.fill();
+
+    g.beginPath();
+    pts.forEach((v, i) => (i ? g.lineTo(i * stepX, y(v)) : g.moveTo(0, y(v))));
+    g.strokeStyle = '#b478ff';
+    g.lineWidth = 1.3;
+    g.lineJoin = 'round';
+    g.stroke();
+
+    const lx = w - stepX, ly = y(pts[pts.length - 1]);
+    g.beginPath(); g.arc(lx, ly, 2.4, 0, Math.PI * 2);
+    g.fillStyle = '#dcb6ff'; g.fill();
+    g.beginPath(); g.arc(lx, ly, 5, 0, Math.PI * 2);
+    g.fillStyle = 'rgba(180,120,255,.18)'; g.fill();
+  }
+
+  requestAnimationFrame(drawSpark);
+  addEventListener('resize', drawSpark);
+
+  /* before the first snapshot, show something so the cluster is not dead grey */
+  if (!haveStats) {
+    requestAnimationFrame(() => {
+      stageMeter('g-cpu', 34);
+      stageMeter('g-ram', 71);
+      stageMeter('g-disk', 73);
+      stageMeter('g-bat', 88, { invert: true });
+    });
+    setTimeout(() => { if (!haveStats && modeEl) modeEl.textContent = 'demo'; }, 6000);
+  }
+
+  /* ── orb: layered dot sphere, four distinct pulses ──
+     idle     slow drift, soft core, dots breathe with sin(t)
+     listening dots fly outward with mic amplitude, ring flares
+     thinking scan sweep climbs the sphere + core tightens, no drift
+     speaking core beats at a speech-ish rate, dots jitter on the beat
+     ───────────────────────────────────────────────────────────── */
+  const orb = document.getElementById('orb');
+  if (orb) {
+    const g = orb.getContext('2d');
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    let t = 0, w = 0, h = 0, cx = 0, cy = 0, R = 0;
+
+    // state fed by Python through window.orbState / window.orbLevel
+    const SP = {
+      state: 'idle',
+      level: 0,          // 0..1, mic or speech amplitude
+      target: 0,         // smoothed
+      hot: 0,            // 0..1 scan intensity, for thinking
+      seed: Math.random() * 100
+    };
+    window.orbState = (s) => { SP.state = s; };
+    window.orbLevel = (v) => { SP.level = Math.max(0, Math.min(1, v)); };
+
+    const N = 300, pts = [];
+    const GA = Math.PI * (3 - Math.sqrt(5));
+    for (let i = 0; i < N; i++) {
+      const y = 1 - (i / (N - 1)) * 2;
+      const r = Math.sqrt(Math.max(0, 1 - y * y));
+      const a = GA * i;
+      pts.push([Math.cos(a) * r, y, Math.sin(a) * r]);
+    }
+
+    function size() {
+      w = orb.clientWidth  || 300;
+      h = orb.clientHeight || 300;
+      orb.width  = Math.round(w * dpr);
+      orb.height = Math.round(h * dpr);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      cx = w / 2; cy = h / 2;
+      R  = Math.min(w, h) * 0.30;
+    }
+
+    function frame() {
+      const st = SP.state;
+      const speaking = st === 'speaking';
+      const thinking = st === 'thinking';
+      const listening = st === 'listening';
+
+      // speed: thinking spins up, speaking slows down (it is talking, not scanning)
+      const spin = thinking ? 0.016 : speaking ? 0.004 : listening ? 0.008 : 0.006;
+      t += spin;
+
+      // level smoothing, faster attack than release
+      const k = SP.level > SP.target ? 0.28 : 0.085;
+      SP.target += (SP.level - SP.target) * k;
+      const lvl = SP.target;
+
+      // thinking: 0..1 sweep, climbs and repeats
+      SP.hot += thinking ? 0.014 : -0.03;
+      SP.hot = Math.max(0, Math.min(1, SP.hot));
+
+      g.clearRect(0, 0, w, h);
+
+      /* halo — widens on speaking, tightens on thinking */
+      const haloR = R * (thinking ? 1.85 : speaking ? 2.25 : 2.05);
+      const haloA = thinking ? 0.30 : speaking ? 0.30 : listening ? 0.26 : 0.20;
+      const halo = g.createRadialGradient(cx, cy, R * 0.15, cx, cy, haloR);
+      halo.addColorStop(0,    `rgba(180,120,255,${haloA})`);
+      halo.addColorStop(0.45, `rgba(180,120,255,${haloA * 0.27})`);
+      halo.addColorStop(1,    'rgba(180,120,255,0)');
+      g.fillStyle = halo;
+      g.beginPath(); g.arc(cx, cy, haloR, 0, Math.PI * 2); g.fill();
+
+      /* orbit rings — listening flares them, thinking tightens the tilt */
+      const ringCount = 3;
+      for (let i = 0; i < ringCount; i++) {
+        const tilt = (thinking ? 0.20 : 0.28) + i * (thinking ? 0.13 : 0.19);
+        const rr = R * (1.34 + i * 0.12) * (listening ? 1 + lvl * 0.10 : 1);
+        const dir = i % 2 ? -1 : 1;
+        const speed = thinking ? 1.9 : speaking ? 0.55 : 1;
+        g.save();
+        g.translate(cx, cy);
+        g.rotate(t * dir * 0.55 * speed + i);
+        g.beginPath();
+        g.ellipse(0, 0, rr, rr * tilt, t * 0.3 * speed, 0, Math.PI * 2);
+        g.strokeStyle = `rgba(180,120,255,${(0.20 - i * 0.052) * (listening ? 1 + lvl * 0.9 : 1)})`;
+        g.lineWidth = listening ? 1.2 + lvl * 0.8 : 1;
+        g.stroke();
+        g.restore();
+      }
+
+      /* thinking only: scanning arc that sweeps the sphere */
+      if (thinking && SP.hot > 0.02) {
+        const sweep = -Math.PI / 2 + SP.hot * Math.PI * 2;
+        g.save();
+        g.translate(cx, cy);
+        g.rotate(sweep);
+        const arc = g.createLinearGradient(0, -R * 1.3, 0, -R * 0.9);
+        arc.addColorStop(0, 'rgba(220,182,255,0)');
+        arc.addColorStop(0.6, 'rgba(220,182,255,.85)');
+        arc.addColorStop(1, 'rgba(220,182,255,0)');
+        g.strokeStyle = arc;
+        g.lineWidth = 2;
+        g.beginPath();
+        g.arc(0, 0, R * 1.08, -0.30, 0.30);
+        g.stroke();
+        // leading edge glow
+        g.beginPath();
+        g.arc(0, 0, R * 1.08, 0.26, 0.31);
+        g.strokeStyle = 'rgba(238,226,255,.95)';
+        g.lineWidth = 2.6;
+        g.stroke();
+        g.restore();
+      }
+
+      /* dots */
+      const dy = thinking ? t * 1.7 : t;
+      const wobbleAmt = thinking ? 0.055 + SP.hot * 0.05
+                       : listening ? 0.02 + lvl * 0.16
+                       : speaking  ? 0.06 + lvl * 0.10
+                       : 0.012;
+      const pulseOut = listening ? 1 + lvl * 0.10
+                     : speaking  ? 1 + lvl * 0.045
+                     : 1;
+
+      const c1 = Math.cos(dy), s1 = Math.sin(dy);
+      const tilt = thinking ? 0.22 : 0.42;
+      const c2 = Math.cos(tilt), s2 = Math.sin(tilt);
+      const proj = [];
+      for (let i = 0; i < N; i++) {
+        const [x, y, z] = pts[i];
+        const x2 = x * c1 - z * s1;
+        const z2 = x * s1 + z * c1;
+        const y2 = y * c2 - z2 * s2;
+        const z3 = y * s2 + z2 * c2;
+        const wob = 1 + Math.sin(i * 12.9 + t * 1.7) * wobbleAmt;
+        proj.push([x2, y2, z3, wob]);
+      }
+      proj.sort((a, b) => a[2] - b[2]);
+
+      for (const [x, y, z, wob] of proj) {
+        const persp = (z + 1.7) / 2.7;
+        const px = cx + x * R * persp * pulseOut * wob;
+        const py = cy + y * R * persp * pulseOut * wob;
+        const rad = (0.5 + persp * 1.55) * (thinking ? 0.85 : 1);
+        let alpha = 0.07 + persp * 0.85;
+
+        // speaking: dot brightness rides the speech envelope
+        if (speaking) alpha = alpha * (0.55 + lvl * 0.75);
+
+        // thinking: dots just ahead of the sweep go bright, then fade
+        if (thinking && SP.hot > 0.02) {
+          const ang = Math.atan2(py - cy, px - cx);
+          const sweep = -Math.PI / 2 + SP.hot * Math.PI * 2;
+          let d = ang - sweep;
+          while (d > Math.PI) d -= Math.PI * 2;
+          while (d < -Math.PI) d += Math.PI * 2;
+          const near = Math.max(0, 1 - Math.abs(d) / 0.55);
+          alpha = Math.min(1, alpha + near * 0.75);
+        }
+
+        g.beginPath();
+        g.arc(px, py, rad, 0, Math.PI * 2);
+        g.fillStyle = z > 0.55
+          ? `rgba(214,182,255,${Math.min(1, alpha)})`
+          : `rgba(180,120,255,${Math.min(1, alpha)})`;
+        g.fill();
+      }
+
+      /* core — tightens on thinking, beats on speaking */
+      const beat = speaking
+        ? 1 + Math.sin(t * 13) * 0.10 * (0.35 + lvl)
+        : 1;
+      const coreR = R * (thinking ? 0.30 : speaking ? 0.44 : listening ? 0.44 + lvl * 0.07 : 0.44) * beat;
+      const coreIn = thinking
+        ? 'rgba(246,240,255,.98)'
+        : 'rgba(238,226,255,.94)';
+      const core = g.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+      core.addColorStop(0, coreIn);
+      core.addColorStop(0.4, `rgba(180,120,255,${thinking ? 0.62 : 0.44})`);
+      core.addColorStop(1, 'rgba(180,120,255,0)');
+      g.fillStyle = core;
+      g.beginPath(); g.arc(cx, cy, coreR, 0, Math.PI * 2); g.fill();
+
+      /* listening: breathing ring at the mic's rhythm */
+      if (listening) {
+        const rr = R * (0.62 + lvl * 0.34);
+        g.beginPath();
+        g.arc(cx, cy, rr, 0, Math.PI * 2);
+        g.strokeStyle = `rgba(214,182,255,${0.14 + lvl * 0.55})`;
+        g.lineWidth = 1 + lvl * 1.6;
+        g.stroke();
+      }
+
+      /* speaking: rings pushed outward on the beat, one every 0.55 s */
+      if (speaking) {
+        const BEAT = 34;                 // frames per ring
+        const phase = (t * 60) % BEAT;   // t advances ~1 per frame
+        for (let i = 0; i < 3; i++) {
+          const p = ((phase / BEAT) + i / 3) % 1;
+          const rr = R * (0.5 + p * 1.15);
+          const a = (1 - p) * (0.10 + lvl * 0.55);
+          g.beginPath();
+          g.arc(cx, cy, rr, 0, Math.PI * 2);
+          g.strokeStyle = `rgba(214,182,255,${a})`;
+          g.lineWidth = (1 - p) * (1 + lvl * 2);
+          g.stroke();
+        }
+      }
+
+      requestAnimationFrame(frame);
+    }
+
+    size();
+    addEventListener('resize', size);
+    requestAnimationFrame(frame);
+  }
+
+  /* ── background dust ── */
+  const bg = document.getElementById('bg');
+  if (bg) {
+    const g = bg.getContext('2d');
+    const dpr = Math.min(devicePixelRatio || 1, 1.5);
+    let W = 0, H = 0, dots = [];
+    const sizeBg = () => {
+      W = innerWidth; H = innerHeight;
+      bg.width = Math.round(W * dpr); bg.height = Math.round(H * dpr);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      dots = Array.from({ length: 90 }, () => ({
+        x: Math.random() * W, y: Math.random() * H,
+        r: Math.random() * 1.1 + .25, a: Math.random() * .35 + .05,
+        v: Math.random() * .08 + .02
+      }));
+    };
+    const drift = () => {
+      g.clearRect(0, 0, W, H);
+      for (const d of dots) {
+        d.y -= d.v;
+        if (d.y < -4) { d.y = H + 4; d.x = Math.random() * W; }
+        g.beginPath(); g.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+        g.fillStyle = `rgba(180,120,255,${d.a})`; g.fill();
+      }
+      requestAnimationFrame(drift);
+    };
+    sizeBg(); addEventListener('resize', sizeBg); drift();
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     MEDIA panel — one <video>/<audio> fed by the range server.
+     The list is rendered from Python's media_index(); nothing is
+     copied into the DOM as a data URI, so seeking is free.
+     ═══════════════════════════════════════════════════════════ */
+  (() => {
+    const screen = document.getElementById('mediaScreen');
+    const list   = document.getElementById('mediaList');
+    const cur    = document.getElementById('mediaCur');
+    const dur    = document.getElementById('mediaDur');
+    const head   = document.getElementById('mediaHead');
+    const track  = document.getElementById('mediaTrack');
+    const hint   = document.getElementById('mediaHint');
+    if (!screen) return;
+
+    let items = [];
+    let index = -1;
+    let media = null;          // the <video> or <audio> currently mounted
+    let isAudio = false;
+
+    const clock = s => {
+      if (!isFinite(s)) return '--:--';
+      const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+      return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+    };
+
+    function unmount() {
+      if (!media) return;
+      try { media.pause(); } catch (e) {}
+      media.remove();
+      media = null;
+      screen.classList.remove('playing', 'audio-only');
+    }
+
+    function mount(item) {
+      unmount();
+      isAudio = (item.kind === 'audio');
+      screen.classList.toggle('audio-only', isAudio);
+      media = document.createElement(isAudio ? 'audio' : 'video');
+      media.src = item.url;
+      media.controls = true;
+      media.preload = 'metadata';
+      if (!isAudio) media.playsInline = true;
+      media.addEventListener('loadedmetadata', () => {
+        dur.textContent = clock(media.duration);
+      });
+      media.addEventListener('timeupdate', () => {
+        cur.textContent = clock(media.currentTime);
+        const p = media.duration ? (media.currentTime / media.duration) * 100 : 0;
+        if (head) head.style.left = p + '%';
+      });
+      media.addEventListener('play', () => { screen.classList.add('playing'); });
+      media.addEventListener('ended', () => {
+        screen.classList.remove('playing');
+        if (index + 1 < items.length) playAt(index + 1);
+      });
+      media.addEventListener('error', () => {
+        hint.textContent = item.name + ' — format tidak disokong WebView2';
+      });
+      screen.appendChild(media);
+      /* the centre card stays up until the first actual play — a blocked
+         autoplay or an unsupported codec must not leave a blank black pane
+         with no hint about what failed */
+      const t = document.getElementById('mediaTitle');
+      if (t) t.textContent = item.name;
+      const sub = document.getElementById('mediaHint');
+      if (sub) sub.textContent = item.kind + ' · ' + (item.size_text || '') + ' · tekan ▶';
+    }
+
+    function playAt(i) {
+      if (!items.length) return;
+      index = Math.max(0, Math.min(i, items.length - 1));
+      const item = items[index];
+      [...list.children].forEach((r, n) => r.classList.toggle('active', n === index));
+      mount(item);
+      media.play().catch(() => { /* autoplay policy or unsupported codec */ });
+      hud('media', item.name);
+    }
+
+    function render() {
+      if (!list) return;
+      list.innerHTML = '';
+      if (!items.length) {
+        const r = document.createElement('div');
+        r.className = 'media-row active';
+        r.innerHTML = '<span class="tag">—</span><span class="n">folder media/ kosong</span><span class="d">—</span>';
+        list.appendChild(r);
+        if (hint) hint.textContent = 'letak fail dalam media/ · mp4 · mkv · mp3';
+        return;
+      }
+      items.forEach((it, i) => {
+        const r = document.createElement('div');
+        r.className = 'media-row' + (i === index ? ' active' : '');
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.textContent = it.ext || '—';
+        const n = document.createElement('span');
+        n.className = 'n';
+        n.textContent = it.name;
+        const d = document.createElement('span');
+        d.className = 'd';
+        d.textContent = it.size_text || '';
+        r.append(tag, n, d);
+        r.addEventListener('click', () => playAt(i));
+        list.appendChild(r);
+      });
+      if (hint) hint.textContent = items.length + ' medium · tekan satu untuk main';
+      /* the centre card names what is loaded but not yet playing */
+      const t = document.getElementById('mediaTitle');
+      if (t) t.textContent = 'Sedia · ' + items.length + ' medium';
+      if (!media) {
+        const sub = document.getElementById('mediaHint');
+        if (sub) sub.textContent = 'pilih di senarai · mp4 · mkv · mp3';
+      }
+    }
+
+    const hud = (pane, name) => {
+      if (window.stageShow && pane) window.stageShow(pane);
+      const a = document.getElementById('act');
+      if (a && name) a.textContent = '▶ ' + name;
+    };
+
+    const btn = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
+    btn('mediaPlay',    () => media ? (media.paused ? media.play() : media.pause()) : playAt(index < 0 ? 0 : index));
+    btn('mediaPrev',    () => playAt(index - 1));
+    btn('mediaNext',    () => playAt(index + 1));
+    if (track) track.addEventListener('click', e => {
+      if (!media || !media.duration) return;
+      const r = track.getBoundingClientRect();
+      media.currentTime = ((e.clientX - r.left) / r.width) * media.duration;
+    });
+
+    /* Python surface: window.stageMediaLoad([{name, url, kind, ext, size_text}]) */
+    window.stageMediaLoad = function (arr, keepIndex) {
+      items = Array.isArray(arr) ? arr : [];
+      if (!keepIndex) { index = items.length ? 0 : -1; }
+      render();
+      if (items.length && index >= 0 && !media) mount(items[index]);
+    };
+
+    /* pull the folder once the bridge is up. media_open() also emits a list, but
+       that only fires after a command — opening the pane cold needs its own call. */
+    async function refresh() {
+      if (!api || !api.media_list) return;
+      try {
+        const r = await api.media_list();
+        if (r && r.ok) window.stageMediaLoad(r.items || [], true);
+      } catch (e) { /* bridge died; the next pane open retries */ }
+    }
+    window.stageMedia = {
+      refresh,
+      play: () => playAt(index < 0 ? 0 : index),
+      pause: () => media && media.pause(),
+      next: () => playAt(index + 1),
+      prev: () => playAt(index - 1),
+      open: name => {
+        const i = items.findIndex(it => it.name.toLowerCase() === String(name).toLowerCase());
+        if (i >= 0) playAt(i);
+        return i;
+      },
+      get list() { return items.slice(); }
+    };
+
+    // leaving the pane must not keep audio running in the background
+    document.addEventListener('stage:change', e => {
+      if (e.detail.pane !== 'media' && media && !media.paused) media.pause();
+      if (e.detail.pane === 'media' && !items.length) refresh();
+    });
+  })();
+
+  /* ═══════════════════════════════════════════════════════════
+     ANALYSIS panel — Python's present_analysis payload rendered
+     as cards, bar charts and a narrated point list. Every element
+     stays dim until the matching point is spoken, so the eye and
+     the voice arrive together.
+     ═══════════════════════════════════════════════════════════ */
+  (() => {
+    const titleEl  = document.getElementById('anaTitle');
+    const sumEl    = document.getElementById('anaSum');
+    const cardsEl  = document.getElementById('anaCards');
+    const chartsEl = document.getElementById('anaCharts');
+    const pointsEl = document.getElementById('anaPoints');
+    const followEl = document.getElementById('anaFollow');
+    const metaEl   = document.getElementById('anaMeta');
+    const replayEl = document.getElementById('anaReplay');
+    if (!cardsEl) return;
+
+    let data = null;
+    let token = 0;        // bumps on replay/stop, cancels the run in flight
+
+    const esc = s => String(s == null ? '' : s);
+
+    /* The number is written once, not counted up. A counting animation is a
+       requestAnimationFrame chain, and a pane that is not painting (hidden,
+       throttled, or on a laptop that dropped the frame) leaves the card frozen
+       at whatever the first frame wrote — usually zero. The reveal motion lives
+       in CSS instead: the card fades in and its underline sweeps. */
+
+    function render(a) {
+      cardsEl.textContent = '';
+      chartsEl.textContent = '';
+      pointsEl.textContent = '';
+      followEl.textContent = '';
+
+      const cards = (a.cards || []).slice(0, 6);
+      cards.forEach(c => {
+        const d = document.createElement('div');
+        d.className = 'ana-card';
+        const v = document.createElement('b');
+        v.textContent = esc(c.value);
+        const l = document.createElement('span');
+        l.textContent = esc(c.label);
+        d.append(v, l);
+        if (c.note) {
+          const n = document.createElement('small');
+          n.textContent = esc(c.note);
+          d.appendChild(n);
+        }
+        d.dataset.value = esc(c.value);
+        cardsEl.appendChild(d);
+      });
+
+      (a.charts || []).slice(0, 3).forEach(c => {
+        const box = document.createElement('div');
+        box.className = 'achart';
+        const h = document.createElement('h4');
+        h.textContent = esc(c.title);
+        box.appendChild(h);
+        const rows = (c.items || []).slice(0, 8);
+        const max = Math.max(...rows.map(r => Math.abs(Number(r.value) || 0)), 1);
+        rows.forEach(r => {
+          const row = document.createElement('div');
+          row.className = 'arow';
+          const al = document.createElement('span');
+          al.className = 'al';
+          al.textContent = esc(r.label);
+          al.title = esc(r.label);
+          const ab = document.createElement('span');
+          ab.className = 'ab';
+          const fill = document.createElement('i');
+          fill.dataset.w = (Math.abs(Number(r.value) || 0) / max * 100).toFixed(1) + '%';
+          ab.appendChild(fill);
+          const av = document.createElement('span');
+          av.className = 'av';
+          av.textContent = esc(r.display != null ? r.display : r.value);
+          row.append(al, ab, av);
+          box.appendChild(row);
+        });
+        chartsEl.appendChild(box);
+      });
+
+      (a.points || []).slice(0, 8).forEach(pt => {
+        const d = document.createElement('div');
+        d.className = 'ana-point';
+        d.textContent = esc(pt.text);
+        pointsEl.appendChild(d);
+      });
+    }
+
+    /* which element a point target names: card:N, chart:N, chart:N:M, point:N */
+    function targetEl(t) {
+      const m = /^(card|chart|point):(\d+)(?::(\d+))?$/.exec(String(t || ''));
+      if (!m) return null;
+      if (m[1] === 'card')  return cardsEl.children[Number(m[2])] || null;
+      if (m[1] === 'point') return pointsEl.children[Number(m[2])] || null;
+      const box = chartsEl.children[Number(m[2])];
+      if (!box) return null;
+      return m[3] != null ? box.querySelectorAll('.arow')[Number(m[3])] || box : box;
+    }
+
+    function focus(el) {
+      cardsEl.querySelectorAll('.focus').forEach(x => x.classList.remove('focus'));
+      chartsEl.querySelectorAll('.focus').forEach(x => x.classList.remove('focus'));
+      if (!el) return;
+      const card = el.closest ? el.closest('.ana-card') : null;
+      const chart = el.closest ? el.closest('.achart') : null;
+      if (card) card.classList.add('focus');
+      if (chart) { chart.classList.add('focus'); if (el.classList.contains('arow')) el.classList.add('focus'); }
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    function reveal(el) {
+      if (!el) return;
+      if (el.classList.contains('ana-card') && !el.classList.contains('shown')) {
+        el.classList.add('shown');
+      }
+      if (el.classList.contains('achart')) {
+        el.querySelectorAll('.arow .ab i').forEach(i => { i.style.width = i.dataset.w; });
+      }
+      if (el.classList.contains('arow')) {
+        const i = el.querySelector('.ab i');
+        if (i) i.style.width = i.dataset.w;
+      }
+    }
+
+    function revealAll() {
+      [...cardsEl.children].forEach(reveal);
+      [...chartsEl.children].forEach(reveal);
+    }
+
+    function clearFocus() {
+      cardsEl.querySelectorAll('.focus').forEach(x => x.classList.remove('focus'));
+      chartsEl.querySelectorAll('.focus').forEach(x => x.classList.remove('focus'));
+    }
+
+    async function narrate(a) {
+      const my = ++token;
+      const pts = (a.points || []).slice(0, 8);
+      if (!pts.length) { revealAll(); return; }
+
+      // fetch every line up front so there is no gap between points
+      const voice = pts.map(p => (api && api.tts ? api.tts(p.text || '') : Promise.resolve({ ok: false })));
+
+      for (let i = 0; i < pts.length; i++) {
+        if (my !== token) return;
+        pointsEl.children[i] && pointsEl.children[i].classList.add('on');
+        const el = targetEl(pts[i].target);
+        reveal(el);
+        focus(el);
+
+        const r = await voice[i].catch(() => ({ ok: false }));
+        if (my !== token) return;
+        if (r && r.ok && r.src) {
+          await new Promise(done => {
+            const audio = new Audio(r.src);
+            audio.onended = done;
+            audio.onerror = done;
+            if (api) api.set_speaking(true);
+            audio.play().catch(done);
+          });
+        } else {
+          // no voice path — hold long enough to read the line
+          await new Promise(done => setTimeout(done, 900 + (pts[i].text || '').length * 40));
+        }
+        await new Promise(done => setTimeout(done, 220));
+      }
+
+      if (my !== token) return;
+      revealAll();
+      clearFocus();
+      if (api) api.set_speaking(false);
+
+      (a.followups || []).slice(0, 4).forEach(q => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = '↳ ' + q;
+        b.addEventListener('click', () => {
+          const cmd = document.getElementById('cmd');
+          if (cmd) { cmd.focus(); }
+          // reuse the normal command path so the follow-up is a real question
+          const form = document.querySelector('.capsule');
+          if (cmd && form) { cmd.value = q; form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })); }
+        });
+        followEl.appendChild(b);
+      });
+    }
+
+    function show(a) {
+      if (!a || !(a.cards || a.charts || a.points)) return;
+      data = a;
+      token++;                       // cancel anything still speaking
+      titleEl.textContent = a.title || 'Analisis';
+      sumEl.textContent = a.summary || '';
+      if (metaEl) metaEl.textContent = (a.cards || []).length + ' kad · '
+        + (a.charts || []).length + ' graf · ' + (a.points || []).length + ' poin';
+      render(a);
+      // cards stay dim until their point lands, so narrate right away
+      narrate(a);
+    }
+
+    window.stageAnalysis = show;
+    window.anaStop = () => { token++; clearFocus(); revealAll(); };
+
+    if (replayEl) replayEl.addEventListener('click', () => {
+      if (!data) { sysNote('Belum ada dash untuk dimain semula.'); return; }
+      const cmd = document.getElementById('cmd');
+      show(data);
+    });
+
+    // leaving the pane stops the narration, not the data
+    document.addEventListener('stage:change', e => {
+      if (e.detail.pane !== 'ana') { token++; clearFocus(); if (api) api.set_speaking(false); }
+    });
+  })();
+
+  /* ═══════════════════════════════════════════════════════════
+     TODAY widget — weather, next prayer, its ring.
+     ═══════════════════════════════════════════════════════════ */
+  window.stageToday = function (d) {
+    if (!d) return;
+    const tag = document.getElementById('todayTag');
+    if (tag) tag.textContent = 'live';
+    const w = d.weather;
+    if (w) {
+      const t = document.getElementById('wxTemp');
+      const s = document.getElementById('wxDesc');
+      if (t) t.textContent = w.temp + '°';
+      if (s) s.textContent = w.desc + ' · rasa ' + w.feels + '°';
+      const place = document.getElementById('wxPlace');
+      if (place && d.place) place.textContent = 'Hari ini · ' + d.place;
+    }
+    const p = d.prayer;
+    if (p && p.name) {
+      const b = document.getElementById('prayName');
+      const em = document.getElementById('prayLeft');
+      const arc = document.querySelector('.pray .arc');
+      if (b) b.textContent = p.name + ' · ' + p.time;
+      if (em) em.textContent = p.mins + ' minit lagi';
+      if (arc) {
+        // 6-hour window: the closer the prayer, the fuller the ring
+        const pct = Math.max(2, Math.min(100, 100 - (p.mins / 360) * 100));
+        arc.setAttribute('stroke-dasharray', pct.toFixed(0) + ' 100');
+      }
+      const chip = document.querySelector('.chip.warn span');
+      if (chip) chip.textContent = p.name + ' · ' + p.time;
+    }
+  };
+
+  /* ═══════════════════════════════════════════════════════════
+     FILES panel — real directories, real previews. Scope is
+     Python's _safe_path(): workdir, project root, Desktop,
+     Documents, Downloads. Nothing outside resolves.
+     ═══════════════════════════════════════════════════════════ */
+  (() => {
+    const tree = document.getElementById('tree');
+    const body = document.getElementById('fileBody');
+    const fname = document.getElementById('fileName');
+    const fmeta = document.getElementById('fileMeta');
+    const openBtn = document.getElementById('fileOpen');
+    if (!tree || !body) return;
+
+    let currentPath = '';
+    let selected = '';
+
+    const ICON_DIR = '<svg viewBox="0 0 24 22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M1.5 3.5h7l2.5 2.5h11.5v13h-21z"/></svg>';
+    const ICON_FILE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+
+    const sizeText = n => n == null ? '' :
+      n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' :
+      n >= 1024 ? Math.round(n / 1024) + ' KB' : n + ' B';
+
+    function rows(entries, parent) {
+      tree.innerHTML = '';
+      if (parent) {
+        const up = document.createElement('div');
+        up.className = 'node';
+        // the icon needs its .ic wrapper, otherwise the bare <svg> has no width
+        // constraint and stretches across the whole row
+        const upIc = document.createElement('span');
+        upIc.className = 'ic';
+        upIc.innerHTML = ICON_DIR;
+        const upName = document.createElement('span');
+        upName.textContent = '..';
+        up.append(upIc, upName);
+        up.addEventListener('click', () => load(parent));
+        tree.appendChild(up);
+      }
+      if (!entries.length) {
+        const e = document.createElement('div');
+        e.className = 'tree-empty';
+        e.textContent = 'folder kosong';
+        tree.appendChild(e);
+        return;
+      }
+      for (const it of entries) {
+        const el = document.createElement('div');
+        el.className = 'node' + (it.dir ? ' dir' : '');
+        const ic = document.createElement('span');
+        ic.className = 'ic';
+        ic.innerHTML = it.dir ? ICON_DIR : ICON_FILE;
+        const nm = document.createElement('span');
+        nm.textContent = it.name;
+        el.append(ic, nm);
+        if (!it.dir) {
+          const ext = document.createElement('span');
+          ext.className = 'ext';
+          ext.textContent = it.ext || '';
+          el.appendChild(ext);
+        }
+        el.addEventListener('click', () => {
+          [...tree.querySelectorAll('.node')].forEach(n => n.classList.remove('sel'));
+          el.classList.add('sel');
+          if (it.dir) load(it.path);
+          else preview(it);
+        });
+        tree.appendChild(el);
+      }
+    }
+
+    async function load(path) {
+      if (!api) return;
+      const r = await api.fs_list(path || '');
+      if (!r.ok) { tree.innerHTML = '<div class="tree-empty">' + (r.msg || 'gagal') + '</div>'; return; }
+      currentPath = r.path;
+      fmeta.textContent = r.entries.length + ' item · ' + r.path;
+      rows(r.entries, r.parent);
+    }
+
+    async function preview(it) {
+      selected = it.path;
+      fname.textContent = it.name;
+      fmeta.textContent = sizeText(it.size) + ' · ' + (it.ext || 'fail');
+      body.innerHTML = '<div class="empty">membaca…</div>';
+      const r = await api.fs_read(it.path);
+      if (!r.ok) {
+        body.innerHTML = '<div class="empty">' + (r.msg || 'tidak boleh dibaca') + '</div>';
+        return;
+      }
+      const pre = document.createElement('pre');
+      pre.textContent = r.text;
+      body.innerHTML = '';
+      body.appendChild(pre);
+      fmeta.textContent = r.lines + ' baris · ' + sizeText(r.size) + ' · ' + it.ext;
+    }
+
+    if (openBtn) openBtn.addEventListener('click', () => {
+      if (selected && api) api.fs_open(selected);
+    });
+
+    document.addEventListener('stage:change', e => {
+      if (e.detail.pane === 'files' && !currentPath && api) load('');
+    });
+
+    window.stageFiles = { reload: () => load(currentPath) };
+    // first mount happens when the pane is opened, or immediately if it already is
+    if (api && !document.getElementById('pane-files').hidden) load('');
+  })();
+
+  show('comms', false);
+  fromHash();
+
+  /* ═══════════════════════════════════════════════════════════
+     BRIDGE — every Python call lands here. Kept in one block so
+     the surface has exactly one place to look when something
+     stops arriving.
+     ═══════════════════════════════════════════════════════════ */
+  const $ = id => document.getElementById(id);
+  const talk     = $('talk');
+  const talkMeta = $('talkMeta');
+  const term     = $('term');
+
+  let busy = false;
+  let engine = 'auto';
+  let chatModel = 'chat';
+  let lastReply = '';
+  let sessionTag = 'chat';
+  let msgCount = 0;
+
+  // ---------- transcript ----------
+  function scrollTalk() { if (talk) talk.scrollTop = talk.scrollHeight; }
+
+  function dropEmpty() {
+    const e = talk && talk.querySelector('.talk-empty');
+    if (e) e.remove();
+  }
+
+  function word(who, text, cls) {
+    if (!talk) return null;
+    dropEmpty();
+    const el = document.createElement('div');
+    el.className = 'msg ' + (cls || '');
+    const h = document.createElement('span');
+    h.className = 'who';
+    h.textContent = who;
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    b.textContent = text;
+    el.append(h, b);
+    talk.appendChild(el);
+    msgCount++;
+    if (talkMeta) talkMeta.textContent = msgCount + (msgCount === 1 ? ' mesej' : ' mesej');
+    scrollTalk();
+    return b;
+  }
+
+  function sysNote(text, bad) {
+    if (!talk) return;
+    dropEmpty();
+    const el = document.createElement('div');
+    el.className = 'msg';
+    el.style.borderLeftColor = bad ? 'rgba(255,95,112,.45)' : 'rgba(255,179,64,.28)';
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    b.style.color = bad ? 'var(--bad)' : 'var(--amber)';
+    b.style.fontSize = '9.5px';
+    b.textContent = text;
+    el.appendChild(b);
+    talk.appendChild(el);
+    scrollTalk();
+  }
+
+  // streaming reply: one bubble that grows
+  let liveBubble = null;
+  function stream(text) {
+    if (!liveBubble || !talk || !talk.contains(liveBubble.closest('.msg'))) {
+      liveBubble = word('Jarvis', text, 'jarvis');
+    } else {
+      liveBubble.textContent += (liveBubble.textContent ? '\n' : '') + text;
+    }
+    lastReply = liveBubble.textContent;
+    scrollTalk();
+  }
+
+  // ---------- trace under the orb ----------
+  let traceEl = null;
+  function trace(d) {
+    if (!traceEl) {
+      traceEl = document.createElement('div');
+      traceEl.className = 'trace';
+      talk && talk.parentElement && talk.parentElement.insertBefore(traceEl, talk);
+    }
+    traceEl.classList.remove('gone');
+    const s = document.createElement('span');
+    s.textContent = d.name + (d.detail ? ' · ' + d.detail : '');
+    traceEl.appendChild(s);
+    while (traceEl.children.length > 6) traceEl.removeChild(traceEl.firstChild);
+    // terminal mirror
+    if (term) {
+      const line = document.createElement('span');
+      line.className = 'amb';
+      line.textContent = '› ' + d.name + (d.detail ? ' · ' + d.detail : '') + '\n';
+      term.appendChild(line);
+      term.scrollTop = term.scrollHeight;
+    }
+  }
+
+  function traceEnd() {
+    if (!traceEl) return;
+    traceEl.classList.add('gone');
+    while (traceEl.firstChild) traceEl.removeChild(traceEl.firstChild);
+  }
+
+  // ---------- orb + status ----------
+  const ORB_LABEL = {
+    idle:      ['Standby', 'Menunggu arahan'],
+    listening: ['Mendengar', 'Cakap je, Akmal'],
+    thinking:  ['Berfikir', 'Memproses'],
+    speaking:  ['Bercakap', 'Membaca jawapan']
+  };
+
+  window.jarvisState = function (s) {
+    const known = ORB_LABEL[s] ? s : 'idle';
+    if (window.orbState) window.orbState(known);
+    const b = $('state'), a = $('act');
+    if (b) b.textContent = ORB_LABEL[known][0];
+    if (a && !a.dataset.fixed) a.textContent = ORB_LABEL[known][1];
+    document.body.dataset.orb = known;
+  };
+  window.jarvisLevel = function (v) { if (window.orbLevel) window.orbLevel(v); };
+
+  function act(text) {
+    const a = $('act');
+    if (a) { a.textContent = text; }
+  }
+
+  // ---------- audio: TTS through the media server, analyser feeds the orb ----------
+  let audioEl = null, actx = null, analyser = null, speakSeq = 0;
+  const shouldSpeak = () => !('speakOff' in window) || window.speakOff !== true;
+
+  function stopSpeaking() {
+    speakSeq++;
+    if (audioEl) { try { audioEl.pause(); } catch (e) {} audioEl = null; }
+    analyser = null;
+  }
+
+  function wireAudio(a) {
+    try {
+      actx = actx || new AudioContext();
+      if (actx.state === 'suspended') actx.resume();
+      const src = actx.createMediaElementSource(a);
+      const an = actx.createAnalyser();
+      an.fftSize = 512;
+      src.connect(an); an.connect(actx.destination);
+      return an;
+    } catch (e) { return null; }
+  }
+
+  function pumpLevel() {
+    if (!analyser) return;
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    const tick = () => {
+      if (!analyser) return;
+      analyser.getByteFrequencyData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) sum += buf[i];
+      const lvl = Math.min(1, sum / buf.length / 90);
+      window.jarvisLevel(lvl);
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  async function speak(text) {
+    stopSpeaking();
+    const my = speakSeq;
+    if (!api || !text) return false;
+    try {
+      const r = await api.tts(text);
+      if (my !== speakSeq) return true;
+      if (r && r.ok && r.src) {
+        const a = new Audio(r.src);
+        audioEl = a;
+        analyser = wireAudio(a);
+        a.onended = () => { if (my === speakSeq) { window.jarvisState(busy ? 'thinking' : 'idle'); api && api.set_speaking(false); } };
+        a.onerror = a.onended;
+        api.set_speaking(true);
+        window.jarvisState('speaking');
+        pumpLevel();
+        await a.play();
+        return true;
+      }
+      if (r && r.note) sysNote('TTS: ' + r.note);
+    } catch (e) {
+      sysNote('TTS gagal: ' + e.message, true);
+    }
+    return false;
+  }
+
+  // ---------- routing ----------
+  const PC_TASK = /\b(kod|code|coding|skrip|script|run|jalankan|install|pasang|uninstall|padam|delete|buang|hapus|ubah|edit|tulis|susun|pindah|move|copy|salin|rename|tukar nama|zip|unzip|compress|convert|tukar jadi|python|powershell|cmd|terminal|git|npm|node|projek|project|bina|build|debug|error|bug|fix|betulkan|setting|tetapan)\b|buat (fail|folder|skrip|app|website|laman)/i;
+
+  function pickEngine(q) {
+    if (engine !== 'auto') return engine;
+    return PC_TASK.test(q) ? 'claude' : 'chat';
+  }
+
+  // ---------- commands that never touch the AI ----------
+  async function localFirst(q) {
+    const s = q.trim().toLowerCase();
+    let m;
+
+    if (/^(stop|diam|senyap|dah|takpe|cukup)( la| lah)?$/.test(s)) {
+      stopSpeaking(); window.jarvisState('idle'); act('Henti.'); return true;
+    }
+    if (/^(tutup jarvis|keluar|quit|exit)$/.test(s)) {
+      word('Akmal', q, 'me');
+      await speak('Okay Akmal, saya off dulu.');
+      setTimeout(() => api && api.quit(), 1800);
+      return true;
+    }
+    if (/^(sembunyi|minimize|hide)$/.test(s)) {
+      word('Akmal', q, 'me'); act('Sembunyi.'); api && api.minimize(); return true;
+    }
+    if (/^(sesi baru|reset)$/.test(s)) { newSession(); return true; }
+    if ((m = s.match(/^panel\s+(\d|[a-z]+)$/))) {
+      const map = { 1:'comms',2:'media',3:'term',4:'files',5:'editor',6:'browse',7:'docs',8:'ana',9:'native' };
+      const name = map[m[1]] || m[1];
+      word('Akmal', q, 'me'); window.stageShow(name); act('Panel ' + name); return true;
+    }
+    if (/^(main|play)\s*(muzik|lagu|media)?$/.test(s) && window.stageMedia) {
+      word('Akmal', q, 'me'); window.stageShow('media'); window.stageMedia.play(); return true;
+    }
+    if (/^(stop|pause)\s*(muzik|lagu|media)$/.test(s) && window.stageMedia) {
+      word('Akmal', q, 'me'); window.stageMedia.pause(); return true;
+    }
+    // "main lecture 3" / "buka file.mp4" — the range server resolves the name
+    if ((m = s.match(/^(?:main|play|putar|buka|open)\s+(.+\.(?:mp4|mkv|webm|mov|mp3|m4a|wav|flac))$/))
+        || (m = s.match(/^(?:main|play|putar)\s+(.+)$/))) {
+      if (api && api.media_open) {
+        const r = await api.media_open(m[1]);
+        if (r && r.ok) {
+          word('Akmal', q, 'me');
+          window.stageShow('media');
+          act('▶ ' + r.name);
+          return true;
+        }
+        if (r && /\.(mp4|mkv|webm|mov|mp3|m4a|wav|flac)$/i.test(m[1])) {
+          word('Akmal', q, 'me');
+          sysNote(r.msg || 'Fail tiada dalam media/.', true);
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // ---------- the one path every command takes ----------
+  async function send(q, fromVoice) {
+    q = (q || '').trim();
+    if (!q || busy) return;
+    if (await localFirst(q)) return;
+    if (!api) { word('Akmal', q, 'me'); sysNote('Bridge belum sambung — jalankan main.py.', true); return; }
+
+    word('Akmal', q, 'me');
+    liveBubble = null;
+    lastReply = '';
+    busy = true;
+    document.body.dataset.busy = '1';
+
+    const eng = pickEngine(q);
+    $('ledClaude').classList.toggle('on', eng === 'claude');
+    $('ledChat').classList.toggle('on', eng === 'chat');
+    window.jarvisState('thinking');
+    act(eng === 'claude' ? 'Claude Code bekerja…' : 'Berfikir…');
+
+    try {
+      const r = await api.ask(q, eng);
+      if (!r.ok) { busy = false; sysNote(r.msg, true); window.jarvisState('idle'); }
+    } catch (e) {
+      busy = false; sysNote('Ralat: ' + e.message, true); window.jarvisState('idle');
+    }
+  }
+
+  async function newSession() {
+    if (api) await api.new_session();
+    if (talk) talk.innerHTML = '<div class="talk-empty"><b>Sesi baru.</b>Sejarah dibuang. Sambung bila sedia, Akmal.</div>';
+    msgCount = 0;
+    if (talkMeta) talkMeta.textContent = 'sesi baru';
+    liveBubble = null;
+    traceEnd();
+    window.jarvisState('idle');
+  }
+
+  /* ── Python → JS event surface ── */
+  window.onClaude = function (kind, d) {
+    d = d || {};
+    if (kind === 'start') {
+      busy = true;
+      window.jarvisState('thinking');
+      act(engine === 'chat' ? chatModel + ' berfikir…' : 'Claude Code bekerja…');
+    } else if (kind === 'init') {
+      sessionTag = (d.model || '').replace(/^claude-/, '') || 'claude';
+      if (term) {
+        const l = document.createElement('span');
+        l.className = 'dim';
+        l.textContent = '· ' + sessionTag + '\n';
+        term.appendChild(l);
+      }
+    } else if (kind === 'tool') {
+      trace(d);
+      act('⚙ ' + d.name + (d.detail ? ' · ' + d.detail : ''));
+    } else if (kind === 'result') {
+      if (term && d.text) {
+        const l = document.createElement('span');
+        l.className = 'dim';
+        l.textContent = d.text.split('\n').slice(0, 12).join('\n') + '\n';
+        term.appendChild(l);
+        term.scrollTop = term.scrollHeight;
+      }
+    } else if (kind === 'note') {
+      sysNote('↻ ' + d.text);
+    } else if (kind === 'web') {
+      sysNote('⌕ ' + (d.query || '') + ' — ' + ((d.links || []).length) + ' sumber');
+    } else if (kind === 'analysis') {
+      window.stageAnalysis && window.stageAnalysis(d);
+      window.stageShow('ana');
+    } else if (kind === 'media') {
+      // Python found media or opened one by name
+      window.stageMediaLoad && window.stageMediaLoad(d.items || [], true);
+      window.stageShow('media');
+      if (d.play && window.stageMedia) {
+        const i = window.stageMedia.open(d.play);
+        if (i < 0) sysNote('Fail "' + d.play + '" tiada dalam media/.', true);
+      }
+    } else if (kind === 'text') {
+      // the ```jarvis-analysis block is data, not prose
+      const blk = (d.text || '').match(/```jarvis-analysis\s*([\s\S]*?)```/);
+      if (blk) {
+        const raw = blk[1].trim();
+        if (window.stageAnalysis) {
+          // Python may emit it loosely; recover with a tolerant parse
+          try { window.stageAnalysis(JSON.parse(raw)); }
+          catch (e) {
+            try {
+              const fixed = raw.replace(/,\s*([}\]])/g, '$1').replace(/'/g, '"');
+              window.stageAnalysis(JSON.parse(fixed));
+            } catch (e2) { sysNote('Blok analisis tidak sah.', true); }
+          }
+        }
+        d.text = (d.text || '').replace(blk[0], '').trim();
+        if (!d.text) return;
+      }
+      stream(d.text);
+      window.jarvisState('speaking');
+    } else if (kind === 'done') {
+      busy = false;
+      document.body.dataset.busy = '';
+      traceEnd();
+      if (!d.ok) {
+        sysNote('✕ ' + (d.error || 'gagal') + ' · ' + d.secs + 's', true);
+        window.jarvisState('idle');
+        act('Gagal.');
+      } else {
+        act('Siap · ' + d.secs + 's');
+        if (lastReply && shouldSpeak()) speak(lastReply);
+        else window.jarvisState('idle');
+      }
+      $('ledClaude').classList.remove('on');
+      $('ledChat').classList.remove('on');
+      liveBubble = null;
+    }
+  };
+
+  /* ── voice events ── */
+  let listenMode = false;
+
+  window.onVoice = function (kind, d) {
+    if (kind === 'level') { if (listenMode) window.jarvisLevel(Math.min(1, .12 + d * 1.2)); }
+    else if (kind === 'status') { act('◆ ' + d); }
+    else if (kind === 'transcribing') { act('◆ Memproses suara…'); window.jarvisState('thinking'); }
+    else if (kind === 'text') { listenMode = false; act('◆ Dengar: "' + d + '"'); send(d, true); }
+    else if (kind === 'none') { listenMode = false; window.jarvisState('idle'); act('Tak dengar apa-apa. Tekan mic cuba lagi.'); }
+    else if (kind === 'error') { listenMode = false; window.jarvisState('idle'); sysNote('Mic: ' + d, true); }
+    else if (kind === 'wake') { listenMode = true; window.jarvisState('listening'); act('◆ Hey Akmal, cakap je…'); }
+    else if (kind === 'wake_only') { listenMode = false; speak('Ya Akmal?'); }
+    else if (kind === 'control') {
+      listenMode = false; window.jarvisState('idle');
+      word('Akmal', d.text, 'me'); sysNote('⌨ ' + d.label);
+    }
+    else if (kind === 'wake_ready') { setLed('ledMic', d); }
+  };
+
+  window.onPrayer = function (d) {
+    const txt = d.name + ' dalam ' + d.mins + ' minit (' + d.time + ')';
+    word('Jarvis', '🕌 ' + txt, 'jarvis');
+    speak('Akmal, lagi ' + d.mins + ' minit masuk waktu ' + d.name + '.');
+    act('Waktu solat');
+  };
+
+  window.onBrief = function (text) {
+    const box = document.getElementById('briefBox');
+    if (box) {
+      box.textContent = text;
+      box.style.color = 'var(--ink)';
+    }
+    speak(text);
+    act('Laporan pagi');
+    window.stageShow('comms');
+  };
+
+  /* ── settings → surface ── */
+  window.stageSettings = function (s) {
+    if (!s) return;
+    chatModel = s.chat_model || chatModel;
+    if (s.voice) $('railVoice').textContent = (s.voice_provider || 'tts') + ' · ' + s.voice;
+  };
+
+  /* ── input wiring ── */
+  const cmd = $('cmd');
+  const modeBtns = [...document.querySelectorAll('.capsule .mode button')];
+  const setEngine = (val, el) => {
+    engine = val;
+    modeBtns.forEach(b => b.setAttribute('aria-pressed', String(b === el)));
+  };
+  modeBtns.forEach(b => b.addEventListener('click', () => setEngine(b.textContent.trim().toLowerCase(), b)));
+
+  document.querySelector('.capsule').addEventListener('submit', e => {
+    e.preventDefault();
+    if (!cmd) return;
+    const q = cmd.value;
+    cmd.value = '';
+    send(q, false);
+  });
+
+  // Esc stops, Ctrl+Space talks, "/" focuses
+  addEventListener('keydown', e => {
+    if (e.key === 'Escape') { stopSpeaking(); if (busy && api) api.stop(); window.jarvisState('idle'); }
+    if (e.ctrlKey && e.code === 'Space') { e.preventDefault(); api && api.listen(); }
+    if (e.key === '/' && document.activeElement !== cmd) { e.preventDefault(); cmd && cmd.focus(); }
+  });
+
+  // buttons that had no handler
+  const on = (sel, fn) => { const el = document.querySelector(sel); if (el) el.addEventListener('click', fn); };
+  on('.iconbar .power', () => { word('Jarvis', 'Tutup laptop? Taip "shutdown" untuk teruskan.', 'jarvis'); });
+  on('.iconbar button[title="Sembunyi"]', () => api && api.minimize());
+  on('.iconbar .quit', () => { if (api) api.quit(); });
+  on('.comms-head .btn', () => newSession());
+  const btnNew = $('btnNewSession');
+  if (btnNew) btnNew.addEventListener('click', () => newSession());
+  const termClear = $('termClear');
+  if (termClear) termClear.addEventListener('click', () => {
+    if (term) term.innerHTML = '<span class="dim">dibersihkan</span>\n<span class="cmd">PS&gt;</span> <span class="caret"></span>';
+  });
+  document.querySelectorAll('.sug button').forEach(b =>
+    b.addEventListener('click', () => { cmd && cmd.focus(); send(b.textContent, false); }));
+
+  document.querySelectorAll('.pane-map button').forEach(b =>
+    b.addEventListener('click', () => window.stageShow(b.dataset.goto)));
+
+  /* ── boot: wait for the bridge, then pull the first snapshot ── */
+  function bridgeUp() {
+    if (!window.pywebview || !window.pywebview.api) return false;
+    api = window.pywebview.api;
+    return true;
+  }
+
+  async function boot() {
+    bridgeUp();
+    try { window.stageSettings(await api.get_settings_core()); } catch (e) {}
+    tickStats();
+    tickToday();
+    if (window.stageMedia) window.stageMedia.refresh();
+    try { await api.morning_brief(false); } catch (e) {}
+  }
+
+  async function tickStats() {
+    if (!api) return;
+    try { window.stageStats(await api.stage_stats()); } catch (e) { /* bridge died; retry next tick */ }
+  }
+
+  let todayAt = 0;
+  async function tickToday() {
+    if (!api || Date.now() - todayAt < 10 * 60 * 1000) return;
+    todayAt = Date.now();
+    try {
+      const d = await api.today_info();
+      window.stageToday && window.stageToday(d);
+    } catch (e) {}
+  }
+
+  setInterval(tickStats, 2000);
+  setInterval(tickToday, 60000);
+
+  if (window.pywebview) boot();
+  else addEventListener('pywebviewready', boot, { once: true });
+
+  // typed input before the bridge arrives should not vanish
+  setTimeout(() => { if (!api) sysNote('Bridge belum siap — command akan gagal sampai pywebviewready.', true); }, 4000);
+
+})();
+</script>
+</body>
+</html>

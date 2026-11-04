@@ -1,0 +1,29 @@
+# ── secrets (JANGAN pernah commit) ─────────────────────────
+secrets.json
+*.key
+.env
+
+# ── state & cache (dijana semula, bukan sumber) ────────────
+cache.json
+sessions.json
+__pycache__/
+*.pyc
+*.pyo
+
+# ── aset besar / sementara ─────────────────────────────────
+media/
+tts_test/
+tts_cache/
+ui/_*.png
+ui/_*.html
+ui/stage-v1.html
+ui/stage-cyan.html
+ui/stage-pre-tdz-fix.html
+ui/index-v09.html
+*.log
+
+# ── alat ───────────────────────────────────────────────────
+.venv/
+venv/
+.idea/
+.vscode/
