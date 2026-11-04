@@ -2144,12 +2144,10 @@ class Api:
             return {"handled": True, "label": "✖ " + r.get("msg", "Dokumen tak dapat dibaca.")}
         self.stage_pane("docs")
         pj = "null" if page is None else str(int(page))
-        payload = {"path": r["path"], "page": r.get("page", 0)}
-        # Python membaca dulu untuk label yang jujur, JS membaca semula untuk
-        # melukis. docs_open python tidak menyentuh disk lebih daripada sekali
-        # bagi fail kecil, dan elak await pada evaluate_js yang tidak menunggu.
+        # Python membaca dulu supaya label jujur, JS membaca semula untuk melukis.
+        # _push, bukan _emit: onClaude tiada cabang 'docs', dan evaluate_js tidak
+        # menunggu promise — jadi tiada gunanya menghantar dua kali.
         self._push(f"window.stageDocs && window.stageDocs.open({json.dumps(r['path'])}, {pj})")
-        self._emit("docs", payload)
         return {"handled": True, "label": "✔ " + r["name"],
                 "msg": r["name"], "path": r["path"]}
 
