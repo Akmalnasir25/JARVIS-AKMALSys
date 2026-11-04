@@ -318,18 +318,66 @@ aside.left::-webkit-scrollbar { display: none; }
 }
 .meter .fill {
   position: absolute; left: 0; right: 0; bottom: 0; height: 0%;
-  background: linear-gradient(to top, hsl(var(--hue) 100% 74% / .9), hsl(var(--hue) 100% 74% / .30));
-  box-shadow: 0 -4px 14px hsl(var(--hue) 100% 74% / .55);
-  transition: height .5s cubic-bezier(.22,.9,.3,1), background .3s;
+  /* The fill is a picture of a value, so it carries the value's own colour
+     rather than the panel's: it climbs from the accent at the bottom through
+     the accent's partner, and only reaches amber or red when the number
+     itself is high. Each tube across the row therefore reads as a different
+     colour at the same height, which is the point — four instruments, four
+     readings, one glance. --fill-a/--fill-b let a single meter be re-pointed
+     without touching the others. */
+  --fill-a: var(--accent);
+  --fill-b: var(--accent-2);
+  background: linear-gradient(to top,
+    var(--fill-a) 0%,
+    var(--fill-b) 62%,
+    color-mix(in srgb, var(--fill-b) 70%, white) 100%);
+  box-shadow: 0 -4px 14px hsl(var(--hue) 100% 74% / .42),
+              inset 0 1px 0 rgba(255,255,255,.22);
+  transition: height .5s cubic-bezier(.22,.9,.3,1), background .3s, box-shadow .3s;
 }
-.meter.hot  .fill { background: linear-gradient(to top, rgba(255,179,64,.95), rgba(255,179,64,.28)); box-shadow: 0 -4px 14px rgba(255,179,64,.6); }
-.meter.crit .fill { background: linear-gradient(to top, rgba(255,95,112,.95), rgba(255,95,112,.28)); box-shadow: 0 -4px 14px rgba(255,95,112,.6); }
+/* the warm states are a separate ramp, not a tint of the accent: warning and
+   fault are reserved colours and must never be reachable by a hue variable */
+.meter.hot .fill {
+  --fill-a: rgba(255,150,40,.92);
+  --fill-b: rgba(255,196,96,.98);
+  background: linear-gradient(to top,
+    rgba(255,150,40,.92) 0%,
+    rgba(255,196,96,.98) 62%,
+    rgba(255,232,180,1) 100%);
+  box-shadow: 0 -4px 14px rgba(255,179,64,.6), inset 0 1px 0 rgba(255,255,255,.3);
+}
+.meter.crit .fill {
+  --fill-a: rgba(220,60,90,.94);
+  --fill-b: rgba(255,110,140,.98);
+  background: linear-gradient(to top,
+    rgba(220,60,90,.94) 0%,
+    rgba(255,110,140,.98) 62%,
+    rgba(255,190,205,1) 100%);
+  box-shadow: 0 -4px 14px rgba(255,95,112,.62), inset 0 1px 0 rgba(255,255,255,.3);
+}
+/* per-instrument pairs, so the four tubes never share a gradient. These are
+   literal hues, not var(--hue): the meter stack is shell furniture and must
+   not shift when a panel changes. */
+#g-cpu  .fill { --fill-a: hsl(272 100% 74%); --fill-b: hsl(302 100% 82%); }
+#g-ram  .fill { --fill-a: hsl(256 100% 74%); --fill-b: hsl(196 100% 78%); }
+#g-disk .fill { --fill-a: hsl(228 100% 74%); --fill-b: hsl(272 100% 82%); }
+#g-bat  .fill { --fill-a: hsl(152  92% 66%); --fill-b: hsl(186 100% 78%); }
 .meter .v {
   font: 600 11px/1 var(--font-display);
   color: var(--ink); text-align: center; font-variant-numeric: tabular-nums;
 }
 .meter.hot  .v { color: var(--amber); }
 .meter.crit .v { color: var(--bad); }
+/* the numeral takes the head of its own tube's ramp, so the number and the
+   bar read as the same instrument even when the bar is short. These are ID
+   selectors, so the hot/crit overrides below carry an ID too — otherwise the
+   warning colour would lose the specificity fight and never appear. */
+#g-cpu  .v { color: hsl(285 100% 86%); }
+#g-ram  .v { color: hsl(212 100% 86%); }
+#g-disk .v { color: hsl(244 100% 86%); }
+#g-bat  .v { color: hsl(168 100% 82%); }
+#g-cpu.hot  .v, #g-ram.hot  .v, #g-disk.hot  .v, #g-bat.hot  .v { color: var(--amber); }
+#g-cpu.crit .v, #g-ram.crit .v, #g-disk.crit .v, #g-bat.crit .v { color: var(--bad); }
 .meter .l {
   font-size: 6.5px; letter-spacing: .1em; text-transform: uppercase;
   color: var(--ink-faint); text-align: center;
@@ -836,20 +884,50 @@ main.stage-wrap {
 .tok-s { color: var(--ok); }
 
 /* ── BROWSER panel ────────────────────────────────────────── */
-.browse-shell { display: flex; flex-direction: column; height: 100%; }
+.browse-shell { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .browse-bar {
   display: flex; align-items: center; gap: 7px;
   padding: 7px 11px;
   border-bottom: 1px solid var(--line-soft);
+  flex: 0 0 auto;
 }
-.browse-bar .url {
-  flex: 1; min-width: 0;
-  padding: 5px 9px;
+.browse-bar .btn.sq { width: 24px; padding: 0; display: grid; place-items: center; }
+.browse-bar .btn.sq svg { width: 11px; height: 11px; }
+.browse-bar form.url {
+  flex: 1; min-width: 0; margin: 0;
+  display: flex; align-items: center;
+  padding: 0 9px;
   background: rgba(0,0,0,.34); border: 1px solid var(--line-soft);
-  font-size: 10px; color: var(--ink-dim);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.browse-body { flex: 1; min-height: 0; position: relative; display: grid; place-items: center; }
+.browse-bar form.url:focus-within { border-color: hsl(var(--hue) 90% 74% / .45); }
+.browse-bar form.url input {
+  flex: 1; min-width: 0;
+  background: transparent; border: 0; outline: 0;
+  padding: 5px 0;
+  font: 400 10px/1 var(--font-mono); color: var(--ink);
+}
+.browse-bar form.url input::placeholder { color: var(--ink-faint); }
+.browse-body { flex: 1 1 auto; min-height: 0; position: relative; display: grid; place-items: center; }
+.browse-body iframe {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  border: 0; background: #05030f;
+}
+/* An iframe that X-Frame-Options refuses stays blank forever, and a blank
+   iframe is indistinguishable from a slow one. The veil sits over the hole
+   while the child window is being parked, and says what is happening.
+   pointer-events:none — clicking it must reach the child window above. */
+.web-veil {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; pointer-events: none; z-index: 2;
+  background: rgba(5,3,15,.72);
+}
+.web-veil[hidden] { display: none !important; }
+.web-veil b {
+  font: 600 9px/1 var(--font-display); letter-spacing: .24em;
+  text-transform: uppercase; color: hsl(var(--alt) 70% 72% / .85);
+}
+.web-veil span { font-size: 8.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
 
 /* ── DOCS panel ───────────────────────────────────────────── */
 .docs-shell { display: grid; grid-template-columns: 196px minmax(0,1fr); height: 100%; min-height: 0; }
@@ -1391,25 +1469,40 @@ footer {
       <section class="pane" id="pane-browse" role="tabpanel" hidden>
         <div class="pane-head">
           <span class="title">Web</span>
-          <span class="meta">iframe · X-Frame-Options</span>
+          <span class="meta" id="webMeta">belum ada laman</span>
           <span class="grow"></span>
-          <span class="phase">Fasa 6</span>
+          <button type="button" class="btn" id="webInline" aria-pressed="false">Embed</button>
+          <button type="button" class="btn solid" id="webClose" disabled>Tutup</button>
         </div>
         <div class="browse-shell">
           <div class="browse-bar">
-            <button type="button" class="btn">←</button>
-            <button type="button" class="btn">→</button>
-            <div class="url">https:// — masukkan alamat</div>
-            <button type="button" class="btn">Buka</button>
+            <button type="button" class="btn sq" id="webBack" aria-label="Undur" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+            </button>
+            <button type="button" class="btn sq" id="webFwd" aria-label="Maju" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+            </button>
+            <button type="button" class="btn sq" id="webReload" aria-label="Muat semula" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+            </button>
+            <form class="url" id="webForm" autocomplete="off">
+              <input type="text" id="webUrl" spellcheck="false" placeholder="https:// — taip alamat atau carian">
+            </form>
+            <button type="button" class="btn" id="webGo">Buka</button>
           </div>
-          <div class="browse-body">
-            <div class="placeholder">
+          <div class="browse-body" id="webBody">
+            <div class="placeholder" id="webEmpty">
               <div class="glyph">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z"/></svg>
               </div>
-              <b>Browser dalam HUD</b>
-              <p>Iframe untuk laman yang benarkan embed. Laman yang sekat <code>X-Frame-Options</code> guna navigasi WebView2 dengan snapshot DOM — bukan tetingkap luar.</p>
-              <span class="phase">Fasa 6</span>
+              <b>Tetingkap web berasingan</b>
+              <p>Laman dibuka dalam tetingkap WebView2 yang diletak tepat atas ruang ini — enjin penuh, jadi semua laman jalan, bukan separuh yang benarkan embed sahaja. Tekan <b>Embed</b> kalau mahu laman itu duduk di dalam grid sebaliknya.</p>
+            </div>
+            <iframe id="webFrame" hidden referrerpolicy="no-referrer"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+            <div class="web-veil" id="webVeil" hidden>
+              <b>Menunggu tetingkap…</b>
+              <span>tetingkap web diletak atas ruang ini</span>
             </div>
           </div>
         </div>
@@ -2796,6 +2889,183 @@ footer {
     };
   })();
 
+  /* ═══════════════════════════════════════════════════════════
+     WEB panel — Fasa 6.
+
+     Two render paths, one chosen per site:
+
+       child window   default. A real WebView2 window, created by
+                      Python and parked exactly over #webBody. Renders
+                      everything — no X-Frame-Options, no CSP, real
+                      cookies and history. Cost: it is a separate
+                      window, so it must be moved on pane change,
+                      resize and scroll, and hidden when the HUD
+                      leaves the WEB pane.
+
+       iframe         opt-in via the Embed button, for sites that do
+                      allow framing. Lives inside the grid, so no
+                      rect tracking at all.
+
+     A DOM snapshot path existed in an earlier design and was cut: it
+     renders once and then every script-driven site is dead on arrival.
+
+     Critical ordering, learned the hard way: the child window is
+     created by create_window(), but hiding it immediately would leave
+     it invisible the first time too. So it is shown, then hidden only
+     when the stage reports a pane change away from WEB.
+     ═══════════════════════════════════════════════════════════ */
+  (() => {
+    const body   = document.getElementById('webBody');
+    const frame  = document.getElementById('webFrame');
+    const empty  = document.getElementById('webEmpty');
+    const meta   = document.getElementById('webMeta');
+    const input  = document.getElementById('webUrl');
+    const form   = document.getElementById('webForm');
+    const veil   = document.getElementById('webVeil');
+    const embedBt = document.getElementById('webInline');
+    const closeBt = document.getElementById('webClose');
+    if (!body) return;
+
+    let mode = 'window';     // 'window' | 'embed'
+    let curUrl = '';
+    let embedded = false;    // an embed attempt is live
+    let lastRect = {};
+
+    /* Screen rect of the browse body, which is what Python needs to park the
+       child window. devicePixelRatio is not applied: WebView2's create_window
+       x/y/width/height are already in device-independent pixels, and the HUD
+       runs at 100% on a 1080p panel. If that ever changes, the DPI-aware path
+       is GetDpiForWindow + a scale on all four numbers. */
+    function rect() {
+      const r = body.getBoundingClientRect();
+      // offsetLeft/offsetTop chain is not needed: getBoundingClientRect on a
+      // fullscreen HUD already returns screen-space coordinates because the
+      // window origin is (0,0)
+      return { x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
+    }
+
+    function pushRect() {
+      const r = rect();
+      if (r.w < 10 || r.h < 10) return;
+      const same = ['x', 'y', 'w', 'h'].every(k => lastRect[k] === r[k]);
+      if (same) return;
+      lastRect = r;
+      if (mode === 'window' && api && api.web_stage_rect) api.web_stage_rect(r.x, r.y, r.w, r.h);
+    }
+
+    function paint() {
+      empty.hidden = !!(curUrl || embedded);
+      frame.hidden = !(mode === 'embed' && embedded);
+      veil.hidden = !(mode === 'window' && !!curUrl);
+      if (embedBt) embedBt.setAttribute('aria-pressed', String(mode === 'embed'));
+      if (closeBt) closeBt.disabled = !curUrl && !embedded;
+      meta.textContent = !curUrl && !embedded
+        ? 'belum ada laman'
+        : (mode === 'embed' ? 'embed · ' : 'tetingkap · ') + curUrl.replace(/^https?:\/\//, '');
+    }
+
+    function normalise(raw) {
+      const s = String(raw || '').trim();
+      if (!s) return '';
+      if (/^https?:\/\//i.test(s)) return s;
+      // a hostname with a dot is a site; anything else is a search
+      if (/^[^\s/]+\.[^\s/]{2,}/.test(s)) return 'https://' + s;
+      return '';
+    }
+
+    async function go(raw) {
+      const u = normalise(raw);
+      if (!u) {
+        // not an address — treat it as a search, in the child window
+        if (!raw.trim()) return;
+        if (api && api.web_search) {
+          const r = await api.web_search(raw.trim());
+          if (r && r.ok) { curUrl = r.url || ''; embedded = false; input.value = curUrl; paint(); pushRect(); }
+        }
+        return;
+      }
+      curUrl = u;
+      input.value = u;
+      embedded = false;
+      if (mode === 'embed') {
+        // an iframe is allowed to fail silently; the user gets the veil and
+        // can flip to window mode with one press
+        embedded = true;
+        frame.src = u;
+        paint();
+        return;
+      }
+      paint();
+      if (api && api.web_open) await api.web_open(u);
+      pushRect();
+    }
+
+    function setMode(next) {
+      if (next === mode) return;
+      mode = next;
+      if (mode === 'window') {
+        // leave embed, hand the URL to the child window
+        embedded = false;
+        frame.src = 'about:blank';
+        if (curUrl) go(curUrl);
+        else paint();
+      } else {
+        // hide the child window first, otherwise it sits over the iframe
+        if (api && api.web_close) api.web_close();
+        if (curUrl) { embedded = true; frame.src = curUrl; }
+        paint();
+      }
+    }
+
+    if (form) form.addEventListener('submit', e => { e.preventDefault(); go(input.value); });
+    const goBt = document.getElementById('webGo');
+    if (goBt) goBt.addEventListener('click', () => go(input.value));
+    if (embedBt) embedBt.addEventListener('click', () => setMode(mode === 'embed' ? 'window' : 'embed'));
+    if (closeBt) closeBt.addEventListener('click', () => {
+      if (api && api.web_close) api.web_close();
+      frame.src = 'about:blank';
+      curUrl = ''; embedded = false; input.value = '';
+      paint();
+    });
+    const backBt = document.getElementById('webBack');
+    const fwdBt  = document.getElementById('webFwd');
+    const relBt  = document.getElementById('webReload');
+    // history lives in the child WebView2, not here — the HUD only has the
+    // last URL it sent. Reload is honest; back/forward are disabled rather
+    // than faked, because a button that does nothing is worse than a dim one.
+    if (relBt) relBt.addEventListener('click', () => { if (curUrl) go(curUrl); });
+
+    /* The child window has to follow the stage. Pane change is the loud case;
+       window resize is the quiet one. Leaving WEB parks the window (hide) and
+       coming back restores it (show, same page still loaded) — destroying it
+       on every pane change would throw away scroll position and any form the
+       user had half filled in. */
+    document.addEventListener('stage:change', e => {
+      if (mode !== 'window') return;
+      if (e.detail.pane === 'browse') {
+        pushRect();
+        // show, not open: the page is still loaded in the parked window and
+        // reopening it would throw away scroll position and form state
+        if (curUrl && api && api.web_show) api.web_show();
+      } else if (curUrl && api && api.web_hide) {
+        api.web_hide();   // never leave a browser floating over another pane
+      }
+    });
+    window.addEventListener('resize', () => setTimeout(pushRect, 60));
+
+    paint();
+
+    window.stageWeb = {
+      go,
+      search: q => go(String(q || '')),
+      open: u => go(u),
+      setMode,
+      get url() { return curUrl; },
+      get mode() { return mode; },
+      rect
+    };
+  })();
+
   show('comms', false);
   fromHash();
 
@@ -3110,7 +3380,15 @@ footer {
     } else if (kind === 'note') {
       sysNote('↻ ' + d.text);
     } else if (kind === 'web') {
-      sysNote('⌕ ' + (d.query || '') + ' — ' + ((d.links || []).length) + ' sumber');
+      // three cases arrive on this channel: a search result set, an explicit
+      // URL the WEB pane just opened, and the child window closing itself
+      if (d.closed) {
+        if (window.stageWeb) window.stageWeb.setMode('window');
+      } else if (d.url) {
+        if (window.stageWeb) window.stageWeb.open(d.url);
+      } else {
+        sysNote('⌕ ' + (d.query || '') + ' — ' + ((d.links || []).length) + ' sumber');
+      }
     } else if (kind === 'analysis') {
       window.stageAnalysis && window.stageAnalysis(d);
       window.stageShow('ana');

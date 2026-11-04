@@ -348,6 +348,9 @@ class Api:
         self._net = psutil.net_io_counters()
         self._net_t = time.time()
         self._media = None  # MediaServer, dihidupkan oleh main()
+        self._web_win = None      # child WebView2 window for the WEB pane
+        self._web_url = ""
+        self._stage_rect = None   # browse-body rect in screen px, set by JS
         psutil.cpu_percent(None)  # panggilan pertama sentiasa 0, jadi panaskan dulu
 
     # ---------- Stage: telemetri & panel ----------
@@ -627,6 +630,152 @@ class Api:
             return {"ok": False}
         webbrowser.open(url)
         return {"ok": True}
+
+    # ---------- Stage: WEB (Fasa 6) ----------
+    # Two paths, chosen per site, because neither one covers the web alone:
+    #   iframe     — fast, in-surface, but half the internet sends
+    #                X-Frame-Options/X-Frame-DENY and simply will not load
+    #   child win  — a real WebView2 window with its own history, cookies and
+    #                JS engine. Renders everything, at the cost of being a
+    #                separate window that has to track the stage's rect.
+    # A DOM snapshot was rejected: it looks right for a second, then every
+    # script-driven site renders dead and scrolling never works.
+    def _browse_rect(self):
+        """Rect the child window should occupy, in screen px."""
+        r = self._stage_rect or {}
+        try:
+            x, y, w, h = (int(r.get(k, 0)) for k in ("x", "y", "w", "h"))
+        except (TypeError, ValueError):
+            return None
+        # a rect arriving before the HUD has drawn is not a position, it is a
+        # default. Refuse rather than park a browser in the corner.
+        if w < 320 or h < 240:
+            return None
+        return x, y, w, h
+
+    def web_stage_rect(self, x, y, w, h):
+        """The stage tells Python where its browse-body sits. Cheap; call on
+        pane open, resize and scroll, never on a timer."""
+        self._stage_rect = {"x": x, "y": y, "w": w, "h": h}
+        win = getattr(self, "_web_win", None)
+        rect = self._browse_rect()
+        if win is not None and rect:
+            try:
+                win.move(rect[0], rect[1])
+                win.resize(rect[2], rect[3])
+            except Exception:
+                pass  # window closing; on_closed will clean up
+        return {"ok": True}
+
+    def web_open(self, url):
+        """Open a URL in the child window, creating it the first time."""
+        u = str(url or "").strip()
+        if not u:
+            return {"ok": False, "msg": "Alamat kosong."}
+        if not re.match(r"^https?://", u):
+            u = "https://" + u
+        # a bare host with no dot is a search, not a site — same call the
+        # address bar makes, so the two never disagree
+        if not re.match(r"^https?://[^/\s]+\.[^/\s]+", u):
+            return self.web_search(u.split("://", 1)[-1])
+
+        rect = self._browse_rect() or (0, 0, 1100, 720)
+        win = getattr(self, "_web_win", None)
+        if win is not None:
+            try:
+                win.load_url(u)
+                win.show()
+                win.move(rect[0], rect[1])
+                win.resize(rect[2], rect[3])
+                self._web_url = u
+                self._emit("web", {"query": "", "links": [], "url": u})
+                return {"ok": True, "url": u, "reused": True}
+            except Exception:
+                # the child died between the last call and this one; drop the
+                # handle and rebuild below rather than leaving a dead binding
+                self._web_win = None
+
+        # create_window from a non-main thread is the supported pywebview path
+        # (the JS bridge runs off the main thread), so this does not block and
+        # does not need a separate thread of our own.
+        try:
+            win = webview.create_window(
+                "Jarvis · Web",
+                u,
+                width=rect[2], height=rect[3], x=rect[0], y=rect[1],
+                background_color="#05030f",
+                on_top=True,
+            )
+        except Exception as e:
+            return {"ok": False, "msg": f"Tetingkap web gagal dibuka: {e}"}
+        if win is None:
+            return {"ok": False, "msg": "Tetingkap web tidak dapat dimulakan."}
+        self._web_win = win
+        self._web_url = u
+
+        def _closed():
+            # the HUD's WEB pane must not keep claiming a browser is open
+            self._web_win = None
+            self._web_url = ""
+            self._emit("web", {"query": "", "links": [], "closed": True})
+
+        try:
+            win.events.closed += _closed
+        except Exception:
+            pass
+        self._emit("web", {"query": "", "links": [], "url": u})
+        return {"ok": True, "url": u, "reused": False}
+
+    def web_show(self):
+        """Bring the parked window back without reloading it. Distinct from
+        web_open: this keeps the page, its scroll position and any half-filled
+        form exactly as they were when the pane was left."""
+        win = getattr(self, "_web_win", None)
+        if win is None:
+            return {"ok": False, "already": False}
+        rect = self._browse_rect()
+        try:
+            win.show()
+            if rect:
+                win.move(rect[0], rect[1])
+                win.resize(rect[2], rect[3])
+        except Exception:
+            self._web_win = None
+            return {"ok": False, "already": False}
+        return {"ok": True}
+
+    def web_hide(self):
+        """Park the child window without losing the page. Pane changes use this;
+        coming back to WEB finds the site still loaded."""
+        win = getattr(self, "_web_win", None)
+        if win is None:
+            return {"ok": True, "already": True}
+        try:
+            win.hide()
+        except Exception:
+            self._web_win = None
+        return {"ok": True}
+
+    def web_close(self):
+        """Destroy the child window and forget the URL."""
+        win = getattr(self, "_web_win", None)
+        self._web_win = None
+        self._web_url = ""
+        if win is None:
+            return {"ok": True, "already": True}
+        try:
+            win.destroy()
+        except Exception:
+            pass
+        return {"ok": True}
+
+    def web_search(self, query):
+        """Search in the child window, not the system browser — the whole point
+        of the WEB pane is that it stays inside the HUD."""
+        q = str(query or "").strip()
+        if not q:
+            return {"ok": False, "msg": "Carian kosong."}
+        return self.web_open("https://duckduckgo.com/?q=" + quote_plus(q))
 
     def edit_shortcuts(self):
         subprocess.Popen(["notepad", str(SHORTCUTS)])
