@@ -3,7 +3,55 @@
 > Fail ni ditulis supaya sesi baru boleh sambung tanpa perlu scroll sejarah chat.
 > Baca `PLAN.md` selepas ni. Itu blueprint penuh.
 
-**Dikemas kini:** 2026-11-05, 00:05
+**Dikemas kini:** 2026-11-05, 00:25
+
+---
+
+## BARU — sistem warna gabung (shell + panel + pasangan)
+
+UI dulu satu warna ungu. Sekarang **tiga** warna wujud serentak pada setiap skrin.
+
+```
+lapisan 1  shell      ungu 272, kekal selama-lamanya
+                      iconbar, telemetry stack, rail, kolum kanan, dock
+lapisan 2  panel      --hue-live, bertukar ikut panel
+                      header pane, meter, nomer ghost, sparkline, orb
+lapisan 3  pasangan   --alt-live, 42° dari panel
+                      .pane-head .meta, stroke nomer ghost, tag media,
+                      bracket kanan-bawah .stage::before
+```
+
+Sembilan pasangan, dalam `:root`:
+
+| panel | `--hue-*` | `--alt-*` | | panel | `--hue-*` | `--alt-*` |
+|---|---|---|---|---|---|---|
+| comms | 272 ungu | 318 rose | | editor | 44 emas | 86 limau |
+| media | 330 magenta | 288 orkid | | browse | 186 teal | 228 kobalt |
+| term | 152 hijau | 194 sian | | docs | 22 bara | 64 jerami |
+| files | 200 langit | 242 biru | | ana | 258 indigo | 304 plum |
+| | | | | native | 210 keluli | 168 jed |
+
+Amber 36 dan merah kekal **khas untuk keadaan**: amaran dan rosak. Jangan guna untuk hiasan.
+
+**Perangkap yang kena ingat** — ini yang makan satu pusingan penuh:
+
+1. Custom property dikira **di tempat ia diisytihar**, bukan di tempat ia digunakan.
+   `--accent: hsl(var(--hue) …)` pada `body` sahaja akan bekukan 272. Mesti isytihar
+   semula pada `.stage` juga. Sama untuk alias legasi `--cyan`/`--cyan-2`/`--violet` —
+   senarai pemilih mesti `body, .stage`, kalau tidak setiap kad metrik dalam panel
+   kekal ungu shell. Ini yang paling senang terlepas pandang sebab CSS-nya "betul".
+
+2. `hsl(var(--hue) …)` **tidak sah** sebagai warna canvas. `fillStyle` senyap abaikan.
+   Resolver `ac()`/`ac2()` dalam blok orb baca `getComputedStyle` jadi RGB, dan
+   `syncAccent()` dipanggil pada `stage:change`. Kalau tambah lukisan canvas baru,
+   guna `ac()`/`ac2()`, jangan tulis string warna terus.
+
+3. Rail ialah **spektrum**: setiap `.stage-tab` bawa `--tab-hue` sendiri, jadi sembilan
+   warna nampak serentak walaupun hanya satu panel dicat. Itu maksud "gabung" —
+   peta destinasi tunjuk semua warna yang sistem ada.
+
+Setiap panel kini ada `.pane-head` (MEDIA, FAIL, WEB, DOK baru dapat). Shell mesti
+`flex: 1 1 auto` di bawah head — ada peraturan dalam `stage.html` untuk itu.
 
 ---
 
@@ -90,7 +138,7 @@ elemen dalam dokumen **ibu**, bukan `console.log`.
 | Projek | `C:\Users\akmal\jarvis-desktop` |
 | Versi berjalan | v1.1 stage (`main.py` → `ui/stage.html`) |
 | Git | **dah `git init`**, commit pertama `33fccb5`, `secrets.json` dilindungi |
-| Fasa selesai | 0 (git), 1 (antara muka + sambungan Python) |
+| Fasa selesai | 0 (git), 1 (antara muka + sambungan Python), sistem warna gabung |
 | Fasa seterusnya | **Fasa 2** — `media_server.py` dah wujud, kena sahkan seek betul dalam WebView2 |
 | TTS aktif | Google Cloud, `ms-MY-Wavenet-D` |
 
@@ -100,17 +148,24 @@ elemen dalam dokumen **ibu**, bukan `console.log`.
 
 ### 1. Sahkan MEDIA dalam HUD betul-betul (15 min)
 
-Letak satu mp4 dalam `media/`, jalan `python main.py`, tekan `2`, klik fail.
-Yang perlu betul: video main, scrub berfungsi (itu maksud 206 Partial), tukar panel
-tak tinggalkan audio berjalan di latar.
+**Sisi server dah lulus** (dua `_probe.mp3`, 59 136 bait):
 
-Kalau seek tak jalan → `media_server.py` hantar `Content-Range` salah. Check dengan:
-
-```bash
-curl -s -D- -o /dev/null -H "Range: bytes=0-1023" http://127.0.0.1:<port>/<fail>
+```
+plain        -> 200  len=59136   Accept-Ranges: bytes   audio/mpeg
+bytes=0-1023 -> 206  len=1024    Content-Range: bytes 0-1023/59136
+bytes=-512   -> 206  len=512     Content-Range: bytes 58624-59135/59136
+bytes=N-100- -> 206  len=100     Content-Range: bytes 59036-59135/59136
+bytes=N+500- -> 416
 ```
 
-Mesti dapat `206` + `Content-Range: bytes 0-1023/<size>`.
+Yang tinggal cuma **kaki WebView2**: letak satu mp4 sebenar dalam `media/`, jalan
+`python main.py`, tekan `2`, klik fail. Tiga perkara:
+- video main
+- scrub bar betul-betul gerak (itu maksud 206 Partial)
+- tukar panel tak tinggalkan audio di latar (`stage:change` patut pause)
+
+Dua-dua fail dalam `media/` sekarang berawalan `_` dan bukan video betul — jangan
+guna untuk ujian ini.
 
 ### 2. EDITOR (Fasa 5) — CodeMirror 6
 

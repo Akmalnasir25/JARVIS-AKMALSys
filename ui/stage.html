@@ -12,6 +12,18 @@
    rail   54px  vertical panel selector 1–9
    stage  rest  one panel mounted at a time
    right 292px  comms log
+
+   Colour: violet is the frame, the panel is its own colour. The two
+   sit on screen at once — the chrome never changes, the content does.
+   --hue is the shell and stays 272 forever. --hue-live is whatever
+   panel is open, and .stage re-declares --hue from it, so everything
+   inside the stage (borders, ghost numeral, headers, meters, the orb
+   canvas) resolves to the panel's accent while the iconbar, telemetry
+   stack, rail and comms column stay violet around it. Combining two
+   hues reads as a system with parts. Swapping one hue for another
+   reads as a single lamp with a colour wheel — which is what this
+   looked like before, and it was not the point.
+   Amber and red stay reserved for state: warning and fault.
    ───────────────────────────────────────────────────────────── */
 :root {
   color-scheme: dark;
@@ -22,17 +34,47 @@
   --panel-2:   rgba(11, 5, 22, 0.60);
   --raised:    rgba(28, 13, 50, 0.92);
 
-  --line:      rgba(180, 120, 255, 0.18);
-  --line-soft: rgba(180, 120, 255, 0.075);
-  --line-hard: rgba(180, 120, 255, 0.44);
-
   --ink:       #d2ecf6;
   --ink-dim:   #84a8b9;
   --ink-faint: #43616f;
 
-  --cyan:      #b478ff;
-  --cyan-2:    #dcb6ff;
-  --violet:    #8fb8ff;
+  /* shell hue — violet. Every panel-scoped token below resolves from it. */
+  --hue:       272;
+  --hue-deep:  268;
+  --accent:    hsl(272 100% 73%);
+  --accent-2:  hsl(272 100% 87%);
+  --accent-dim: hsl(272 55% 62%);
+
+  /* channel hues. Kept in one place so the whole room can be retuned. */
+  --hue-comms:  272;   /* violet   — the voice, the default */
+  --hue-media:  330;   /* magenta  — picture and sound */
+  --hue-term:   152;   /* green    — machine output */
+  --hue-files:  200;   /* sky      — the disk */
+  --hue-editor: 44;    /* gold     — the page you write */
+  --hue-browse: 186;   /* teal     — the network */
+  --hue-docs:   22;    /* ember    — paper */
+  --hue-ana:    258;   /* indigo   — the numbers */
+  --hue-native: 210;   /* steel    — borrowed windows */
+
+  /* the second colour of each pair. 42° away from its partner — close
+     enough to read as one family, far enough that both are visible at
+     once. Every panel paints its headers, ghost numeral and secondary
+     text in the pair, never in one hue alone. */
+  --alt-comms:  318;   /* rose    against violet  */
+  --alt-media:  288;   /* orchid  against magenta */
+  --alt-term:   194;   /* cyan    against green   */
+  --alt-files:  242;   /* blue    against sky     */
+  --alt-editor: 86;    /* lime    against gold    */
+  --alt-browse: 228;   /* cobalt  against teal    */
+  --alt-docs:   64;    /* straw   against ember   */
+  --alt-ana:    304;   /* plum    against indigo  */
+  --alt-native: 168;   /* jade    against steel   */
+
+  --line:      hsl(var(--hue) 72% 74% / .18);
+  --line-soft: hsl(var(--hue) 72% 74% / .075);
+  --line-hard: hsl(var(--hue) 72% 74% / .44);
+
+  /* state — never used for mood, only for meaning */
   --amber:     #ffb340;
   --ok:        #38e6a0;
   --bad:       #ff5f70;
@@ -40,6 +82,54 @@
   --font-display: "Chakra Petch", "Segoe UI", system-ui, sans-serif;
   --font-mono:    "JetBrains Mono", ui-monospace, Consolas, monospace;
 }
+
+/* --hue-live is the open panel's hue. The stage re-declares --hue from it,
+   so the content area takes the panel colour and the shell around it keeps
+   violet. Two hues, one screen. */
+body[data-pane="comms"]  { --hue-live: var(--hue-comms);  --alt-live: var(--alt-comms); }
+body[data-pane="media"]  { --hue-live: var(--hue-media);  --alt-live: var(--alt-media); }
+body[data-pane="term"]   { --hue-live: var(--hue-term);   --alt-live: var(--alt-term); }
+body[data-pane="files"]  { --hue-live: var(--hue-files);  --alt-live: var(--alt-files); }
+body[data-pane="editor"] { --hue-live: var(--hue-editor); --alt-live: var(--alt-editor); }
+body[data-pane="browse"] { --hue-live: var(--hue-browse); --alt-live: var(--alt-browse); }
+body[data-pane="docs"]   { --hue-live: var(--hue-docs);   --alt-live: var(--alt-docs); }
+body[data-pane="ana"]    { --hue-live: var(--hue-ana);    --alt-live: var(--alt-ana); }
+body[data-pane="native"] { --hue-live: var(--hue-native); --alt-live: var(--alt-native); }
+
+/* the seam: inside .stage, --hue stops meaning "the shell" and starts
+   meaning "this panel". Every hsl(var(--hue) …) below this line follows,
+   and --alt is the panel's partner colour. */
+.stage {
+  --hue: var(--hue-live, var(--hue-comms));
+  --alt: var(--alt-live, var(--alt-comms));
+}
+
+/* derived from --hue, so they follow whichever scope declared it */
+:root, body, .stage {
+  --accent:     hsl(var(--hue) 100% 73%);
+  --accent-2:   hsl(var(--hue) 100% 87%);
+  --accent-dim: hsl(var(--hue) 55% 62%);
+  --accent-alt: hsl(var(--alt) 95% 70%);
+}
+
+body, .stage {
+  /* legacy names still referenced through the stylesheet — mapped once here
+     rather than rewriting 140 call sites and risking a miss. Declared at both
+     scopes for the same reason --accent is: `var(--accent)` resolves where
+     the alias is *declared*, so on body alone these would freeze at violet
+     and every metric card inside a panel would stay shell-coloured. */
+  --cyan:   var(--accent);
+  --cyan-2: var(--accent-2);
+  --violet: var(--accent-dim);
+}
+
+/* Note on why these are declared at .stage and not only at body:
+   a custom property computes its value where it is *declared*, and
+   inherits that already-resolved value downward. So `--accent:
+   hsl(var(--hue) …)` on body would lock in body's hue and the .stage
+   --hue override would move nothing. Re-declaring the alias family at
+   .stage is what carries the panel hue into every var(--cyan) call site
+   below the seam. */
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -111,12 +201,12 @@ header::after {
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand img {
   width: 26px; height: 26px; object-fit: contain;
-  filter: drop-shadow(0 0 10px rgba(180,120,255,.65));
+  filter: drop-shadow(0 0 10px hsl(var(--hue) 100% 74% / .65));
 }
 .brand b {
   display: block; font: 700 17px/1 var(--font-display);
   letter-spacing: .34em; color: var(--cyan);
-  text-shadow: 0 0 18px rgba(180,120,255,.6);
+  text-shadow: 0 0 18px hsl(var(--hue) 100% 74% / .6);
 }
 .brand small {
   display: block; margin-top: 3px;
@@ -129,7 +219,7 @@ header::after {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 3px 9px;
   border: 1px solid var(--line-soft);
-  background: rgba(180,120,255,.025);
+  background: hsl(var(--hue) 100% 74% / .025);
   font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase;
   color: var(--ink-dim); white-space: nowrap;
 }
@@ -142,7 +232,7 @@ header::after {
 .clock b {
   display: block; font: 500 25px/1 var(--font-display);
   color: var(--cyan); letter-spacing: .05em;
-  text-shadow: 0 0 22px rgba(180,120,255,.45);
+  text-shadow: 0 0 22px hsl(var(--hue) 100% 74% / .45);
 }
 .clock b small { font-size: 13px; color: var(--ink-faint); }
 .clock span {
@@ -158,7 +248,7 @@ header::after {
   color: var(--cyan); cursor: pointer;
   transition: background .13s, border-color .13s, color .13s;
 }
-.iconbar button:hover { background: rgba(180,120,255,.13); border-color: var(--line-hard); }
+.iconbar button:hover { background: hsl(var(--hue) 100% 74% / .13); border-color: var(--line-hard); }
 .iconbar button svg { width: 13px; height: 13px; }
 .iconbar button.quit:hover { background: var(--bad); color: var(--bg-deep); border-color: var(--bad); }
 .iconbar button.power:hover { background: var(--amber); color: var(--bg-deep); border-color: var(--amber); }
@@ -216,7 +306,7 @@ aside.left::-webkit-scrollbar { display: none; }
 .meter { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .meter .tube {
   position: relative; flex: 1; min-height: 0;
-  background: rgba(180,120,255,.04);
+  background: hsl(var(--hue) 100% 74% / .04);
   border: 1px solid var(--line-soft);
   overflow: hidden;
 }
@@ -228,8 +318,8 @@ aside.left::-webkit-scrollbar { display: none; }
 }
 .meter .fill {
   position: absolute; left: 0; right: 0; bottom: 0; height: 0%;
-  background: linear-gradient(to top, rgba(180,120,255,.9), rgba(180,120,255,.30));
-  box-shadow: 0 -4px 14px rgba(180,120,255,.55);
+  background: linear-gradient(to top, hsl(var(--hue) 100% 74% / .9), hsl(var(--hue) 100% 74% / .30));
+  box-shadow: 0 -4px 14px hsl(var(--hue) 100% 74% / .55);
   transition: height .5s cubic-bezier(.22,.9,.3,1), background .3s;
 }
 .meter.hot  .fill { background: linear-gradient(to top, rgba(255,179,64,.95), rgba(255,179,64,.28)); box-shadow: 0 -4px 14px rgba(255,179,64,.6); }
@@ -251,7 +341,7 @@ aside.left::-webkit-scrollbar { display: none; }
   display: flex; justify-content: space-between; gap: 6px;
   padding: 3px 0;
   font-size: 10px;
-  border-bottom: 1px solid rgba(180,120,255,.045);
+  border-bottom: 1px solid hsl(var(--hue) 100% 74% / .045);
 }
 .kv:last-child { border-bottom: 0; }
 .kv span:first-child { color: var(--ink-faint); letter-spacing: .05em; }
@@ -298,14 +388,33 @@ nav.rail::-webkit-scrollbar { display: none; }
   font-size: 6px; letter-spacing: .08em; text-transform: uppercase;
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.stage-tab:hover { color: var(--ink-dim); background: rgba(180,120,255,.05); }
+.stage-tab:hover { color: var(--ink-dim); background: hsl(var(--tab-hue) 90% 74% / .07); }
 .stage-tab[aria-selected="true"] {
-  color: var(--cyan);
-  background: rgba(180,120,255,.09);
-  border-color: var(--line);
+  color: hsl(var(--tab-hue) 100% 78%);
+  background: hsl(var(--tab-hue) 90% 74% / .11);
+  border-color: hsl(var(--tab-hue) 90% 74% / .40);
 }
+.stage-tab::before { background: hsl(var(--tab-hue) 100% 74%); }
 .stage-tab[aria-selected="true"]::before { height: 70%; }
-.stage-tab[aria-selected="true"] span { color: var(--cyan-2); }
+.stage-tab[aria-selected="true"] span { color: hsl(var(--tab-hue) 100% 88%); }
+.stage-tab b { color: hsl(var(--tab-hue) 100% 80% / .55); transition: color .14s; }
+.stage-tab:hover b,
+.stage-tab[aria-selected="true"] b { color: hsl(var(--tab-hue) 100% 84%); }
+
+/* the rail is a spectrum, not a list. Each tab carries the hue of the panel
+   it opens, so all nine channels are visible at once even though only one
+   is painted at a time. This is the "gabung" — the shell stays one hue and
+   inherits it per panel, but the map of where you can go shows every colour
+   the system owns. */
+.stage-tab[data-pane="comms"]  { --tab-hue: var(--hue-comms); }
+.stage-tab[data-pane="media"]  { --tab-hue: var(--hue-media); }
+.stage-tab[data-pane="term"]   { --tab-hue: var(--hue-term); }
+.stage-tab[data-pane="files"]  { --tab-hue: var(--hue-files); }
+.stage-tab[data-pane="editor"] { --tab-hue: var(--hue-editor); }
+.stage-tab[data-pane="browse"] { --tab-hue: var(--hue-browse); }
+.stage-tab[data-pane="docs"]   { --tab-hue: var(--hue-docs); }
+.stage-tab[data-pane="ana"]    { --tab-hue: var(--hue-ana); }
+.stage-tab[data-pane="native"] { --tab-hue: var(--hue-native); }
 
 /* ── stage ────────────────────────────────────────────────── */
 main.stage-wrap {
@@ -324,18 +433,23 @@ main.stage-wrap {
   overflow: hidden;
 }
 .stage::before {
+  /* the brackets are the clearest place to show the combination: they sit
+     on the seam between the violet chrome and the panel body, so they carry
+     the panel colour at full strength against the shell around them.
+     --accent here resolves locally (declared on .stage), not from body. */
   content: ""; position: absolute; inset: -1px; z-index: 20; pointer-events: none;
+  /* top-left pair in the panel hue, bottom-right pair in its partner.
+     Two corners each, so the frame itself states the combination before
+     any content has been drawn. */
   background:
-    linear-gradient(var(--cyan), var(--cyan)) left  top    / 22px 1px,
-    linear-gradient(var(--cyan), var(--cyan)) left  top    / 1px 22px,
-    linear-gradient(var(--cyan), var(--cyan)) right top    / 22px 1px,
-    linear-gradient(var(--cyan), var(--cyan)) right top    / 1px 22px,
-    linear-gradient(var(--cyan), var(--cyan)) left  bottom / 22px 1px,
-    linear-gradient(var(--cyan), var(--cyan)) left  bottom / 1px 22px,
-    linear-gradient(var(--cyan), var(--cyan)) right bottom / 22px 1px,
-    linear-gradient(var(--cyan), var(--cyan)) right bottom / 1px 22px;
+    linear-gradient(var(--accent),     var(--accent))     left  top    / 22px 1px,
+    linear-gradient(var(--accent),     var(--accent))     left  top    / 1px 22px,
+    linear-gradient(var(--accent-alt), var(--accent-alt)) right bottom / 22px 1px,
+    linear-gradient(var(--accent-alt), var(--accent-alt)) right bottom / 1px 22px,
+    linear-gradient(var(--accent),     var(--accent))     right top    / 14px 1px,
+    linear-gradient(var(--accent-alt), var(--accent-alt)) left  bottom / 14px 1px;
   background-repeat: no-repeat;
-  opacity: .85;
+  opacity: .95;
 }
 
 /* ghost panel numeral — paints under the content but over the stage ground */
@@ -344,8 +458,11 @@ main.stage-wrap {
   z-index: 0; pointer-events: none;
   font: 700 min(16vh, 132px)/0.78 var(--font-display);
   letter-spacing: -.04em;
-  color: rgba(180,120,255,.045);
-  -webkit-text-stroke: 1px rgba(180,120,255,.28);
+  color: hsl(var(--hue) 100% 74% / .05);
+  /* stroke in the partner colour — the numeral is the one place both hues
+     of the pair are guaranteed to overlap, so it is the clearest signal
+     that a panel is built from two colours and not one */
+  -webkit-text-stroke: 1px hsl(var(--alt) 95% 70% / .40);
   transition: opacity .3s;
 }
 
@@ -362,13 +479,21 @@ main.stage-wrap {
 .pane > .stage-rail { position: relative; z-index: 1; }
 .pane > .pane-head,
 .pane > .stage-rail { background: transparent; }
+/* every pane now carries a head band above its shell, so the shell must flex
+   into the remainder rather than claim a full height it no longer owns */
+.pane > .pane-head + .media-shell,
+.pane > .pane-head + .files-shell,
+.pane > .pane-head + .browse-shell,
+.pane > .pane-head + .docs-shell,
+.pane > .pane-head + .ana-shell,
+.pane > .pane-head + .core-body { flex: 1 1 auto; min-height: 0; height: auto; }
 #pane-comms .core-body,
 #pane-comms .talk { background: transparent; }
 .pane::before {
   content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
   background-image:
-    linear-gradient(rgba(180,120,255,.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(180,120,255,.03) 1px, transparent 1px);
+    linear-gradient(hsl(var(--hue) 100% 74% / .03) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--hue) 100% 74% / .03) 1px, transparent 1px);
   background-size: 48px 48px;
   -webkit-mask-image: radial-gradient(ellipse 74% 64% at 50% 46%, #000 18%, transparent 80%);
   mask-image: radial-gradient(ellipse 74% 64% at 50% 46%, #000 18%, transparent 80%);
@@ -378,15 +503,21 @@ main.stage-wrap {
 .pane-head {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 13px;
-  border-bottom: 1px solid var(--line-soft);
-  background: linear-gradient(90deg, rgba(180,120,255,.045), transparent 60%);
+  border-bottom: 1px solid hsl(var(--hue) 80% 74% / .22);
+  background: linear-gradient(90deg, hsl(var(--hue) 95% 68% / .10), transparent 62%);
   flex: 0 0 auto;
 }
 .pane-head .title {
   font: 600 9.5px/1 var(--font-display);
-  letter-spacing: .22em; text-transform: uppercase; color: var(--cyan);
+  letter-spacing: .22em; text-transform: uppercase;
+  color: hsl(var(--hue) 100% 80%);
+  text-shadow: 0 0 12px hsl(var(--hue) 100% 62% / .55);
 }
-.pane-head .meta { font-size: 8.5px; letter-spacing: .1em; color: var(--ink-faint); }
+.pane-head .meta {
+  font-size: 8.5px; letter-spacing: .1em;
+  /* the pair again: title in the panel hue, its descriptor in the partner */
+  color: hsl(var(--alt) 60% 66% / .85);
+}
 .pane-head .grow { flex: 1; }
 .pane-body { flex: 1; min-height: 0; overflow-y: auto; padding: 13px; }
 .pane-body.tight { padding: 0; }
@@ -400,8 +531,8 @@ main.stage-wrap {
   color: var(--cyan); cursor: pointer;
   transition: background .13s, border-color .13s;
 }
-.btn:hover { background: rgba(180,120,255,.12); border-color: var(--line-hard); }
-.btn.solid { background: rgba(180,120,255,.14); }
+.btn:hover { background: hsl(var(--hue) 100% 74% / .12); border-color: var(--line-hard); }
+.btn.solid { background: hsl(var(--hue) 100% 74% / .14); }
 
 .placeholder {
   height: 100%;
@@ -453,7 +584,7 @@ main.stage-wrap {
   display: block;
   font: 600 11px/1 var(--font-display);
   letter-spacing: .5em; text-transform: uppercase; color: var(--cyan);
-  text-shadow: 0 0 18px rgba(180,120,255,.65);
+  text-shadow: 0 0 18px hsl(var(--hue) 100% 74% / .65);
 }
 .core-state span {
   display: block; margin-top: 6px;
@@ -524,7 +655,7 @@ main.stage-wrap {
 .media-screen .film {
   position: absolute; inset: 0;
   background:
-    radial-gradient(circle at 32% 30%, rgba(180,120,255,.14), transparent 55%),
+    radial-gradient(circle at 32% 30%, hsl(var(--hue) 100% 74% / .14), transparent 55%),
     radial-gradient(circle at 70% 72%, rgba(156,139,255,.12), transparent 55%),
     linear-gradient(160deg, #061018, #010407);
 }
@@ -541,6 +672,7 @@ main.stage-wrap {
   position: absolute; top: 10px; left: 12px; z-index: 2;
   font-size: 7.5px; letter-spacing: .18em; text-transform: uppercase;
   color: var(--amber); border: 1px solid rgba(255,179,64,.28); padding: 3px 7px;
+  background: rgba(255,179,64,.05);
 }
 .reel {
   width: 46px; height: 46px;
@@ -568,10 +700,10 @@ main.stage-wrap {
   background: transparent; border: 1px solid var(--line-soft);
   color: var(--cyan); cursor: pointer;
 }
-.media-bar button:hover { background: rgba(180,120,255,.12); }
+.media-bar button:hover { background: hsl(var(--hue) 100% 74% / .12); }
 .media-bar button svg { width: 12px; height: 12px; }
 .media-bar .tc { font-size: 9px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
-.media-bar .track { flex: 1; height: 2px; background: rgba(180,120,255,.12); position: relative; }
+.media-bar .track { flex: 1; height: 2px; background: hsl(var(--hue) 100% 74% / .12); position: relative; }
 .media-bar .track i { position: absolute; left: 0; top: -3px; width: 2px; height: 8px; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
 
 .media-list { flex: 0 0 auto; max-height: 34%; overflow-y: auto; border-top: 1px solid var(--line-soft); background: rgba(5,3,15,.94); position: relative; z-index: 2; }
@@ -580,14 +712,17 @@ main.stage-wrap {
   gap: 9px; align-items: center;
   padding: 6px 13px;
   font-size: 9.5px; color: var(--ink-dim);
-  border-bottom: 1px solid rgba(180,120,255,.04);
+  border-bottom: 1px solid hsl(var(--hue) 100% 74% / .04);
   cursor: pointer;
 }
-.media-row:hover { background: rgba(180,120,255,.05); color: var(--ink); }
-.media-row.active { background: rgba(180,120,255,.09); color: var(--cyan); }
+.media-row:hover { background: hsl(var(--hue) 100% 74% / .05); color: var(--ink); }
+.media-row.active { background: hsl(var(--hue) 100% 74% / .09); color: var(--cyan); }
 .media-row .tag {
   font-size: 7px; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--ink-faint); border: 1px solid var(--line-soft); padding: 2px 0; text-align: center;
+  /* partner hue, so a media list reads as two tones not one */
+  color: hsl(var(--alt) 85% 72%);
+  border: 1px solid hsl(var(--alt) 70% 68% / .28);
+  padding: 2px 0; text-align: center;
 }
 .media-row .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .media-row .d { font-size: 8px; color: var(--ink-faint); text-align: right; }
@@ -620,8 +755,8 @@ main.stage-wrap {
   font-size: 10px; color: var(--ink-dim);
   cursor: pointer; white-space: nowrap;
 }
-.node:hover { background: rgba(180,120,255,.06); color: var(--ink); }
-.node.sel { background: rgba(180,120,255,.11); color: var(--cyan); }
+.node:hover { background: hsl(var(--hue) 100% 74% / .06); color: var(--ink); }
+.node.sel { background: hsl(var(--hue) 100% 74% / .11); color: var(--cyan); }
 .node .ic { display: grid; place-items: center; width: 12px; color: var(--ink-faint); flex: 0 0 auto; }
 .node.sel .ic { color: var(--cyan); }
 .node .ic svg { width: 11px; height: 11px; }
@@ -645,13 +780,13 @@ main.stage-wrap {
   font-size: 10px; color: var(--ink-faint);
 }
 .node.dir .ic { color: var(--cyan); }
-.node.sel { background: rgba(180,120,255,.1); color: var(--cyan); }
+.node.sel { background: hsl(var(--hue) 100% 74% / .1); color: var(--cyan); }
 .tree-empty { padding: 10px 13px; font-size: 9.5px; color: var(--ink-faint); }
 .code-line { display: flex; gap: 12px; padding: 0 13px; font-size: 10.5px; line-height: 1.7; }
 .code-line .ln { width: 22px; text-align: right; color: var(--ink-faint); opacity: .55; flex: 0 0 auto; user-select: none; }
 .code-line .tx { white-space: pre; color: var(--ink); }
 .tok-c { color: var(--ink-faint); }
-.tok-k { color: #dcb6ff; }
+.tok-k { color: var(--accent-2); }
 .tok-f { color: var(--violet); }
 .tok-s { color: var(--ok); }
 
@@ -677,8 +812,8 @@ main.stage-wrap {
 .doc-side .item {
   padding: 5px 13px; font-size: 10px; color: var(--ink-dim); cursor: pointer;
 }
-.doc-side .item:hover { background: rgba(180,120,255,.06); }
-.doc-side .item.sel { color: var(--cyan); background: rgba(180,120,255,.1); }
+.doc-side .item:hover { background: hsl(var(--hue) 100% 74% / .06); }
+.doc-side .item.sel { color: var(--cyan); background: hsl(var(--hue) 100% 74% / .1); }
 
 /* ── ANALYSIS panel ───────────────────────────────────────── */
 .ana-shell { padding: 14px; display: flex; flex-direction: column; gap: 11px; height: 100%; overflow-y: auto; }
@@ -686,7 +821,7 @@ main.stage-wrap {
 .ana-sum { font-size: 10.5px; line-height: 1.6; color: var(--ink-dim); }
 .ana-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 9px; }
 .ana-card {
-  border: 1px solid var(--line-soft); background: rgba(180,120,255,.035);
+  border: 1px solid var(--line-soft); background: hsl(var(--hue) 100% 74% / .035);
   padding: 9px 11px; position: relative;
   opacity: .18; transform: translateY(10px) scale(.97);
   transition: opacity .5s ease, transform .6s cubic-bezier(.2,.9,.25,1.15), border-color .3s;
@@ -716,13 +851,13 @@ main.stage-wrap {
 .arow .al { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-dim); }
 .arow .ab {
   height: 8px; position: relative; overflow: hidden;
-  background: rgba(180,120,255,.07);
+  background: hsl(var(--hue) 100% 74% / .07);
   border: 1px solid var(--line-soft);
 }
 .arow .ab i {
   position: absolute; inset: 0 auto 0 0; width: 0;
-  background: linear-gradient(90deg, rgba(180,120,255,.55), var(--cyan-2));
-  box-shadow: 0 0 9px rgba(180,120,255,.55);
+  background: linear-gradient(90deg, hsl(var(--hue) 100% 74% / .55), var(--cyan-2));
+  box-shadow: 0 0 9px hsl(var(--hue) 100% 74% / .55);
   transition: width .8s cubic-bezier(.2,.8,.2,1);
 }
 .arow .av { font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; }
@@ -743,7 +878,7 @@ main.stage-wrap {
   padding: 4px 9px; background: transparent; border: 1px solid var(--line-soft);
   font: 500 8.5px/1.4 var(--font-mono); color: var(--cyan); cursor: pointer; text-align: left;
 }
-.ana-follow button:hover { border-color: var(--line-hard); background: rgba(180,120,255,.07); }
+.ana-follow button:hover { border-color: var(--line-hard); background: hsl(var(--hue) 100% 74% / .07); }
 
 /* ── NATIVE panel ─────────────────────────────────────────── */
 .native-note {
@@ -810,10 +945,10 @@ aside.right {
   display: flex; align-items: center; gap: 10px;
   padding: 7px 9px;
   border: 1px solid var(--line-soft);
-  background: rgba(180,120,255,.025);
+  background: hsl(var(--hue) 100% 74% / .025);
 }
 .pray svg { width: 30px; height: 30px; transform: rotate(-90deg); flex: 0 0 auto; }
-.pray .trk { fill: none; stroke: rgba(180,120,255,.12); stroke-width: 4; }
+.pray .trk { fill: none; stroke: hsl(var(--hue) 100% 74% / .12); stroke-width: 4; }
 .pray .arc { fill: none; stroke: var(--cyan); stroke-width: 4; stroke-linecap: round; }
 .pray span { display: block; font-size: 7.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
 .pray b { display: block; margin-top: 2px; font: 600 11.5px/1 var(--font-display); color: var(--ink); }
@@ -826,7 +961,7 @@ aside.right {
   font: 400 9.5px/1.5 var(--font-mono); color: var(--ink-dim);
   cursor: pointer; transition: color .13s, border-color .13s, background .13s;
 }
-.sug button:hover { color: var(--cyan); border-left-color: var(--cyan); background: rgba(180,120,255,.05); }
+.sug button:hover { color: var(--cyan); border-left-color: var(--cyan); background: hsl(var(--hue) 100% 74% / .05); }
 
 /* right rail second half: morning brief + panel map */
 .feed h5.sec {
@@ -836,7 +971,7 @@ aside.right {
 .brief {
   padding: 7px 9px;
   border: 1px solid var(--line-soft);
-  background: rgba(180,120,255,.025);
+  background: hsl(var(--hue) 100% 74% / .025);
   font: 400 9.5px/1.75 var(--font-mono);
   color: var(--ink-dim);
   user-select: text; white-space: pre-wrap; max-height: 190px; overflow-y: auto;
@@ -851,7 +986,7 @@ aside.right {
   font: 400 9px/1.4 var(--font-mono); color: var(--ink-dim); cursor: pointer;
   transition: color .13s, border-color .13s, background .13s;
 }
-.pane-map button:hover { color: var(--cyan); border-color: var(--line-hard); background: rgba(180,120,255,.06); }
+.pane-map button:hover { color: var(--cyan); border-color: var(--line-hard); background: hsl(var(--hue) 100% 74% / .06); }
 
 /* ── footer ───────────────────────────────────────────────── */
 footer {
@@ -878,10 +1013,10 @@ footer {
   background: transparent; border: 1px solid var(--line-soft);
   cursor: pointer; transition: border-color .13s, background .13s, transform .13s;
 }
-.tile:hover { border-color: var(--line); background: rgba(180,120,255,.07); transform: translateY(-2px); }
+.tile:hover { border-color: var(--line); background: hsl(var(--hue) 100% 74% / .07); transform: translateY(-2px); }
 .tile .hex {
   width: 24px; height: 24px; display: grid; place-items: center;
-  background: rgba(180,120,255,.09);
+  background: hsl(var(--hue) 100% 74% / .09);
   clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
   font: 600 9px/1 var(--font-display); color: var(--cyan);
 }
@@ -907,7 +1042,7 @@ footer {
   font: 600 7.5px/1 var(--font-mono); letter-spacing: .12em;
   color: var(--ink-faint); cursor: pointer;
 }
-.capsule .mode button[aria-pressed="true"] { background: rgba(180,120,255,.16); color: var(--cyan); }
+.capsule .mode button[aria-pressed="true"] { background: hsl(var(--hue) 100% 74% / .16); color: var(--cyan); }
 .capsule input {
   flex: 1; min-width: 0;
   padding: 6px 2px; background: transparent; border: 0; outline: 0;
@@ -920,9 +1055,9 @@ footer {
   background: transparent; border: 1px solid var(--line-soft);
   color: var(--cyan); cursor: pointer;
 }
-.capsule .round:hover { background: rgba(180,120,255,.14); }
+.capsule .round:hover { background: hsl(var(--hue) 100% 74% / .14); }
 .capsule .round svg { width: 13px; height: 13px; }
-.capsule .round.send { background: rgba(180,120,255,.16); border-color: var(--line-hard); }
+.capsule .round.send { background: hsl(var(--hue) 100% 74% / .16); border-color: var(--line-hard); }
 .hint {
   margin-top: 4px; text-align: right;
   font-size: 7.5px; letter-spacing: .06em; color: var(--ink-faint);
@@ -1113,6 +1248,12 @@ footer {
       <!-- ── 2 MEDIA ── -->
       <section class="pane" id="pane-media" role="tabpanel" hidden>
         <div class="media-shell">
+          <div class="pane-head">
+            <span class="title">Media</span>
+            <span class="meta" id="mediaMeta">media/ · 4 medium</span>
+            <span class="grow"></span>
+            <button type="button" class="btn" id="mediaRescan">Imbas semula</button>
+          </div>
           <div class="media-screen" id="mediaScreen">
             <div class="film"></div>
             <span class="badge" id="mediaBadge">Range server · 206 Partial</span>
@@ -1200,6 +1341,12 @@ footer {
 
       <!-- ── 6 BROWSER ── -->
       <section class="pane" id="pane-browse" role="tabpanel" hidden>
+        <div class="pane-head">
+          <span class="title">Web</span>
+          <span class="meta">iframe · X-Frame-Options</span>
+          <span class="grow"></span>
+          <span class="phase">Fasa 6</span>
+        </div>
         <div class="browse-shell">
           <div class="browse-bar">
             <button type="button" class="btn">←</button>
@@ -1222,6 +1369,12 @@ footer {
 
       <!-- ── 7 DOKUMEN ── -->
       <section class="pane" id="pane-docs" role="tabpanel" hidden>
+        <div class="pane-head">
+          <span class="title">Dokumen</span>
+          <span class="meta">pdf · docx · xlsx</span>
+          <span class="grow"></span>
+          <span class="phase">Fasa 6</span>
+        </div>
         <div class="docs-shell">
           <div class="doc-side">
             <div class="item sel">Dokumen terkini</div>
@@ -1291,7 +1444,7 @@ footer {
               <svg viewBox="0 0 32 32" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
                 <circle cx="12" cy="12" r="4.2"/>
                 <path d="M12 4.2v2M12 17.8v2M4.2 12h2M17.8 12h2M6.5 6.5l1.4 1.4M16.1 16.1l1.4 1.4M17.5 6.5l-1.4 1.4M7.9 16.1l-1.4 1.4"/>
-                <path d="M13 24h13a3.4 3.4 0 0 0 .3-6.8 5 5 0 0 0-9.6-1.3A3.7 3.7 0 0 0 13 24z" fill="rgba(180,120,255,.10)"/>
+                <path d="M13 24h13a3.4 3.4 0 0 0 .3-6.8 5 5 0 0 0-9.6-1.3A3.7 3.7 0 0 0 13 24z" fill="hsl(var(--hue) 100% 74% / .10)"/>
               </svg>
             </span>
             <div><b id="wxTemp">—</b><span id="wxDesc">memuatkan…</span></div>
@@ -1404,6 +1557,10 @@ footer {
       if (tab) tab.scrollIntoView({ block: 'nearest' });
     }
     if (ghost) ghost.textContent = String(order.indexOf(name) + 1);
+    // this line is what retints the whole shell — the body[data-pane] rules
+    // in the stylesheet swap --hue, and every border, rail tab and meter
+    // reads from it. Without it the frame stays on the default violet.
+    document.body.dataset.pane = name;
     current = name;
     try { history.replaceState(null, '', '#' + name); } catch (e) { location.hash = name; }
     document.dispatchEvent(new CustomEvent('stage:change', { detail: { pane: name } }));
@@ -1529,6 +1686,33 @@ footer {
     return h ? `${h}j ${m}m` : `${m}m`;
   }
 
+  /* ── accent resolver ──
+     Canvas cannot read a CSS variable — fillStyle takes a colour string and
+     `hsl(var(--hue) …)` is not one. So resolve the live accent once into RGB
+     and rebuild the strings by hand. Re-resolved on stage:change, which is
+     exactly when --hue moves.
+     Two probes rather than one: the orb needs the main accent for its body
+     and the light accent for highlights, and they shift together. */
+  const accentProbe = document.createElement('span');
+  const accentProbe2 = document.createElement('span');
+  accentProbe.style.cssText  = 'position:absolute;width:0;height:0;pointer-events:none;color:var(--accent)';
+  accentProbe2.style.cssText = 'position:absolute;width:0;height:0;pointer-events:none;color:var(--accent-2)';
+  document.body.append(accentProbe, accentProbe2);
+
+  const ACC  = [180, 120, 255];
+  const ACC2 = [220, 182, 255];
+
+  function syncAccent() {
+    for (const [el, out] of [[accentProbe, ACC], [accentProbe2, ACC2]]) {
+      const m = /(\d+)\D+(\d+)\D+(\d+)/.exec(getComputedStyle(el).color || '');
+      if (m) { out[0] = +m[1]; out[1] = +m[2]; out[2] = +m[3]; }
+    }
+  }
+  const ac  = a => `rgba(${ACC[0]},${ACC[1]},${ACC[2]},${a})`;
+  const ac2 = a => `rgba(${ACC2[0]},${ACC2[1]},${ACC2[2]},${a})`;
+  syncAccent();
+  document.addEventListener('stage:change', syncAccent);
+
   /* ── sparkline: real CPU history, demo curve only until the first snapshot ── */
   const spark = document.getElementById('spark');
   const DEMO = [28,34,30,41,38,46,35,52,44,39,48,42,36,33,40,45,38,34,29,35,42,48,44,37,31,36,41,47,43,38];
@@ -1549,7 +1733,7 @@ footer {
     const stepX = w / (pts.length - 1);
     const y = v => h - (v / 100) * (h - 4) - 2;
 
-    g.strokeStyle = 'rgba(180,120,255,.055)';
+    g.strokeStyle = ac(.055);
     g.lineWidth = 1;
     for (let i = 1; i < 4; i++) {
       const gy = Math.round((h / 4) * i) + .5;
@@ -1557,8 +1741,8 @@ footer {
     }
 
     const grad = g.createLinearGradient(0, 0, 0, h);
-    grad.addColorStop(0, 'rgba(180,120,255,.30)');
-    grad.addColorStop(1, 'rgba(180,120,255,0)');
+    grad.addColorStop(0, ac(.30));
+    grad.addColorStop(1, ac(0));
 
     g.beginPath();
     g.moveTo(0, h);
@@ -1570,16 +1754,16 @@ footer {
 
     g.beginPath();
     pts.forEach((v, i) => (i ? g.lineTo(i * stepX, y(v)) : g.moveTo(0, y(v))));
-    g.strokeStyle = '#b478ff';
+    g.strokeStyle = ac(.92);
     g.lineWidth = 1.3;
     g.lineJoin = 'round';
     g.stroke();
 
     const lx = w - stepX, ly = y(pts[pts.length - 1]);
     g.beginPath(); g.arc(lx, ly, 2.4, 0, Math.PI * 2);
-    g.fillStyle = '#dcb6ff'; g.fill();
+    g.fillStyle = ac2(1); g.fill();
     g.beginPath(); g.arc(lx, ly, 5, 0, Math.PI * 2);
-    g.fillStyle = 'rgba(180,120,255,.18)'; g.fill();
+    g.fillStyle = ac(.18); g.fill();
   }
 
   requestAnimationFrame(drawSpark);
@@ -1663,9 +1847,9 @@ footer {
       const haloR = R * (thinking ? 1.85 : speaking ? 2.25 : 2.05);
       const haloA = thinking ? 0.30 : speaking ? 0.30 : listening ? 0.26 : 0.20;
       const halo = g.createRadialGradient(cx, cy, R * 0.15, cx, cy, haloR);
-      halo.addColorStop(0,    `rgba(180,120,255,${haloA})`);
-      halo.addColorStop(0.45, `rgba(180,120,255,${haloA * 0.27})`);
-      halo.addColorStop(1,    'rgba(180,120,255,0)');
+      halo.addColorStop(0,    ac(haloA));
+      halo.addColorStop(0.45, ac(haloA * 0.27));
+      halo.addColorStop(1,    ac(0));
       g.fillStyle = halo;
       g.beginPath(); g.arc(cx, cy, haloR, 0, Math.PI * 2); g.fill();
 
@@ -1681,7 +1865,7 @@ footer {
         g.rotate(t * dir * 0.55 * speed + i);
         g.beginPath();
         g.ellipse(0, 0, rr, rr * tilt, t * 0.3 * speed, 0, Math.PI * 2);
-        g.strokeStyle = `rgba(180,120,255,${(0.20 - i * 0.052) * (listening ? 1 + lvl * 0.9 : 1)})`;
+        g.strokeStyle = ac((0.20 - i * 0.052) * (listening ? 1 + lvl * 0.9 : 1));
         g.lineWidth = listening ? 1.2 + lvl * 0.8 : 1;
         g.stroke();
         g.restore();
@@ -1694,9 +1878,9 @@ footer {
         g.translate(cx, cy);
         g.rotate(sweep);
         const arc = g.createLinearGradient(0, -R * 1.3, 0, -R * 0.9);
-        arc.addColorStop(0, 'rgba(220,182,255,0)');
-        arc.addColorStop(0.6, 'rgba(220,182,255,.85)');
-        arc.addColorStop(1, 'rgba(220,182,255,0)');
+        arc.addColorStop(0, ac2(0));
+        arc.addColorStop(0.6, ac2(.85));
+        arc.addColorStop(1, ac2(0));
         g.strokeStyle = arc;
         g.lineWidth = 2;
         g.beginPath();
@@ -1705,7 +1889,7 @@ footer {
         // leading edge glow
         g.beginPath();
         g.arc(0, 0, R * 1.08, 0.26, 0.31);
-        g.strokeStyle = 'rgba(238,226,255,.95)';
+        g.strokeStyle = ac2(.95);
         g.lineWidth = 2.6;
         g.stroke();
         g.restore();
@@ -1760,8 +1944,8 @@ footer {
         g.beginPath();
         g.arc(px, py, rad, 0, Math.PI * 2);
         g.fillStyle = z > 0.55
-          ? `rgba(214,182,255,${Math.min(1, alpha)})`
-          : `rgba(180,120,255,${Math.min(1, alpha)})`;
+          ? ac2(Math.min(1, alpha))
+          : ac(Math.min(1, alpha));
         g.fill();
       }
 
@@ -1771,12 +1955,12 @@ footer {
         : 1;
       const coreR = R * (thinking ? 0.30 : speaking ? 0.44 : listening ? 0.44 + lvl * 0.07 : 0.44) * beat;
       const coreIn = thinking
-        ? 'rgba(246,240,255,.98)'
-        : 'rgba(238,226,255,.94)';
+        ? ac2(1)
+        : ac2(.94);
       const core = g.createRadialGradient(cx, cy, 0, cx, cy, coreR);
       core.addColorStop(0, coreIn);
-      core.addColorStop(0.4, `rgba(180,120,255,${thinking ? 0.62 : 0.44})`);
-      core.addColorStop(1, 'rgba(180,120,255,0)');
+      core.addColorStop(0.4, ac(thinking ? 0.62 : 0.44));
+      core.addColorStop(1, ac(0));
       g.fillStyle = core;
       g.beginPath(); g.arc(cx, cy, coreR, 0, Math.PI * 2); g.fill();
 
@@ -1785,7 +1969,7 @@ footer {
         const rr = R * (0.62 + lvl * 0.34);
         g.beginPath();
         g.arc(cx, cy, rr, 0, Math.PI * 2);
-        g.strokeStyle = `rgba(214,182,255,${0.14 + lvl * 0.55})`;
+        g.strokeStyle = ac2(0.14 + lvl * 0.55);
         g.lineWidth = 1 + lvl * 1.6;
         g.stroke();
       }
@@ -1800,7 +1984,7 @@ footer {
           const a = (1 - p) * (0.10 + lvl * 0.55);
           g.beginPath();
           g.arc(cx, cy, rr, 0, Math.PI * 2);
-          g.strokeStyle = `rgba(214,182,255,${a})`;
+          g.strokeStyle = ac2(a);
           g.lineWidth = (1 - p) * (1 + lvl * 2);
           g.stroke();
         }
@@ -1836,7 +2020,7 @@ footer {
         d.y -= d.v;
         if (d.y < -4) { d.y = H + 4; d.x = Math.random() * W; }
         g.beginPath(); g.arc(d.x, d.y, d.r, 0, Math.PI * 2);
-        g.fillStyle = `rgba(180,120,255,${d.a})`; g.fill();
+        g.fillStyle = ac(d.a); g.fill();
       }
       requestAnimationFrame(drift);
     };
@@ -1931,6 +2115,8 @@ footer {
         r.innerHTML = '<span class="tag">—</span><span class="n">folder media/ kosong</span><span class="d">—</span>';
         list.appendChild(r);
         if (hint) hint.textContent = 'letak fail dalam media/ · mp4 · mkv · mp3';
+        const meta = document.getElementById('mediaMeta');
+        if (meta) meta.textContent = 'media/ · kosong';
         return;
       }
       items.forEach((it, i) => {
@@ -1950,6 +2136,8 @@ footer {
         list.appendChild(r);
       });
       if (hint) hint.textContent = items.length + ' medium · tekan satu untuk main';
+      const meta = document.getElementById('mediaMeta');
+      if (meta) meta.textContent = 'media/ · ' + items.length + ' medium';
       /* the centre card names what is loaded but not yet playing */
       const t = document.getElementById('mediaTitle');
       if (t) t.textContent = 'Sedia · ' + items.length + ' medium';
@@ -2011,6 +2199,9 @@ footer {
       if (e.detail.pane !== 'media' && media && !media.paused) media.pause();
       if (e.detail.pane === 'media' && !items.length) refresh();
     });
+
+    const rescan = document.getElementById('mediaRescan');
+    if (rescan) rescan.addEventListener('click', refresh);
   })();
 
   /* ═══════════════════════════════════════════════════════════
