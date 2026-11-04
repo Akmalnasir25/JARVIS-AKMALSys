@@ -317,6 +317,7 @@ Semua kod siap dan lulus harness. Yang belum disentuh mesin sebenar:
 | APP | buka Notepad, tekan `9`, pilih tetingkap | ia masuk stage, tak melimpah, hilang bila tukar panel |
 | DOK | tekan `7`, klik satu pdf | halaman render, anak panah tukar halaman |
 | kawalan | cakap "volume 40", "tutup chrome", "status laptop" | resolver tangkap sebelum model, tanpa lag |
+| buka dokumen | cakap "buka laporan.pdf" | panel DOK terbuka dengan fail itu, bukan app luar |
 
 `widget`/`media` sekarang hanya ada `_probe.mp3` dan `_t.bin` — bukan video. Jangan guna
 untuk ujian MEDIA.
