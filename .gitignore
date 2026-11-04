@@ -18,6 +18,7 @@ ui/_*.png
 ui/_*.html
 ui/_*.js
 ui/_*_probe*.py
+ui/_live/
 ui/stage-v1.html
 ui/stage-cyan.html
 ui/stage-pre-tdz-fix.html

@@ -265,9 +265,12 @@ TEXT_EXT = {".txt", ".md", ".csv", ".json", ".py", ".js", ".ts", ".html", ".css"
             ".ini", ".log", ".bat", ".ps1", ".yml", ".yaml", ".java", ".c", ".cpp", ".cs", ".vue", ".env"}
 
 
+CURRENT_LANG = None      # diisi semasa main(); lang_note baca ini, bukan cakera
+
+
 def lang_note():
     """Jika reply_language = en: jawab dalam English penuh walaupun Akmal tanya dalam BM."""
-    if load_json(CONFIG, {}).get("reply_language", "ms") != "en":
+    if (CURRENT_LANG or load_json(CONFIG, {}).get("reply_language", "ms")) != "en":
         return ""
     return ("\n\nLANGUAGE OVERRIDE (highest priority): Akmal may speak or type in Malay, but you must ALWAYS reply "
             "ONLY in natural, fluent English, like JARVIS from Iron Man: calm, polite, slightly witty. Do not mix in any "
@@ -375,6 +378,8 @@ class Api:
         self._net_t = time.time()
         self._media = None  # MediaServer, dihidupkan oleh main()
         self._web_win = None      # child WebView2 window for the WEB pane
+        self._web_stale = []      # handles whose destroy() belum benar-benar mendarat
+        self._web_open = False    # satu-satunya sumber kebenaran: pemegang Window, bukan HWND
         self._web_url = ""
         self._stage_rect = None   # browse-body rect in screen px, set by JS
         self._sys = sysctl.System()  # satu instance: token pengesahan hidup di sini
@@ -842,8 +847,19 @@ class Api:
                 pass  # window closing; on_closed will clean up
         return {"ok": True}
 
-    def web_open(self, url):
-        """Open a URL in the child window, creating it the first time."""
+    def web_open(self, url, notify=True):
+        """Open a URL in the child window, creating it the first time.
+
+        `notify` wujud kerana gelung: panel WEB sendiri memanggil web_open
+        melalui `go()`, dan `go()` sudah menetapkan curUrl serta melukis
+        keadaannya. Kalau web_open pula menghantar `_emit("web", {"url": u})`,
+        onClaude memanggil `stageWeb.open(d.url)`, yang memanggil `go()` sekali
+        lagi, yang memanggil `web_open` sekali lagi — tanpa henti. Ujian hidup
+        menangkapnya: 6 panggilan web_open dalam 12 saat dan pendua tetingkap
+        bertindih pada panel yang sama. Pemanggil dari JS menghantar
+        notify=false; suara dan model kekal notify=true supaya panel ikut
+        bertukar.
+        """
         u = str(url or "").strip()
         if not u:
             return {"ok": False, "msg": "Alamat kosong."}
@@ -863,12 +879,24 @@ class Api:
                 win.move(rect[0], rect[1])
                 win.resize(rect[2], rect[3])
                 self._web_url = u
-                self._emit("web", {"query": "", "links": [], "url": u})
+                self._web_open = True
+                if notify:
+                    self._emit("web", {"query": "", "links": [], "url": u})
                 return {"ok": True, "url": u, "reused": True}
             except Exception:
                 # the child died between the last call and this one; drop the
                 # handle and rebuild below rather than leaving a dead binding
                 self._web_win = None
+
+        # Satu tetingkap sahaja pada satu masa. Kalau baki tetingkap lama masih
+        # ada (pengguna tutup HUD tanpa web_close, atau destroy() lambat), kita
+        # akan bertindih dengan tetingkap hantu yang kekal atas stage.
+        for stale in [x for x in self._web_stale if x]:
+            try:
+                stale.destroy()
+            except Exception:
+                pass
+        self._web_stale = []
 
         # create_window from a non-main thread is the supported pywebview path
         # (the JS bridge runs off the main thread), so this does not block and
@@ -887,41 +915,82 @@ class Api:
             return {"ok": False, "msg": "Tetingkap web tidak dapat dimulakan."}
         self._web_win = win
         self._web_url = u
+        self._web_open = True
 
         def _closed():
-            # the HUD's WEB pane must not keep claiming a browser is open
+            # HUD's WEB pane must not keep claiming a browser is open — but
+            # only if this handle is still the current one. Bila tetingkap
+            # lama dimusnahkan selepas yang baharu dibina, callback lama ini
+            # akan menulenkan pemegang baharu dan panel kehilangan browser
+            # yang sebenarnya masih hidup.
+            if self._web_win is not win:
+                return
             self._web_win = None
             self._web_url = ""
+            self._web_open = False
             self._emit("web", {"query": "", "links": [], "closed": True})
 
         try:
             win.events.closed += _closed
         except Exception:
             pass
-        self._emit("web", {"query": "", "links": [], "url": u})
+        if notify:
+            self._emit("web", {"query": "", "links": [], "url": u})
         return {"ok": True, "url": u, "reused": False}
 
     def web_show(self):
-        """Bring the parked window back without reloading it. Distinct from
-        web_open: this keeps the page, its scroll position and any half-filled
-        form exactly as they were when the pane was left."""
+        """Balik ke panel WEB: tunjukkan semula tetingkap yang diparkir.
+
+        `Window.show()` ternyata boleh dipercayai — diukur, bukan diandaikan:
+        show() → gui.show(uid) → BrowserForm.Show() + Activate(), handle Form
+        kekal sama, IsWindowVisible bertukar False → True, dan halaman tidak
+        dimuat semula. (Kisah "show() mencipta semula tetingkap" datang dari
+        on_shown → set_title() → `self._window.Text = ...`; bacaan sumber
+        mengesahkannya wujud, tetapi ukuran menunjukkan handle tidak berubah,
+        jadi ia bukan punca tetingkap hantu yang kita lihat.)
+
+        Sebab itu kita cuba show() dahulu — murah, dan skrol serta borang
+        separuh isi kekal. Penciptaan semula hanya berlaku kalau pemegang sudah
+        mati atau web_close sudah menandakan _web_open = False.
+        """
         win = getattr(self, "_web_win", None)
-        if win is None:
-            return {"ok": False, "already": False}
+        url = getattr(self, "_web_url", "") or ""
         rect = self._browse_rect()
-        try:
-            win.show()
-            if rect:
-                win.move(rect[0], rect[1])
-                win.resize(rect[2], rect[3])
-        except Exception:
-            self._web_win = None
-            return {"ok": False, "already": False}
-        return {"ok": True}
+
+        if win is not None and self._web_open:
+            try:
+                win.show()
+                if rect:
+                    try:
+                        win.move(rect[0], rect[1])
+                        win.resize(rect[2], rect[3])
+                    except Exception:
+                        pass      # geometri gagal tidak bermakna laman hilang
+                return {"ok": True, "already": True, "reloaded": False}
+            except Exception:
+                # pemegang mati; jatuh ke penciptaan semula di bawah
+                self._web_win = None
+                self._web_open = False
+
+        if not url:
+            return {"ok": False, "already": False, "reloaded": False}
+        # notify=False: panel WEB yang memanggil ini sedang memaparkan URL itu;
+        # _emit di sini akan memanggil go() → web_open sekali lagi.
+        r = self.web_open(url, notify=False)
+        r["reloaded"] = bool(r.get("ok"))
+        return r
 
     def web_hide(self):
-        """Park the child window without losing the page. Pane changes use this;
-        coming back to WEB finds the site still loaded."""
+        """Parkir tetingkap anak bila panel bertukar.
+
+        Tukar panel memanggil ini, bukan web_close: butang × dan setMode('embed')
+        yang memusnahkan. `win.hide()` menghalakan Hide() ke GUI thread dan pada
+        amalannya berkesan — tetapi kita tidak bergantung padanya untuk
+        kebenaran. `_web_open` kekal benar selagi pemegang wujud, dan web_show()
+        yang memutuskan sama ada ia boleh dihidupkan semula atau perlu dibina
+        semula. Itu menjadikan keadaan di pihak Python, bukan di pihak HWND
+        yang tidak boleh dipercayai.
+        """
         win = getattr(self, "_web_win", None)
         if win is None:
             return {"ok": True, "already": True}
@@ -929,28 +998,57 @@ class Api:
             win.hide()
         except Exception:
             self._web_win = None
-        return {"ok": True}
+            self._web_open = False
+            return {"ok": True, "already": False}
+        return {"ok": True, "already": True}
 
     def web_close(self):
-        """Destroy the child window and forget the URL."""
+        """Musnahkan tetingkap anak dan lupakan URL.
+
+        `win.destroy()` menjadualkan Close() pada GUI thread, jadi ia tidak
+        selesai bila fungsi ini pulang. Cara lama menunggu dengan memeriksa
+        `app_hwnd("Jarvis · Web")` — itu tidak boleh dipercayai, kerana satu
+        tetingkap pywebview meninggalkan puluhan HWND dengan tajuk yang sama
+        walaupun selepas ia mati. Yang jujur ialah `win.events.closed`, yang
+        pywebview set dari on_close() selepas FormClosed benar-benar berlaku.
+
+        Tunggu 3 saat; kalau masih belum tertutup, simpan pemegang dalam
+        _web_stale supaya web_open berikutnya cuba destroy sekali lagi. Itu
+        jaring keselamatan, bukan laluan biasa.
+        """
         win = getattr(self, "_web_win", None)
         self._web_win = None
         self._web_url = ""
+        self._web_open = False
         if win is None:
             return {"ok": True, "already": True}
         try:
             win.destroy()
         except Exception:
+            return {"ok": True, "already": False}
+        try:
+            if win.events.closed.wait(3):
+                return {"ok": True, "already": False}
+        except Exception:
             pass
-        return {"ok": True}
+        self._web_stale.append(win)
+        return {"ok": True, "already": False, "lingering": True}
 
-    def web_search(self, query):
+    def web_search(self, query, notify=True):
         """Search in the child window, not the system browser — the whole point
-        of the WEB pane is that it stays inside the HUD."""
+        of the WEB pane is that it stays inside the HUD.
+
+        `notify` sama seperti web_open: pemanggil dari panel WEB sendiri sudah
+        tahu URL yang ia minta, jadi mengembalikan URL itu melalui `_emit`
+        hanya mencetuskan go() sekali lagi.
+        """
         q = str(query or "").strip()
         if not q:
             return {"ok": False, "msg": "Carian kosong."}
-        return self.web_open("https://duckduckgo.com/?q=" + quote_plus(q))
+        r = self.web_open("https://duckduckgo.com/?q=" + quote_plus(q), notify=notify)
+        if notify is False and r.get("ok"):
+            r["query"] = q
+        return r
 
     def edit_shortcuts(self):
         subprocess.Popen(["notepad", str(SHORTCUTS)])
@@ -1804,6 +1902,12 @@ class Api:
         cfg = load_json(CONFIG, {})
         cfg[key] = value
         CONFIG.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+        if key == "reply_language":
+            # Tanpa ini, tukar bahasa dalam Settings tak berkesan sampai restart:
+            # lang_note() dulu baca cakera setiap panggilan, tapi modul ini
+            # menyimpan cache CURRENT_LANG yang diisi semasa main() sahaja.
+            global CURRENT_LANG
+            CURRENT_LANG = value
         return {"ok": True}
 
     def _voice_emit(self, kind, data=None):
@@ -2163,10 +2267,18 @@ class Api:
     # ia duduk ATAS WebView2, jadi ia mesti disembunyikan setiap kali panel lain
     # dipilih. Itu bukan pilihan; tanpa itu app terapung di atas panel lain.
     def app_stage_rect(self, x, y, w, h, scale=1.0):
-        """JS ukur rect stage dalam CSS px; di sini ia ditukar ke fizikal px."""
-        if w < 240 or h < 180:
-            return {"ok": False, "msg": "Rect terlalu kecil — bukan kedudukan sebenar."}
+        """JS ukur rect stage dalam CSS px; di sini ia ditukar ke fizikal px.
+
+        Rect sebenar disimpan mentah, tanpa penapis saiz. Penapis lama menolak
+        apa-apa yang lebih kecil daripada 240×180 dan *tidak menyimpan* — jadi
+        bila panel NATIVE baru dibuka, host masih tersembunyi, rect datang
+        0×0, dan app yang sudah di-attach kekal di rect lalai 0,0,640,480 di
+        penjuru kiri atas. Sekarang nilai kecil hanya bermakna "belum boleh
+        letak", bukan "buang ukuran".
+        """
         self._app_rect = (float(x), float(y), float(w), float(h), float(scale))
+        if w < 240 or h < 180:
+            return {"ok": True, "placed": False}
         if self._sys.embed.hwnd:
             return self._app_place()
         return {"ok": True, "placed": False}
@@ -2179,15 +2291,55 @@ class Api:
         ok = self._sys.embed.place(x, y, w, h, scale)
         return {"ok": ok, "msg": "" if ok else "Tetingkap tak dapat diletakkan."}
 
+    def hud_hwnd(self):
+        """HWND HUD yang sebenar — dari objek Window, bukan gelintar tajuk.
+
+        FindWindowW(None, "Jarvis") memulangkan HWND pertama dengan tajuk itu,
+        dan satu tetingkap pywebview menghasilkan puluhan. Yang betul ialah
+        Form pywebview itu sendiri: `self._window.native.Handle`. Kalau belum
+        ada (semasa import, sebelum start()), jatuh balik ke gelintar tajuk.
+        """
+        w = getattr(self, "_window", None)
+        try:
+            h = int(w.native.Handle.ToInt64())
+            if sysctl.is_window(h):
+                return h
+        except Exception:
+            pass
+        return sysctl.hud_hwnd("Jarvis")
+
+    def web_hwnd(self):
+        """HWND tetingkap web anak, atau 0. Dipakai ujian hidup sahaja."""
+        w = getattr(self, "_web_win", None)
+        try:
+            h = int(w.native.Handle.ToInt64())
+            return h if sysctl.is_window(h) else 0
+        except Exception:
+            return 0
+
     def app_attach(self, title):
         """Ambil tetingkap lain masuk ke dalam stage."""
-        hud = sysctl.hud_hwnd("Jarvis")
+        hud = self.hud_hwnd()
         if not hud:
             return {"ok": False, "msg": "Tetingkap Jarvis tak dijumpai."}
+        # Cari HWND app SEBELUM menyentuh HUD. find_window membaca senarai
+        # tetingkap dan mencari padanan kabur; kalau HUD dapat fokus dahulu,
+        # "notepad" tidak lagi di hadapan dan padanan boleh tersasar.
+        target = sysctl.find_window(title)
+        if not target:
+            return {"ok": False, "msg": "Tak jumpa tetingkap \"%s\"." % title,
+                    "title": ""}
         ok, msg = self._sys.embed.attach(hud, title)
         if ok:
             scale = sysctl.dpi_scale(hud)
-            self._app_rect = getattr(self, "_app_rect", (0, 0, 640, 480, scale))
+            # Jangan letak pada rect lalai. Jarvis buat sementara waktu jadi
+            # foreground untuk dapatkan HWND-nya, jadi app mesti diberi satu
+            # tempat yang wajar sehingga JS menghantar ukuran sebenar —
+            # kalau tidak app muncul di penjuru kiri atas selama satu saat.
+            rect = getattr(self, "_app_rect", None)
+            if not rect or float(rect[2] or 0) < 240:
+                rect = (0.17 * 1920, 0.16 * 1080, 0.66 * 1920, 0.68 * 1080, scale)
+            self._app_rect = rect
             self._app_place()
             self._emit("app", {"attached": self._sys.embed.title})
         return {"ok": ok, "msg": msg, "title": self._sys.embed.title}
@@ -2375,6 +2527,8 @@ def already_running():
 def main():
     if already_running():
         return
+    global CURRENT_LANG
+    CURRENT_LANG = load_json(CONFIG, {}).get("reply_language", "ms")
     # benarkan suara Jarvis dimainkan tanpa perlu klik dulu
     os.environ.setdefault("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--autoplay-policy=no-user-gesture-required")
     os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")

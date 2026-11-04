@@ -381,8 +381,43 @@ def dpi_scale(hwnd):
         return 1.0
 
 
+def is_window(hwnd):
+    """Benar kalau pemegang masih menunjuk tetingkap yang hidup."""
+    try:
+        return bool(hwnd) and bool(_u32.IsWindow(int(hwnd)))
+    except Exception:
+        return False
+
+
 def hud_hwnd(title="Jarvis"):
     return _u32.FindWindowW(None, title)
+
+
+def app_hwnd(title):
+    """HWND mengikut tajuk — untuk tetingkap APP biasa, bukan tetingkap pywebview.
+
+    Amaran yang diukur, bukan diandaikan: satu tetingkap pywebview (HUD atau
+    tetingkap web anak) menghasilkan puluhan HWND peringkat atas dengan tajuk
+    yang sama, semuanya kelas WindowsForms10.Window, semuanya tanpa ibu,
+    semuanya IsWindowVisible = True, dan semuanya pada rect yang sama. Tiada
+    satu pun daripada ujian itu membezakan bingkai daripada anak — jadi fungsi
+    ini akan memulangkan yang pertama ditemui, bukan yang betul.
+
+    Untuk tetingkap pywebview, jangan guna fungsi ini. Guna pemegang Python:
+    `win.native.Handle` (Api._web_hwnd() membalutnya). Ia tepat kerana ia
+    menunjuk objek Form itu sendiri, bukan gelintar tajuk.
+
+    Fungsi ini masih berguna untuk app yang di-embed ke panel NATIVE — Notepad,
+    Calculator, VS Code — kerana app biasa tidak mempunyai anak bernama sama.
+    """
+    want = (title or "").strip().lower()
+    if not want:
+        return None
+    for w in list_windows(400):
+        t = w["title"].strip().lower()
+        if t == want or (want in t and len(t) - len(want) < 6):
+            return w["hwnd"]
+    return None
 
 
 # ─────────────────────────── clipboard ───────────────────────────

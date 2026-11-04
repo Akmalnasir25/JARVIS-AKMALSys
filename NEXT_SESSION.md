@@ -299,16 +299,34 @@ chrome --headless=new --allow-file-access-from-files --window-size=1600,900 \
 | Versi berjalan | v1.1 stage (`main.py` → `ui/stage.html`) |
 | Git | **dah `git init`**, commit pertama `33fccb5`, `secrets.json` dilindungi |
 | Fasa selesai | 0 (git), 1 (antara muka), warna gabung, 5 (EDITOR), 6 (WEB), 6b (DOK), 7 (APP), kawalan laptop |
-| Fasa seterusnya | **sahkan MEDIA + WEB + APP dalam WebView2 hidup** — kod siap, kaki belum diuji |
+| Pengesahan hidup | **37/37 lulus** dalam WebView2 sebenar (`ui/_live.py`) — sembilan panel, media seek, pdf, editor, embed app, web, token, volume, TTS, chat |
 | TTS aktif | Google Cloud, `ms-MY-Wavenet-D` |
 
 ---
 
 ## Fasa seterusnya, ikut urutan
 
-### 0. Yang tinggal hanya pengesahan hidup (30 min)
+### 0. Pengesahan hidup — SELESAI
 
-Semua kod siap dan lulus harness. Yang belum disentuh mesin sebenar:
+`ui/_live.py` memulakan HUD sebenar (WebView2, bukan headless), memandu setiap panel,
+dan menulis `ui/_live/report.txt` baris demi baris supaya keputusan terselamat kalau
+`win.destroy()` tergantung. Larian terakhir: **37 ok, 0 gagal**. Skrin: `ui/_live/*.png`.
+
+```bash
+cd ~/jarvis-desktop
+python ui/_live.py          # ~90 saat, buka HUD sebenar dua kali
+```
+
+Yang dibuktikan, bukan diandaikan: media `readyState 4` dan seek 4.2/6s; pdf 8 halaman
+render 1075×1521 melalui laluan suara; CodeMirror buka fail; Notepad masuk stage melalui
+`SetParent` dengan rect 452,106 → 528×509; `create_window` hidup dan bertukar
+visible/parkir tanpa reload; prompt pengesahan dua butang dan "Tak" membatalkan token;
+`volume 33` mendarat; `status laptop` membaca angka hidup; TTS edge; model chat 1.3s.
+
+Yang **belum** diuji: `python main.py` penuh dengan mic, penjaga solat dan `_stt_janitor`
+hidup serentak. Itu Akmal yang jalankan, ikut `MULA.md`.
+
+Cara uji manual (kalau mahu ulang satu panel sahaja):
 
 | apa | cara sahkan | apa yang membuktikan ia betul |
 |---|---|---|
@@ -462,6 +480,31 @@ WebView2 dan CSS tak boleh menutupnya. Perincian penuh di bahagian APP di atas.
 - **Konsol Windows cp1252.** Ujian yang cetak `✔`/`✖` perlu `PYTHONIOENCODING=utf-8`.
 - **`@staticmethod` pada `_match_system`** menjadikan `self` hilang; `_find_doc` jadi
   `NameError` yang hanya muncul bila ayat itu benar-benar dihantar.
+- **Satu tetingkap pywebview = puluhan HWND bertajuk sama.** Semuanya kelas
+  `WindowsForms10.Window.8.app.*`, semuanya `GetParent() == 0`, semuanya
+  `IsWindowVisible = True` dan pada rect yang sama. `FindWindowW`, `GetParent`, kelas
+  dan tajuk **semua** gagal membezakan bingkai daripada anak. Untuk tetingkap
+  pywebview, guna pemegang Python: `win.native.Handle` (`Api.web_hwnd()` /
+  `Api.hud_hwnd()` membalutnya). `system.app_hwnd` hanya untuk app biasa.
+- **Gelung `_emit("web", {"url": u})` → `stageWeb.open(u)` → `go()` → `web_open()`.**
+  Panel WEB yang membuka URL sendiri tidak boleh menerima URL itu balik melalui
+  saluran peristiwa. `web_open(url, notify=False)` dan `web_search(q, notify=False)`
+  memutuskan gelung; pemanggil dari JS menghantar `false`, suara dan model kekal
+  `true` supaya panel ikut bertukar. Gejala sebelum dibetulkan: 6 `web_open` dalam
+  12 saat, handle bertukar setiap 1–2 saat, tetingkap bertindih atas stage.
+- **`_closed()` menulenkan pemegang yang salah.** Callback `closed` dari tetingkap
+  lama boleh mendarat selepas tetingkap baharu dibina. Semak
+  `if self._web_win is not win: return` dahulu, jika tidak panel kehilangan browser
+  yang sebenarnya masih hidup.
+- **`win.events.closed.wait(3)` lebih jujur daripada memeriksa HWND.** `destroy()`
+  hanya menjadualkan `Close()` pada GUI thread; menunggu HWND hilang gagal kerana
+  maya HWND hantu kekal. `closed` diset dari `on_close()` selepas `FormClosed`.
+- **`pane("web")` bukan `pane("browse")`.** `stageShow()` pulang senyap untuk nama
+  panel yang tidak wujud, jadi ujian lulus tanpa menguji apa-apa. Harness `_live.py`
+  sekarang membaca `document.body.dataset.pane` balik dan FAIL kalau tak padan.
+- **`_live.py` mesti tulis hasil baris demi baris.** `win.destroy()` boleh tergantung
+  dan proses tak pernah sampai ke penulisan akhir — versi pertama kehilangan semua
+  keputusan sementara lapan PNG terselamat.
 
 ---
 

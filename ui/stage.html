@@ -3088,7 +3088,9 @@ footer {
         // not an address — treat it as a search, in the child window
         if (!raw.trim()) return;
         if (api && api.web_search) {
-          const r = await api.web_search(raw.trim());
+          // false = jangan _emit url kembali: kita sudah tahu URL ini, dan
+          // _emit akan memanggil go() sekali lagi tanpa henti
+          const r = await api.web_search(raw.trim(), false);
           if (r && r.ok) { curUrl = r.url || ''; embedded = false; input.value = curUrl; paint(); pushRect(); }
         }
         return;
@@ -3105,7 +3107,7 @@ footer {
         return;
       }
       paint();
-      if (api && api.web_open) await api.web_open(u);
+      if (api && api.web_open) await api.web_open(u, false);
       pushRect();
     }
 
