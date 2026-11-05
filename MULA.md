@@ -157,7 +157,18 @@ Chrome, tiada tab baru.
 | badge **YT** menyala | video itu dimainkan sebagai embed dalam stage |
 | baris hasil carian berwarna dan boleh diklik | klik terus untuk main; `Enter` pun boleh |
 | baris tanpa warna | halaman channel atau senarai main — tiada video id, jadi ia buka dalam tetingkap. Tooltip kata kenapa |
-| pemain kosong, teks kecil | video itu pemiliknya tak benarkan embed; cuba hasil lain |
+| **Video unavailable** | embed ditolak. Tekan butang **Chrome** dalam bar WEB — Chrome sebenar dibuka dan diletakkan di dalam stage, dan ia main sepenuhnya |
+| tetingkap Chrome dalam stage | awak boleh tekan, skrol, tukar tab seperti biasa; `Release` mengeluarkannya semula jadi tetingkap biasa |
+
+**Kenapa ada dua jalan.** Embed boleh gagal atas dua sebab yang kelihatan sama
+pada skrin: pemilik video tak benarkan embed, atau WebView2 menolak permintaan
+itu. Kedua-duanya keluar sebagai "Video unavailable" yang sama, dan tiada apa
+yang boleh dibaiki dari dalam kod kita — jadi butang Chrome menyelesaikannya
+tanpa perlu tahu sebabnya. Ia bukan jalan utama; ia jalan keluar.
+
+Satu perkara yang diukur: video itu sendiri **boleh** di-embed. Endpoint oEmbed
+YouTube (`/oembed?url=...&format=json`) pulangkan HTTP 200 untuk setiap calon
+id, jadi penolakan itu berlaku di sebelah WebView2, bukan pada video.
 
 Tool yang mengendalikannya ialah `play_youtube`, bukan `open_media`. `open_media`
 hanya untuk fail dalam folder `media/` pada PC ini. Sebelum ini tiada tool untuk
@@ -169,6 +180,33 @@ menghasilkan **puluhan** HWND dengan tajuk yang sama, semuanya tanpa ibu dan
 semuanya `IsWindowVisible = True`. Jadi jangan sesekali percaya gelintar tajuk
 apabila menyemak "tetingkap ini hidup ke tidak". Python menyimpan pemegang
 `Window` itu sendiri; itulah satu-satunya sumber yang tepat.
+
+Dan satu lagi, khusus Chrome: Chrome berkongsi **satu** proses pelayar. Bila
+Chrome sudah berjalan, `chrome.exe --new-window` hanya menyuruh proses sedia ada
+membuka tab, dan proses yang baru dilancarkan itu **terus keluar tanpa tetingkap**.
+Jadi mencari tetingkap ikut pid yang kita lancarkan tidak pernah berjaya pada
+kes itu. Yang dipakai ialah beza-set: ambil senarai tetingkap sebelum, lancar,
+kemudian ambil sekali lagi — yang baru muncul itulah tetingkapnya.
+
+### Mic dan "Hey Jarvis"
+
+Butang **chip di kanan atas** (dan baris `wake` dalam Channels) ialah suis mic,
+bukan bacaan status. Ia menunjukkan keadaan sebenar aliran audio.
+
+| apa yang awak nampak | maksudnya |
+|---|---|
+| dot hijau, **HEY JARVIS** | mic terbuka, Jarvis mendengar "Hey Jarvis" |
+| dot amber, **MIC OFF** | mic **tertutup sepenuhnya** — tiada bunyi bilik diproses |
+| klik chip | tukar antara dua keadaan itu, serta-merta |
+
+Bila ia `MIC OFF`, menekan butang mic masih boleh bercakap seperti biasa — satu
+tekanan, satu arahan. Pilihan itu disimpan dalam `config.json`, jadi ia kekal
+selepas Jarvis dimulakan semula.
+
+Satu perkara yang diukur: versi pertama suis ini hanya menulis `config.json`,
+sedangkan gelung mic membaca fail itu **sekali sahaja** semasa mula. Menghidupkan
+semula "Hey Jarvis" tak berkesan sehingga restart. Sekarang gelung itu membaca
+semula setiap setengah saat dan membina semula model bila dihidupkan.
 
 ---
 
@@ -285,5 +323,8 @@ sebelum sempat jalan.
 | klik ikon, tiada apa berlaku | baca `runtime\startup.log` — baris terakhir beritahu di mana ia berhenti |
 | "another Jarvis is starting up" | pelancaran kedua semasa yang pertama masih naik; tunggu sekejap |
 | seret-lepas tak buat apa-apa | WebView2 tidak menghantar laluan; guna **File…** / **Folder…** |
+| Web / YouTube kata "Video unavailable" | tekan butang **Chrome** dalam bar WEB; embed ditolak, Chrome tidak |
+| "Hey Jarvis" menyambar suara orang lain | klik chip **HEY JARVIS** jadi **MIC OFF**, atau `wake_word: false` |
+| chip kata MIC OFF tapi mic masih terbuka | bukan chip itu — semak aplikasi lain dalam Settings › Privacy › Microphone |
 | "outside the workspace" | laluan di luar workdir/Desktop/Documents/Downloads — tambah dalam `shortcuts.json` |
 | laporan kata "stopped after 120,000 files" | folder itu memang sebesar itu; had dalam `inspect_path.MAX_ENTRIES` |

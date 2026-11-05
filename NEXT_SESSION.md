@@ -894,3 +894,77 @@ not by what the code can do. "lagu" appeared in both `open_media` and
 the only tool whose description mentioned playing. When a spoken follow-up does
 the wrong thing, log `tool_calls` before touching anything else — the routing is
 in the prompt, not in the handler.
+
+---
+
+## Session 05 Nov (f) — "Video unavailable", and the mic that never stopped listening
+
+### The embed refusal is not ours to fix
+
+`"dia jadi this video unavailable"`. Measured first: YouTube's oEmbed endpoint
+returns **HTTP 200 for every candidate id** — `kcc9Kfip2uw` and the rest — so the
+video is embeddable and the rejection happens inside WebView2. The iframe cannot
+distinguish an owner-blocked video from a WebView2-side refusal; both are the
+string "Video unavailable". Nothing in our code can tell them apart, and nothing
+in our code can fix either.
+
+So the fix sidesteps. `play_youtube(mode="browser")` launches real Chrome and
+parents its window onto the stage through the existing `Embed` path.
+
+### Two traps, both found by building it
+
+**Chrome is one browser process.** When Chrome is already running,
+`chrome.exe --new-window` tells the existing instance to open a tab and the
+process we launched exits immediately — `window_for_pid(proc.pid)` returns 0
+while the tab is plainly on screen. Detection must diff
+`sysctl.visible_hwnds()` before and after:
+`hwnd = window_for_pid(proc.pid) or new_window_since(before)`.
+
+**The title cannot be used to find it.** `find_window(title)` is useless here
+because the title is the song name and changes every time. Hence
+`Embed.attach_hwnd(hwnd)`: takes a known HWND, records `(parent, style, rect)`,
+strips `WS_POPUP`, sets `WS_CHILD`, reparents. `detach()` restores all three.
+
+### The mic switch — off has to mean closed
+
+`"auto mic on tu off kan ... biar aku tekan butang baru boleh bercakap"`.
+`wake_word: true` kept an openwakeword `InputStream` open from launch, so any
+speech-shaped noise could trigger a capture.
+
+Off now means the stream is **never opened** — not that the model ignores what it
+hears. Nothing in the room is processed, and Windows stops showing the mic as in
+use.
+
+**The first version of this switch was broken and the suite caught it.** It only
+wrote `config.json`; `_mic_loop` read that file *once*, before its loop. Turning
+"Hey Jarvis" back on would have done nothing until a restart. The loop now
+re-reads the setting every 0.5 s poll and rebuilds the ONNX model when it is
+switched on. `_wake_live.py` proves both directions with no restart: off → on
+opens the stream in <3 s, on → off releases it in <2 s.
+
+Both the header chip (amber `MIC OFF`) and the Channels `wake` row are switches,
+because both are where a hand goes.
+
+### Verified
+`ui/_yt_browser_live.py` 16/16 — button present and documented, `_browser_exe()`
+prefers Chrome, `force_browser` reports `mode=browser`, a window attaches with
+parent == HUD and `WS_CHILD` set, `origin` recorded, detach restores it.
+`ui/_wake_test.py` 15/15 — config round trip, loop never opens the stream while
+closed, one press opens it exactly once and closes it again.
+`ui/_wake_live.py` 8/8 — live toggle, no restart, both directions.
+Regression: `_launch_test.py` 27/27, `_ip_test.py` 34/34.
+End to end against the running HUD: attached hwnd 9241862, parent == HUD,
+correct URL and tab inside the Jarvis window, screenshot shows amber `MIC OFF`.
+
+**Not proven:** whether audio actually reaches the speakers. The iframe src, the
+referrer, and the embedded Chrome window are all verified; audible output is not.
+
+### Trap for next time
+Synthetic mouse input does not reach Chromium's render surface. `PostMessageW`
+with `WM_LBUTTONDOWN` and `mouse_event` after `SetCursorPos` both failed to flip
+the chip — and the same probe failed on the DEEPSEEK chip, which needs no new
+code — so the probe tests the injector, not the wiring. Coordinates are also raw
+physical pixels (the HUD reports `dpi_scale() == 1.5` but the window is 1280×720
+because 1280 = 1920/1.5), so multiply by the scale exactly once or not at all.
+When a click probe fails, click a control that already works before suspecting
+the new one.
