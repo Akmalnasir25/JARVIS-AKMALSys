@@ -2084,23 +2084,6 @@ class Api:
             ("cuaca", lambda: sv.weather_text(sv.weather(lat, lon))),
             ("solat", lambda: sv.prayer_text(sv.prayer_today(zone), zone)),
         ]
-        # The unread count comes from the socket that is already open, not from
-        # Claude Code reading Gmail. One network round trip instead of a model
-        # turn, and it answers the question Sir actually asks at login: what is
-        # waiting for me.
-        acc = self._tg_account()
-
-        def telegram_facts():
-            if not acc:
-                return None
-            ds = acc.dialogs(limit=60)
-            waiting = [d for d in ds if d.get("unread")]
-            waiting.sort(key=lambda d: (-d["unread"], -d.get("at", 0)))
-            return {"chats": len(waiting),
-                    "unread": sum(d["unread"] for d in waiting),
-                    "top": [{"name": d["name"], "unread": d["unread"],
-                             "type": d.get("type", "")} for d in waiting[:5]]}
-        jobs.append(("telegram", telegram_facts))
         if self._claude and load_json(CONFIG, {}).get("brief_email", True):
             def email_facts():
                 # _claude_quick returns prose on failure as well as on success —
@@ -2131,16 +2114,6 @@ class Api:
             facts.append("CUACA: " + str(results["cuaca"]))
         if results.get("solat"):
             facts.append("SOLAT: " + str(results["solat"]))
-        tg = results.get("telegram")
-        if isinstance(tg, dict):
-            if tg.get("chats"):
-                names = ", ".join("%s (%d)" % (d["name"], d["unread"]) for d in tg["top"])
-                facts.append("TELEGRAM: %d chat belum dibaca, %d mesej semuanya. Paling ramai: %s."
-                             % (tg["chats"], tg["unread"], names))
-            else:
-                facts.append("TELEGRAM: tiada chat belum dibaca.")
-        elif tg is None:
-            facts.append("TELEGRAM: belum disambung.")
         if results.get("email"):
             facts.append("EMAIL: " + str(results["email"]))
 
@@ -2172,11 +2145,13 @@ class Api:
         if not facts:
             return ""
         s = load_json(SECRETS, {})
-        prompt = ("Buat laporan harian untuk dibaca dengan SUARA bila Sir baru buka laptop. 5-7 ayat pendek, "
+        prompt = ("Buat laporan harian untuk dibaca dengan SUARA bila Sir baru buka laptop. 4-6 ayat pendek, "
                   "gaya KL santai, mula dengan sapaan ikut waktu sekarang. Sebut cuaca (dan kalau nak hujan), "
-                  "waktu solat seterusnya, apa yang menunggu dalam Telegram, email penting jika ada, dan kalau "
-                  "ada repo yang belum commit sebut sekali sahaja. Kalau bateri rendah dan tak bercas, suruh "
-                  "plug in. Jangan guna senarai, jangan guna simbol, jangan guna markdown. "
+                  "waktu solat seterusnya, dan email penting jika ada. Kalau ada repo yang belum commit sebut "
+                  "sekali sahaja. Kalau bateri rendah dan tak bercas, suruh plug in. Jangan guna senarai, "
+                  "jangan guna simbol, jangan guna markdown. "
+                  "JANGAN sebut Telegram langsung — tiada kiraan chat, tiada nama kumpulan, tiada mesej belum "
+                  "dibaca. Bahagian itu bukan untuk laporan ini. "
                   "PENTING: bahagian yang tiada dalam DATA jangan disebut langsung — bukan 'tak dapat check', "
                   "cuma teruskan ke bahagian seterusnya. Jangan reka nombor, jangan reka punca.\n\nDATA:\n"
                   + "\n".join(facts))

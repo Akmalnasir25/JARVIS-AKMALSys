@@ -80,9 +80,15 @@ Sebelum tu `fd053cd` — inbox Telegram boleh baca chat sendiri, ada paging dan 
   `ok:false` pada setiap panggilan selepas yang pertama. Jadi reload pukul 11 pagi
   ditolak, dan `briefBox` duduk atas placeholder sepanjang hari walaupun teks penuh
   dah ada dalam `cache.json`. Sekarang `startup_report` pulangkan teks tu.
-- `_brief_facts()` kumpul semua sumber **selari, setiap satu bertimer**: cuaca 0.01s,
-  solat 0.01s, telegram 0.6s, email 13–49s. Yang paling lambat dinamakan di header
-  laporan (`· email 49s`) supaya Sir tahu apa yang lambat.
+- `_brief_facts()` kumpul semua sumber **selari, setiap satu bertimer**: cuaca 0.01–1.4s,
+  solat 0.01s, email 13–49s. Yang paling lambat dinamakan di header laporan (`· email 26s`)
+  supaya Sir tahu apa yang lambat.
+- **Telegram SENGAJA TIDAK dimasukkan.** Sir cakap jangan: *"yang telegram paling ramai
+  dan chat belum dibaca tu tak perlu masukkan"*. Tiada kiraan chat, tiada nama kumpulan,
+  tiada mesej belum dibaca dalam laporan. Prompt pun larang model sebut perkataan
+  "Telegram" langsung. Inbox Telegram kekal sebagai panel sendiri — ia bukan bahan
+  laporan. Kalau sesi lain terasa nak "lengkapkan" laporan dengan nombor unread,
+  **jangan** — itu dibuang atas permintaan.
 - `_brief_compose()` — model tulis 5–7 ayat; kalau model gagal, fakta mentah dihantar.
   Kotak kosong tak pernah sampai ke skrin.
 - **`_claude_quick` pulangkan prosa untuk kegagalan juga.** `"Failed: ..."` dan
