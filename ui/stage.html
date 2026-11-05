@@ -1496,16 +1496,16 @@ footer {
       </div>
     </div>
     <div class="spacer"></div>
-    <div class="chip" title="Claude Code — kerja PC">
+    <div class="chip" title="Claude Code — PC work">
       <span class="dot on"></span><span>Claude</span>
     </div>
-    <div class="chip" title="Model chat — rootsys">
+    <div class="chip" title="Chat model — rootsys">
       <span class="dot on"></span><span>DeepSeek</span>
     </div>
-    <div class="chip" title="Kata kunci bangun">
+    <div class="chip" title="Wake word">
       <span class="dot on"></span><span>Hey Jarvis</span>
     </div>
-    <div class="chip warn" title="Waktu solat">
+    <div class="chip warn" title="Prayer times">
       <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 3a9 9 0 1 0 0 18a11 11 0 0 1 0-18z"/></svg>
       <span>Asar · 16:42</span>
     </div>
@@ -1514,19 +1514,19 @@ footer {
       <span id="today">—</span>
     </div>
     <div class="iconbar">
-      <button type="button" id="btnSettings" title="Tetapan">
+      <button type="button" id="btnSettings" title="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <circle cx="12" cy="12" r="3"/>
           <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
         </svg>
       </button>
-      <button type="button" class="power" title="Tutup laptop">
+      <button type="button" class="power" title="Shut down laptop">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
           <path d="M12 3v9"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>
         </svg>
       </button>
-      <button type="button" title="Sembunyi">—</button>
-      <button type="button" class="quit" title="Tutup Jarvis">✕</button>
+      <button type="button" title="Minimize">—</button>
+      <button type="button" class="quit" title="Close Jarvis">✕</button>
     </div>
   </header>
 
@@ -1560,16 +1560,16 @@ footer {
 
     <section class="glass">
       <h2>CPU · 60s <span class="sub" id="cpuNow">34%</span></h2>
-      <canvas id="spark" aria-label="Penggunaan CPU, 60 saat terakhir"></canvas>
-      <div class="kv"><span>Memori</span><span>12.4 / 15.9 GB</span></div>
-      <div class="kv"><span>↓ Turun</span><span>1.8 MB/s</span></div>
-      <div class="kv"><span>↑ Naik</span><span>240 KB/s</span></div>
-      <div class="kv"><span>Proses</span><span>231</span></div>
-      <div class="kv"><span>Hidup</span><span>6j 12m</span></div>
+      <canvas id="spark" aria-label="CPU load, last 60 seconds"></canvas>
+      <div class="kv"><span>Memory</span><span>12.4 / 15.9 GB</span></div>
+      <div class="kv"><span>↓ Down</span><span>1.8 MB/s</span></div>
+      <div class="kv"><span>↑ Up</span><span>240 KB/s</span></div>
+      <div class="kv"><span>Processes</span><span>231</span></div>
+      <div class="kv"><span>Uptime</span><span>6j 12m</span></div>
     </section>
 
     <section class="glass">
-      <h2>Saluran</h2>
+      <h2>Channels</h2>
       <div class="ind">
         <div><i class="led on"></i>mic</div>
         <div><i class="led on"></i>tts · google</div>
@@ -1581,15 +1581,15 @@ footer {
   </aside>
 
   <!-- ══════════ RAIL: PANEL SELECTOR ══════════ -->
-  <nav class="rail" role="tablist" aria-label="Panel stage">
+  <nav class="rail" role="tablist" aria-label="Stage panels">
     <button type="button" class="stage-tab" role="tab" aria-selected="true"  data-pane="comms"><b>1</b><span>Comms</span></button>
     <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="media"><b>2</b><span>Media</span></button>
     <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="term"><b>3</b><span>Term</span></button>
-    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="files"><b>4</b><span>Fail</span></button>
+    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="files"><b>4</b><span>Files</span></button>
     <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="editor"><b>5</b><span>Edit</span></button>
     <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="browse"><b>6</b><span>Web</span></button>
-    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="docs"><b>7</b><span>Dok</span></button>
-    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="ana"><b>8</b><span>Ana</span></button>
+    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="docs"><b>7</b><span>Docs</span></button>
+    <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="ana"><b>8</b><span>Nalyse</span></button>
     <button type="button" class="stage-tab" role="tab" aria-selected="false" data-pane="native"><b>9</b><span>App</span></button>
   </nav>
 
@@ -1602,9 +1602,9 @@ footer {
       <section class="pane" id="pane-comms" role="tabpanel">
         <div class="pane-head">
           <span class="title">Comms</span>
-          <span class="meta" id="talkMeta">sesi baru</span>
+          <span class="meta" id="talkMeta">new session</span>
           <span class="grow"></span>
-          <button type="button" class="btn" id="btnNewSession">Sesi baru</button>
+          <button type="button" class="btn" id="btnNewSession">New session</button>
         </div>
         <div class="core-body">
           <div class="orb-box">
@@ -1612,16 +1612,16 @@ footer {
                  Ia tidak menutup orb kerana orb 250px dan senarai ini 190px,
                  dua-dua dalam .core-body yang sama. -->
             <ol class="orb-tasks" id="orbTasks"></ol>
-            <canvas id="orb" aria-label="Teras Jarvis"></canvas>
+            <canvas id="orb" aria-label="Jarvis core"></canvas>
           </div>
           <div class="core-state">
             <b id="state">Standby</b>
-            <span id="act">Menunggu arahan</span>
+            <span id="act">Awaiting command</span>
           </div>
           <div class="talk" id="talk">
             <div class="talk-empty">
-              <b>Stage sedia.</b>
-              Taip di bawah atau tekan Ctrl+Space untuk bercakap. <kbd>1</kbd>–<kbd>9</kbd> tukar panel.
+              <b>Stage ready.</b>
+              Type below or press Ctrl+Space to speak. <kbd>1</kbd>–<kbd>9</kbd> switch panel.
             </div>
           </div>
         </div>
@@ -1640,27 +1640,27 @@ footer {
         <div class="media-shell">
           <div class="pane-head">
             <span class="title">Media</span>
-            <span class="meta" id="mediaMeta">media/ · 4 medium</span>
+            <span class="meta" id="mediaMeta">media/ · 4 items</span>
             <span class="grow"></span>
-            <button type="button" class="btn" id="mediaRescan">Imbas semula</button>
+            <button type="button" class="btn" id="mediaRescan">Rescan</button>
           </div>
           <div class="media-screen" id="mediaScreen">
             <div class="film"></div>
             <span class="badge" id="mediaBadge">Range server · 206 Partial</span>
             <div class="centre">
               <div class="reel"></div>
-              <b id="mediaTitle">Belum ada medium</b>
+              <b id="mediaTitle">No media yet</b>
               <span id="mediaHint">media/ · mp4 · mkv · mp3</span>
             </div>
           </div>
           <div class="media-bar">
-            <button type="button" aria-label="Sebelum" id="mediaPrev">
+            <button type="button" aria-label="Previous" id="mediaPrev">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14l-10-7z"/></svg>
             </button>
-            <button type="button" aria-label="Main" id="mediaPlay">
+            <button type="button" aria-label="Play" id="mediaPlay">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>
             </button>
-            <button type="button" aria-label="Selepas" id="mediaNext">
+            <button type="button" aria-label="Next" id="mediaNext">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l10-7z"/></svg>
             </button>
             <span class="tc" id="mediaCur">00:00</span>
@@ -1668,7 +1668,7 @@ footer {
             <span class="tc" id="mediaDur">--:--</span>
           </div>
           <div class="media-list" id="mediaList">
-            <div class="media-row active"><span class="tag">—</span><span class="n">folder media/ kosong</span><span class="d">—</span></div>
+            <div class="media-row active"><span class="tag">—</span><span class="n">media/ folder is empty</span><span class="d">—</span></div>
           </div>
         </div>
       </section>
@@ -1679,11 +1679,11 @@ footer {
           <span class="title">Terminal</span>
           <span class="meta" id="termMeta">claude · stream-json</span>
           <span class="grow"></span>
-          <button type="button" class="btn" id="termClear">Bersih</button>
+          <button type="button" class="btn" id="termClear">Clear</button>
         </div>
         <div class="pane-body tight">
-          <div class="term" id="term"><span class="dim">Stage terminal · semua tool call Claude dipaparkan di sini.</span>
-<span class="dim">Tulis arahan di kotak bawah — panel ini bukan shell interaktif.</span>
+          <div class="term" id="term"><span class="dim">Stage terminal · every Claude tool call appears here.</span>
+<span class="dim">Type commands in the box below — this panel is not an interactive shell.</span>
 
 <span class="cmd">PS C:\Users\akmal\jarvis-desktop&gt;</span> <span class="caret"></span></div>
         </div>
@@ -1698,13 +1698,13 @@ footer {
           <div class="preview">
             <div class="pane-head">
               <span class="title" id="fileName">—</span>
-              <span class="meta" id="fileMeta">pilih fail di kiri</span>
+              <span class="meta" id="fileMeta">pick a file on the left</span>
               <span class="grow"></span>
               <button type="button" class="btn" id="fileEdit" disabled>Edit</button>
-              <button type="button" class="btn solid" id="fileOpen">Buka luar</button>
+              <button type="button" class="btn solid" id="fileOpen">Open outside</button>
             </div>
             <div class="preview-body" id="fileBody">
-              <div class="empty">Pilih fail untuk dipaparkan di sini.</div>
+              <div class="empty">Pick a file to preview it here.</div>
             </div>
           </div>
         </div>
@@ -1714,19 +1714,19 @@ footer {
       <section class="pane" id="pane-editor" role="tabpanel" hidden>
         <div class="pane-head">
           <span class="title">Editor</span>
-          <span class="meta" id="edMeta">belum ada fail</span>
+          <span class="meta" id="edMeta">no file yet</span>
           <span class="grow"></span>
-          <span class="ed-dirty" id="edDirty" hidden>belum disimpan</span>
-          <button type="button" class="btn" id="edRevert" disabled>Undo semua</button>
-          <button type="button" class="btn solid" id="edSave" disabled>Simpan</button>
+          <span class="ed-dirty" id="edDirty" hidden>unsaved</span>
+          <button type="button" class="btn" id="edRevert" disabled>Revert all</button>
+          <button type="button" class="btn solid" id="edSave" disabled>Save</button>
         </div>
         <div class="ed-shell">
           <div class="ed-empty" id="edEmpty">
             <div class="glyph">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
             </div>
-            <b>Belum ada fail dibuka</b>
-            <p>Pergi ke panel <b>Fail</b>, klik satu fail teks, tekan <b>Edit</b> di bar bawah pratonton. Fail terakhir kekal sampai satu lagi dibuka.</p>
+            <b>No file open</b>
+            <p>Go to the <b>Files</b> panel, click a text file, press <b>Edit</b> in the preview bar below. The last file stays open until another is opened.</p>
           </div>
           <div class="ed-host" id="edHost" hidden></div>
         </div>
@@ -1736,40 +1736,40 @@ footer {
       <section class="pane" id="pane-browse" role="tabpanel" hidden>
         <div class="pane-head">
           <span class="title">Web</span>
-          <span class="meta" id="webMeta">belum ada laman</span>
+          <span class="meta" id="webMeta">no page yet</span>
           <span class="grow"></span>
           <button type="button" class="btn" id="webInline" aria-pressed="false">Embed</button>
-          <button type="button" class="btn solid" id="webClose" disabled>Tutup</button>
+          <button type="button" class="btn solid" id="webClose" disabled>Close</button>
         </div>
         <div class="browse-shell">
           <div class="browse-bar">
-            <button type="button" class="btn sq" id="webBack" aria-label="Undur" disabled>
+            <button type="button" class="btn sq" id="webBack" aria-label="Back" disabled>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
             </button>
-            <button type="button" class="btn sq" id="webFwd" aria-label="Maju" disabled>
+            <button type="button" class="btn sq" id="webFwd" aria-label="Forward" disabled>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
             </button>
-            <button type="button" class="btn sq" id="webReload" aria-label="Muat semula" disabled>
+            <button type="button" class="btn sq" id="webReload" aria-label="Reload" disabled>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
             </button>
             <form class="url" id="webForm" autocomplete="off">
-              <input type="text" id="webUrl" spellcheck="false" placeholder="https:// — taip alamat atau carian">
+              <input type="text" id="webUrl" spellcheck="false" placeholder="https:// — type an address or a search">
             </form>
-            <button type="button" class="btn" id="webGo">Buka</button>
+            <button type="button" class="btn" id="webGo">Open</button>
           </div>
           <div class="browse-body" id="webBody">
             <div class="placeholder" id="webEmpty">
               <div class="glyph">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18z"/></svg>
               </div>
-              <b>Tetingkap web berasingan</b>
-              <p>Laman dibuka dalam tetingkap WebView2 yang diletak tepat atas ruang ini — enjin penuh, jadi semua laman jalan, bukan separuh yang benarkan embed sahaja. Tekan <b>Embed</b> kalau mahu laman itu duduk di dalam grid sebaliknya.</p>
+              <b>Separate web window</b>
+              <p>Pages open in a WebView2 window placed exactly over this area — the full engine, so every site works, not only the half that allow embedding. Press <b>Embed</b> if you would rather the page sat inside the grid.</p>
             </div>
             <iframe id="webFrame" hidden referrerpolicy="no-referrer"
                     sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
             <div class="web-veil" id="webVeil" hidden>
-              <b>Menunggu tetingkap…</b>
-              <span>tetingkap web diletak atas ruang ini</span>
+              <b>Waiting for window…</b>
+              <span>the web window is placed over this area</span>
             </div>
           </div>
         </div>
@@ -1778,17 +1778,17 @@ footer {
       <!-- ── 7 DOKUMEN ── -->
       <section class="pane" id="pane-docs" role="tabpanel" hidden>
         <div class="pane-head">
-          <span class="title">Dokumen</span>
-          <span class="meta" id="docMeta">belum ada fail</span>
+          <span class="title">Docs</span>
+          <span class="meta" id="docMeta">no doc yet</span>
           <span class="grow"></span>
           <button type="button" class="btn" id="docPrev" disabled>‹</button>
           <span class="doc-count" id="docPage">–</span>
           <button type="button" class="btn" id="docNext" disabled>›</button>
-          <button type="button" class="btn solid" id="docOpen" disabled>Buka luar</button>
+          <button type="button" class="btn solid" id="docOpen" disabled>Open outside</button>
         </div>
         <div class="docs-shell">
           <div class="doc-side" id="docList">
-            <div class="item sel" data-side="recent">Dokumen terkini</div>
+            <div class="item sel" data-side="recent">Recent docs</div>
             <div class="item" data-side="pdf">PDF</div>
             <div class="item" data-side="docx">Word</div>
             <div class="item" data-side="xlsx">Excel</div>
@@ -1800,7 +1800,7 @@ footer {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
               </div>
               <b>PDF · DOCX · XLSX · PPTX</b>
-              <p>Pilih fail dari senarai di kiri. PDF dipaparkan sebagai halaman asal, Office sebagai teks dan grid — semuanya dibaca dalam stage.</p>
+              <p>Pick a file from the list on the left. PDFs render as original pages, Office files as text and grids — all read inside the stage.</p>
             </div>
           </div>
         </div>
@@ -1809,14 +1809,14 @@ footer {
       <!-- ── 8 ANALISIS ── -->
       <section class="pane" id="pane-ana" role="tabpanel" hidden>
         <div class="pane-head">
-          <span class="title">Analisis</span>
-          <span class="meta" id="anaMeta">menunggu dash</span>
+          <span class="title">Analysis</span>
+          <span class="meta" id="anaMeta">waiting for dashboard</span>
           <span class="grow"></span>
-          <button type="button" class="btn" id="anaReplay">Main semula</button>
+          <button type="button" class="btn" id="anaReplay">Replay</button>
         </div>
         <div class="ana-shell">
-          <div class="ana-title" id="anaTitle">Belum ada analisis</div>
-          <div class="ana-sum" id="anaSum">Tanya sesuatu yang perlukan angka — "berapa besar folder ni", "bandingkan penggunaan RAM minggu ni". Jarvis bina dash di sini.</div>
+          <div class="ana-title" id="anaTitle">No analysis yet</div>
+          <div class="ana-sum" id="anaSum">Ask something that needs numbers — "how big is this folder", "compare RAM use this week". Jarvis builds the dashboard here.</div>
           <div class="ana-cards" id="anaCards"></div>
           <div class="ana-charts" id="anaCharts"></div>
           <div class="ana-points" id="anaPoints"></div>
@@ -1828,22 +1828,22 @@ footer {
       <section class="pane" id="pane-native" role="tabpanel" hidden>
         <div class="pane-head">
           <span class="title">Native app</span>
-          <span class="meta" id="appMeta">tiada app di-embed</span>
+          <span class="meta" id="appMeta">no app embedded</span>
           <span class="grow"></span>
-          <button type="button" class="btn" id="appRefresh">Imbas</button>
-          <button type="button" class="btn solid" id="appDetach" disabled>Keluarkan</button>
+          <button type="button" class="btn" id="appRefresh">Scan</button>
+          <button type="button" class="btn solid" id="appDetach" disabled>Detach</button>
         </div>
         <div class="app-shell">
           <div class="app-side" id="appList">
-            <div class="app-hint">Pilih tetingkap untuk diambil masuk ke stage.</div>
+            <div class="app-hint">Pick a window to bring into the stage.</div>
           </div>
           <div class="app-body" id="appBody">
             <div class="placeholder" id="appEmpty">
               <div class="glyph">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>
               </div>
-              <b>Tetingkap asal, bukan tangkapan skrin</b>
-              <p>SetParent + SetWindowPos. App yang di-embed masih hidup — video masih main, skrol masih jalan. Ia duduk atas WebView2, jadi ia disembunyikan setiap kali panel lain dipilih.</p>
+              <b>The real window, not a screenshot</b>
+              <p>SetParent + SetWindowPos. An embedded app is still alive — video keeps playing, scrolling still works. It sits above WebView2, so it hides whenever another panel is selected.</p>
             </div>
             <div class="app-host" id="appHost" hidden></div>
           </div>
@@ -1857,12 +1857,12 @@ footer {
   <aside class="right">
     <section class="glass comms">
       <div class="comms-head">
-        <h2>Hari ini <span class="sub" id="todayTag">live</span></h2>
+        <h2>Today <span class="sub" id="todayTag">live</span></h2>
       </div>
 
       <div class="feed" id="todayFeed">
         <div class="today">
-          <h5 id="wxPlace">Hari ini · Ipoh</h5>
+          <h5 id="wxPlace">Today · Ipoh</h5>
           <div class="wxrow">
             <span class="ico">
               <svg viewBox="0 0 32 32" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
@@ -1871,37 +1871,37 @@ footer {
                 <path d="M13 24h13a3.4 3.4 0 0 0 .3-6.8 5 5 0 0 0-9.6-1.3A3.7 3.7 0 0 0 13 24z" fill="hsl(var(--hue) 100% 74% / .10)"/>
               </svg>
             </span>
-            <div><b id="wxTemp">—</b><span id="wxDesc">memuatkan…</span></div>
+            <div><b id="wxTemp">—</b><span id="wxDesc">loading…</span></div>
           </div>
           <div class="pray">
             <svg viewBox="0 0 64 64"><circle class="trk" cx="32" cy="32" r="26"/><circle class="arc" cx="32" cy="32" r="26" pathLength="100" stroke-dasharray="0 100"/></svg>
-            <div><span>Solat seterusnya</span><b id="prayName">—</b><em id="prayLeft">—</em></div>
+            <div><span>Next prayer</span><b id="prayName">—</b><em id="prayLeft">—</em></div>
           </div>
-          <h5>Hari ini</h5>
+          <h5>Today</h5>
           <div class="brief" id="briefBox">
-            <span>Laporan pagi muncul di sini bila Claude Code siap mengumpul cuaca, solat dan email.</span>
+            <span>The morning brief appears here once Claude Code has gathered weather, prayer times and email.</span>
           </div>
         </div>
 
-        <h5 class="sec">Cuba tanya</h5>
+        <h5 class="sec">Try asking</h5>
         <div class="sug">
-          <button type="button">Main video dalam media/</button>
-          <button type="button">Analisis disk C aku</button>
-          <button type="button">Ada email penting?</button>
-          <button type="button">Tengok skrin ni</button>
+          <button type="button">Play a video from media/</button>
+          <button type="button">Analyse my C drive</button>
+          <button type="button">Any important email?</button>
+          <button type="button">Look at this screen</button>
         </div>
 
-        <h5 class="sec">Panel</h5>
+        <h5 class="sec">Panels</h5>
         <div class="pane-map">
           <button type="button" data-goto="comms">1 Comms</button>
           <button type="button" data-goto="media">2 Media</button>
           <button type="button" data-goto="term">3 Terminal</button>
-          <button type="button" data-goto="files">4 Fail</button>
+          <button type="button" data-goto="files">4 Files</button>
           <button type="button" data-goto="editor">5 Editor</button>
           <button type="button" data-goto="browse">6 Web</button>
-          <button type="button" data-goto="docs">7 Dokumen</button>
-          <button type="button" data-goto="ana">8 Analisis</button>
-          <button type="button" data-goto="native">9 App</button>
+          <button type="button" data-goto="docs">7 Docs</button>
+          <button type="button" data-goto="ana">8 Analysis</button>
+          <button type="button" data-goto="native">9 Native</button>
         </div>
       </div>
     </section>
@@ -1922,23 +1922,23 @@ footer {
 
     <div>
       <form class="capsule" autocomplete="off" onsubmit="return false">
-        <div class="mode" role="group" aria-label="Pilih otak">
+        <div class="mode" role="group" aria-label="Pick the brain">
           <button type="button" aria-pressed="true">AUTO</button>
           <button type="button" aria-pressed="false">CLAUDE</button>
           <button type="button" aria-pressed="false">CHAT</button>
         </div>
-        <input id="cmd" type="text" placeholder="Apa yang boleh saya buat, Akmal?" aria-label="Arahan untuk Jarvis">
-        <button type="button" class="round" aria-label="Bercakap">
+        <input id="cmd" type="text" placeholder="What can I do for you, Akmal?" aria-label="Command for Jarvis">
+        <button type="button" class="round" aria-label="Speak">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>
         </button>
-        <button type="button" class="round" aria-label="Baca setiap balasan">
+        <button type="button" class="round" aria-label="Speak every reply">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
         </button>
-        <button type="submit" class="round send" aria-label="Hantar">
+        <button type="submit" class="round send" aria-label="Send">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </button>
       </form>
-      <div class="hint"><kbd>/</kbd> taip · <kbd>1–9</kbd> panel · <kbd>Ctrl+Space</kbd> cakap · <kbd>Esc</kbd> henti</div>
+      <div class="hint"><kbd>/</kbd> type · <kbd>1–9</kbd> panels · <kbd>Ctrl+Space</kbd> speak · <kbd>Esc</kbd> stop</div>
     </div>
   </footer>
 
@@ -1946,59 +1946,59 @@ footer {
   <div class="sheet-wrap" id="sheetWrap" hidden>
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
       <div class="sheet-head">
-        <span class="title" id="sheetTitle">Tetapan</span>
+        <span class="title" id="sheetTitle">Settings</span>
         <span class="grow"></span>
-        <button type="button" class="btn" id="sheetClose">Tutup</button>
+        <button type="button" class="btn" id="sheetClose">Close</button>
       </div>
       <div class="sheet-body" id="sheetBody">
-        <div class="sheet-sec">Otak</div>
+        <div class="sheet-sec">Brain</div>
         <div class="set-row">
-          <label for="setModel">Model Claude</label>
+          <label for="setModel">Claude model</label>
           <select id="setModel"></select>
         </div>
         <div class="set-row">
-          <label for="setChatModel">Model chat</label>
+          <label for="setChatModel">Chat model</label>
           <select id="setChatModel"></select>
         </div>
 
-        <div class="sheet-sec">Suara</div>
+        <div class="sheet-sec">Voice</div>
         <div class="set-row">
-          <label for="setVoice">Suara BM</label>
+          <label for="setVoice">Malay voice</label>
           <select id="setVoice"></select>
         </div>
         <div class="set-row">
-          <label for="setVoiceEn">Suara English</label>
+          <label for="setVoiceEn">English voice</label>
           <select id="setVoiceEn"></select>
         </div>
         <div class="set-row">
-          <label for="setRate">Laju</label>
+          <label for="setRate">Rate</label>
           <input id="setRate" type="text" inputmode="numeric" placeholder="+8%">
         </div>
         <div class="set-row">
-          <label for="setPitch">Nada</label>
+          <label for="setPitch">Pitch</label>
           <input id="setPitch" type="text" inputmode="numeric" placeholder="+0Hz">
         </div>
         <div class="set-row wide">
-          <label class="toggle"><input type="checkbox" id="setSpeak"> Baca setiap balasan</label>
-          <span class="set-note">Kalau dimatikan, Jarvis menjawab dalam teks sahaja — laju, tiada suara.</span>
+          <label class="toggle"><input type="checkbox" id="setSpeak"> Speak every reply</label>
+          <span class="set-note">When off, Jarvis answers in text only — faster, no voice.</span>
         </div>
 
-        <div class="sheet-sec">Bahasa</div>
+        <div class="sheet-sec">Language</div>
         <div class="set-row wide">
-          <label for="setLang">Bahasa jawapan</label>
+          <label for="setLang">Reply language</label>
           <select id="setLang">
-            <option value="ms">Bahasa Melayu</option>
+            <option value="ms">Malay</option>
             <option value="en">English</option>
           </select>
-          <span class="set-note">Tukar serta-merta — tiada restart. Nota: ayat arahan sistem
-            (volume, buka fail) sentiasa difahami dalam kedua-dua bahasa.</span>
+          <span class="set-note">Takes effect immediately — no restart. System command
+            phrases (volume, open file) are always understood in both languages.</span>
         </div>
       </div>
       <div class="sheet-foot">
-        <span class="sheet-saved" id="sheetSaved">disimpan</span>
+        <span class="sheet-saved" id="sheetSaved">saved</span>
         <span class="grow"></span>
-        <button type="button" class="btn" id="sheetReset">Muat semula</button>
-        <button type="button" class="btn solid" id="sheetDone">Siap</button>
+        <button type="button" class="btn" id="sheetReset">Reload</button>
+        <button type="button" class="btn solid" id="sheetDone">Done</button>
       </div>
     </div>
   </div>
@@ -2073,8 +2073,10 @@ footer {
   /* ── clock ── */
   const clockEl = document.getElementById('clock');
   const todayEl = document.getElementById('today');
-  const MONTHS  = ['Jan','Feb','Mac','Apr','Mei','Jun','Jul','Ogos','Sep','Okt','Nov','Dis'];
-  const DAYS    = ['Ahad','Isnin','Selasa','Rabu','Khamis','Jumaat','Sabtu'];
+  const MONTHS  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  // Khamis 5 Nov 2026 — hari dulu, bulan penuh, supaya tiada singkatan yang
+  // boleh disalah baca
+  const DAYS    = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
   function tick() {
     const d = new Date();
@@ -2590,11 +2592,11 @@ footer {
       if (!items.length) {
         const r = document.createElement('div');
         r.className = 'media-row active';
-        r.innerHTML = '<span class="tag">—</span><span class="n">folder media/ kosong</span><span class="d">—</span>';
+        r.innerHTML = '<span class="tag">—</span><span class="n">media/ folder empty</span><span class="d">—</span>';
         list.appendChild(r);
-        if (hint) hint.textContent = 'letak fail dalam media/ · mp4 · mkv · mp3';
+        if (hint) hint.textContent = 'drop files into media/ · mp4 · mkv · mp3';
         const meta = document.getElementById('mediaMeta');
-        if (meta) meta.textContent = 'media/ · kosong';
+        if (meta) meta.textContent = 'media/ · empty';
         return;
       }
       items.forEach((it, i) => {
@@ -2613,15 +2615,15 @@ footer {
         r.addEventListener('click', () => playAt(i));
         list.appendChild(r);
       });
-      if (hint) hint.textContent = items.length + ' medium · tekan satu untuk main';
+      if (hint) hint.textContent = items.length + ' media · press one to play';
       const meta = document.getElementById('mediaMeta');
       if (meta) meta.textContent = 'media/ · ' + items.length + ' medium';
       /* the centre card names what is loaded but not yet playing */
       const t = document.getElementById('mediaTitle');
-      if (t) t.textContent = 'Sedia · ' + items.length + ' medium';
+      if (t) t.textContent = 'Ready · ' + items.length + ' media';
       if (!media) {
         const sub = document.getElementById('mediaHint');
-        if (sub) sub.textContent = 'pilih di senarai · mp4 · mkv · mp3';
+        if (sub) sub.textContent = 'pick from the list · mp4 · mkv · mp3';
       }
     }
 
@@ -2873,10 +2875,10 @@ footer {
       if (!a || !(a.cards || a.charts || a.points)) return;
       data = a;
       token++;                       // cancel anything still speaking
-      titleEl.textContent = a.title || 'Analisis';
+      titleEl.textContent = a.title || 'Analysis';
       sumEl.textContent = a.summary || '';
-      if (metaEl) metaEl.textContent = (a.cards || []).length + ' kad · '
-        + (a.charts || []).length + ' graf · ' + (a.points || []).length + ' poin';
+      if (metaEl) metaEl.textContent = (a.cards || []).length + ' cards · '
+        + (a.charts || []).length + ' charts · ' + (a.points || []).length + ' points';
       render(a);
       // cards stay dim until their point lands, so narrate right away
       narrate(a);
@@ -2886,7 +2888,7 @@ footer {
     window.anaStop = () => { token++; clearFocus(); revealAll(); };
 
     if (replayEl) replayEl.addEventListener('click', () => {
-      if (!data) { sysNote('Belum ada dash untuk dimain semula.'); return; }
+      if (!data) { sysNote('No dashboard to replay yet.'); return; }
       const cmd = document.getElementById('cmd');
       show(data);
     });
@@ -2909,9 +2911,9 @@ footer {
       const t = document.getElementById('wxTemp');
       const s = document.getElementById('wxDesc');
       if (t) t.textContent = w.temp + '°';
-      if (s) s.textContent = w.desc + ' · rasa ' + w.feels + '°';
+      if (s) s.textContent = w.desc + ' · feels ' + w.feels + '°';
       const place = document.getElementById('wxPlace');
-      if (place && d.place) place.textContent = 'Hari ini · ' + d.place;
+      if (place && d.place) place.textContent = 'Today · ' + d.place;
     }
     const p = d.prayer;
     if (p && p.name) {
@@ -2919,7 +2921,7 @@ footer {
       const em = document.getElementById('prayLeft');
       const arc = document.querySelector('.pray .arc');
       if (b) b.textContent = p.name + ' · ' + p.time;
-      if (em) em.textContent = p.mins + ' minit lagi';
+      if (em) em.textContent = p.mins + ' min left';
       if (arc) {
         // 6-hour window: the closer the prayer, the fuller the ring
         const pct = Math.max(2, Math.min(100, 100 - (p.mins / 360) * 100));
@@ -2973,7 +2975,7 @@ footer {
       if (!entries.length) {
         const e = document.createElement('div');
         e.className = 'tree-empty';
-        e.textContent = 'folder kosong';
+        e.textContent = 'folder empty';
         tree.appendChild(e);
         return;
       }
@@ -3005,7 +3007,7 @@ footer {
     async function load(path) {
       if (!api) return;
       const r = await api.fs_list(path || '');
-      if (!r.ok) { tree.innerHTML = '<div class="tree-empty">' + (r.msg || 'gagal') + '</div>'; return; }
+      if (!r.ok) { tree.innerHTML = '<div class="tree-empty">' + (r.msg || 'failed') + '</div>'; return; }
       currentPath = r.path;
       fmeta.textContent = r.entries.length + ' item · ' + r.path;
       rows(r.entries, r.parent);
@@ -3014,12 +3016,12 @@ footer {
     async function preview(it) {
       selected = it.path;
       fname.textContent = it.name;
-      fmeta.textContent = sizeText(it.size) + ' · ' + (it.ext || 'fail');
-      body.innerHTML = '<div class="empty">membaca…</div>';
+      fmeta.textContent = sizeText(it.size) + ' · ' + (it.ext || 'file');
+      body.innerHTML = '<div class="empty">reading…</div>';
       if (editBtn) editBtn.disabled = true;
       const r = await api.fs_read(it.path);
       if (!r.ok) {
-        body.innerHTML = '<div class="empty">' + (r.msg || 'tidak boleh dibaca') + '</div>';
+        body.innerHTML = '<div class="empty">' + (r.msg || 'could not be read') + '</div>';
         return;
       }
       const pre = document.createElement('pre');
@@ -3092,7 +3094,7 @@ footer {
       loading = new Promise((resolve, reject) => {
         const s = document.createElement('script');
         s.src = 'vendor/editor.js';
-        s.onload = () => window.JarvisEditor ? resolve(window.JarvisEditor) : reject(new Error('bundle kosong'));
+        s.onload = () => window.JarvisEditor ? resolve(window.JarvisEditor) : reject(new Error('empty bundle'));
         s.onerror = () => reject(new Error('vendor/editor.js tidak dijumpai'));
         document.head.appendChild(s);
       });
@@ -3100,7 +3102,7 @@ footer {
     }
 
     function paintMeta() {
-      if (!curName) { meta.textContent = 'belum ada fail'; return; }
+      if (!curName) { meta.textContent = 'no file yet'; return; }
       const bits = [curName];
       if (ed) bits.push((ed.getText().match(/\n/g) || []).length + 1 + ' baris');
       if (curExt) bits.push(curExt);
@@ -3124,10 +3126,10 @@ footer {
           // the file moved under us. Take the new size so a second press
           // overwrites deliberately, and say what happened on the meta line.
           baseSize = r.size;
-          meta.textContent = curName + ' · berubah di luar — tekan Simpan sekali lagi untuk timpa';
+          meta.textContent = curName + ' · changed outside — press Save again to overwrite';
           return { ok: false, conflict: true };
         }
-        meta.textContent = curName + ' · gagal: ' + ((r && r.msg) || 'tidak diketahui');
+        meta.textContent = curName + ' · failed: ' + ((r && r.msg) || 'tidak diketahui');
         return { ok: false };
       }
       baseSize = r.size;
@@ -3142,7 +3144,7 @@ footer {
       if (!api || !path) return false;
       // refusing to clobber unsaved work is the whole point of the dirty flag
       if (ed && ed.isDirty()) {
-        const ok = window.confirm('Ada perubahan belum disimpan dalam ' + curName + '. Buang dan buka fail baru?');
+        const ok = window.confirm('Unsaved changes in ' + curName + '. Discard and open the new file?');
         if (!ok) return false;
       }
       host.innerHTML = '<div class="ed-loading">memuatkan editor…</div>';
@@ -3297,7 +3299,7 @@ footer {
       if (embedBt) embedBt.setAttribute('aria-pressed', String(mode === 'embed'));
       if (closeBt) closeBt.disabled = !curUrl && !embedded;
       meta.textContent = !curUrl && !embedded
-        ? 'belum ada laman'
+        ? 'no page yet'
         : (mode === 'embed' ? 'embed · ' : 'tetingkap · ') + curUrl.replace(/^https?:\/\//, '');
     }
 
@@ -3453,14 +3455,14 @@ footer {
       if (!api || !api.fs_list) return;
       const r = await api.fs_list(dir || '');
       if (!r || !r.ok) {
-        meta.textContent = r && r.msg ? r.msg : 'folder tak dapat dibaca';
+        meta.textContent = r && r.msg ? r.msg : 'folder could not be read';
         return;
       }
       dir = r.path;
       files = (r.entries || [])
         .filter(e => !e.dir && EXTS[(e.ext || '').toLowerCase()])
         .map(e => ({ name: e.name, path: e.path, ext: (e.ext || '').toLowerCase(), size: e.size }));
-      meta.textContent = files.length + ' dokumen · ' + dir.split(/[\\/]/).pop();
+      meta.textContent = files.length + ' docs · ' + dir.split(/[\\/]/).pop();
       paintList();
     }
 
@@ -3468,7 +3470,7 @@ footer {
       busy = on;
       if (on) {
         body.textContent = '';
-        const p = el('div', 'doc-err', note || 'Membaca…');
+        const p = el('div', 'doc-err', note || 'Reading…');
         p.style.color = 'var(--ink-faint)';
         body.appendChild(p);
       }
@@ -3492,7 +3494,7 @@ footer {
       body.textContent = '';
       body.scrollTop = 0;
       if (!r || !r.ok) {
-        body.appendChild(el('div', 'doc-err', (r && r.msg) || 'Dokumen tak dapat dibaca.'));
+        body.appendChild(el('div', 'doc-err', (r && r.msg) || 'Document could not be read.'));
         return;
       }
       cur = { path: r.path, name: r.name, ext: r.ext, page: r.page || 0, total: r.total || 0 };
@@ -3505,7 +3507,7 @@ footer {
       if (r.kind === 'pdf') {
         const img = el('img', 'doc-page');
         img.src = r.image;
-        img.alt = r.name + ' halaman ' + (r.page + 1);
+        img.alt = r.name + ' page ' + (r.page + 1);
         body.appendChild(img);
         if (r.pages && r.pages[r.page] && r.pages[r.page].text) {
           // teks halaman disembunyikan tetapi ada dalam DOM: carian Ctrl+F jalan
@@ -3542,7 +3544,7 @@ footer {
           if (s.dims) head.appendChild(el('span', '', s.dims));
           body.appendChild(head);
           if (s.rows && s.rows.length) body.appendChild(table(s.rows, { head: true }));
-          if (s.truncated) body.appendChild(el('div', 'doc-trunc', 'Dipaparkan 200 baris pertama sahaja.'));
+          if (s.truncated) body.appendChild(el('div', 'doc-trunc', 'Showing the first 200 lines only.'));
         });
         return;
       }
@@ -3570,7 +3572,7 @@ footer {
     async function open(path, page) {
       if (!api || !api.docs_open) {
         body.textContent = '';
-        body.appendChild(el('div', 'doc-err', 'Bridge belum siap.'));
+        body.appendChild(el('div', 'doc-err', 'Bridge not ready.'));
         return false;
       }
       setBusy(true);
@@ -3586,7 +3588,7 @@ footer {
         return !!(r && r.ok);
       } catch (e) {
         body.textContent = '';
-        body.appendChild(el('div', 'doc-err', 'Ralat: ' + e.message));
+        body.appendChild(el('div', 'doc-err', 'Error: ' + e.message));
         return false;
       } finally {
         setBusy(false);
@@ -3655,7 +3657,7 @@ footer {
       list.textContent = '';
       if (!wins.length) {
         list.appendChild(Object.assign(document.createElement('div'),
-          { className: 'app-hint', textContent: 'Tiada tetingkap lain. Buka app dahulu.' }));
+          { className: 'app-hint', textContent: 'No other windows. Open an app first.' }));
         return;
       }
       wins.forEach(w => {
@@ -3670,7 +3672,7 @@ footer {
     }
 
     async function scan() {
-      if (!api || !api.app_windows) { meta.textContent = 'bridge belum siap'; return; }
+      if (!api || !api.app_windows) { meta.textContent = 'bridge not ready'; return; }
       const r = await api.app_windows(30);
       wins = (r && r.windows) || [];
       paintList();
@@ -3715,7 +3717,7 @@ footer {
       host.hidden = true;
       if (empty) empty.hidden = false;
       btDetach.disabled = true;
-      meta.textContent = 'tiada app di-embed';
+      meta.textContent = 'no app embedded';
       paintList();
     }
 
@@ -3807,7 +3809,7 @@ footer {
     const b = document.createElement('div');
     b.className = 'bubble';
     b.style.color = 'var(--amber)';
-    b.textContent = '⚠ ' + (d.ask || 'Teruskan?');
+    b.textContent = '⚠ ' + (d.ask || 'Go ahead?');
 
     const row = document.createElement('div');
     row.style.display = 'flex';
@@ -3827,25 +3829,25 @@ footer {
         const after = document.createElement('span');
         after.style.fontSize = '9px';
         after.style.color = 'var(--dim)';
-        after.textContent = ok ? ' dihantar…' : ' dibatalkan';
+        after.textContent = ok ? ' sending…' : ' cancelled';
         b.appendChild(after);
         if (ok) send('ya', true);
         else {
           if (api && api.cancel_system) api.cancel_system(d.token);
-          sysNote('✖ Dibatalkan');
+          sysNote('✖ Cancelled');
         }
       });
       row.appendChild(btn);
       return btn;
     };
-    mk('Ya, buat', true);
-    mk('Tak', false);
+    mk('Yes, do it', true);
+    mk('No', false);
 
     el.append(b, row);
     talk.appendChild(el);
     scrollTalk();
     window.jarvisState('thinking');
-    speak(d.ask || 'Teruskan?');
+    speak(d.ask || 'Go ahead?');
   };
 
   function sysNote(text, bad) {
@@ -3890,22 +3892,22 @@ footer {
   /* Nama kerja, bukan nama API. "Read" bukan bahasa yang Akmal guna;
      "membaca fail" adalah. Inilah yang muncul di sebelah orb. */
   const TOOL_LABEL = {
-    web_search: 'connecting web', find_files: 'mencari fail',
-    list_folder: 'menyemak folder', read_file: 'membaca fail',
-    open_item: 'membuka app', system_status: 'mengukur sistem',
-    weather: 'menyemak cuaca', prayer_times: 'menyemak waktu',
-    set_reminder: 'menyemak peringatan',
-    WebSearch: 'connecting web', WebFetch: 'membuka halaman',
-    Find: 'mencari fail', Search: 'mencari', Grep: 'mencari dalam fail',
-    Glob: 'menyemak folder', List: 'menyemak folder', Folders: 'menyemak folder',
-    Read: 'membaca fail', Edit: 'mengubah fail', Write: 'menulis fail',
-    Bash: 'menjalankan arahan', PowerShell: 'menjalankan arahan',
-    Open: 'membuka app', Launch: 'membuka app', Focus: 'fokus tetingkap',
-    Screen: 'menangkap skrin', Status: 'mengukur sistem',
-    Control: 'mengawal sistem', System: 'mengawal sistem',
-    Media: 'menyemak media', Prayer: 'menyemak waktu', Weather: 'menyemak cuaca',
-    Gmail: 'membaca mel', Drive: 'menyemak drive', Reminder: 'menyemak peringatan',
-    Memory: 'menyimpan nota', Note: 'menyimpan nota'
+    web_search: 'connecting web', find_files: 'searching files',
+    list_folder: 'reading folder', read_file: 'reading file',
+    open_item: 'opening app', system_status: 'measuring system',
+    weather: 'checking weather', prayer_times: 'checking prayer times',
+    set_reminder: 'setting reminder',
+    WebSearch: 'connecting web', WebFetch: 'opening page',
+    Find: 'searching files', Search: 'searching', Grep: 'searching inside files',
+    Glob: 'reading folder', List: 'reading folder', Folders: 'reading folder',
+    Read: 'reading file', Edit: 'editing file', Write: 'writing file',
+    Bash: 'running command', PowerShell: 'running command',
+    Open: 'opening app', Launch: 'opening app', Focus: 'focusing window',
+    Screen: 'capturing screen', Status: 'measuring system',
+    Control: 'controlling system', System: 'controlling system',
+    Media: 'checking media', Prayer: 'checking prayer times', Weather: 'checking weather',
+    Gmail: 'reading mail', Drive: 'checking drive', Reminder: 'checking reminders',
+    Memory: 'saving note', Note: 'saving note'
   };
 
   const orbTasks = (() => {
@@ -4040,7 +4042,7 @@ footer {
         if (list.length > (opts.max || 4)) {
           const more = document.createElement('div');
           more.className = 'it';
-          more.textContent = '+' + (list.length - (opts.max || 4)) + ' lagi';
+          more.textContent = '+' + (list.length - (opts.max || 4)) + ' more';
           box2.appendChild(more);
         }
       },
@@ -4058,15 +4060,16 @@ footer {
       talk && talk.parentElement && talk.parentElement.insertBefore(traceEl, talk);
     }
     traceEl.classList.remove('gone');
+    const nm = TOOL_LABEL[d.name] || d.name;
     const s = document.createElement('span');
-    s.textContent = d.name + (d.detail ? ' · ' + d.detail : '');
+    s.textContent = nm + (d.detail ? ' · ' + d.detail : '');
     traceEl.appendChild(s);
     while (traceEl.children.length > 6) traceEl.removeChild(traceEl.firstChild);
     // terminal mirror
     if (term) {
       const line = document.createElement('span');
       line.className = 'amb';
-      line.textContent = '› ' + d.name + (d.detail ? ' · ' + d.detail : '') + '\n';
+      line.textContent = '› ' + nm + (d.detail ? ' · ' + d.detail : '') + '\n';
       term.appendChild(line);
       term.scrollTop = term.scrollHeight;
     }
@@ -4080,10 +4083,10 @@ footer {
 
   // ---------- orb + status ----------
   const ORB_LABEL = {
-    idle:      ['Standby', 'Menunggu arahan'],
-    listening: ['Mendengar', 'Cakap je, Akmal'],
-    thinking:  ['Berfikir', 'Memproses'],
-    speaking:  ['Bercakap', 'Membaca jawapan']
+    idle:      ['Standby', 'Awaiting command'],
+    listening: ['Listening', 'Just talk, Akmal'],
+    thinking:  ['Thinking', 'Processing'],
+    speaking:  ['Speaking', 'Reading the answer']
   };
 
   window.jarvisState = function (s) {
@@ -4159,7 +4162,7 @@ footer {
       }
       if (r && r.note) sysNote('TTS: ' + r.note);
     } catch (e) {
-      sysNote('TTS gagal: ' + e.message, true);
+      sysNote('TTS failed: ' + e.message, true);
     }
     return false;
   }
@@ -4178,16 +4181,16 @@ footer {
     let m;
 
     if (/^(stop|diam|senyap|dah|takpe|cukup)( la| lah)?$/.test(s)) {
-      stopSpeaking(); window.jarvisState('idle'); act('Henti.'); return true;
+      stopSpeaking(); window.jarvisState('idle'); act('Stopped.'); return true;
     }
     if (/^(tutup jarvis|keluar|quit|exit)$/.test(s)) {
       word('Akmal', q, 'me');
-      await speak('Okay Akmal, saya off dulu.');
+      await speak('Okay Akmal, going quiet.');
       setTimeout(() => api && api.quit(), 1800);
       return true;
     }
     if (/^(sembunyi|minimize|hide)$/.test(s)) {
-      word('Akmal', q, 'me'); act('Sembunyi.'); api && api.minimize(); return true;
+      word('Akmal', q, 'me'); act('Minimized.'); api && api.minimize(); return true;
     }
     if (/^(sesi baru|reset)$/.test(s)) { newSession(); return true; }
     if ((m = s.match(/^panel\s+(\d|[a-z]+)$/))) {
@@ -4214,7 +4217,7 @@ footer {
         }
         if (r && /\.(mp4|mkv|webm|mov|mp3|m4a|wav|flac)$/i.test(m[1])) {
           word('Akmal', q, 'me');
-          sysNote(r.msg || 'Fail tiada dalam media/.', true);
+          sysNote(r.msg || 'File is not in media/.', true);
           return true;
         }
       }
@@ -4231,7 +4234,7 @@ footer {
     try { r = await api.resolve_system(q); } catch (e) { return false; }
     if (!r || !r.handled) return false;
     word('Akmal', q, 'me');
-    act(r.label || 'Siap.');
+    act(r.label || 'Done.');
     if (r.confirm) {
       // jarvisConfirm() sudah memaparkan prompt dan membacanya; jangan ulang
       return true;
@@ -4248,7 +4251,7 @@ footer {
     if (!q || busy) return;
     if (await localFirst(q)) return;
     if (await trySystem(q)) return;
-    if (!api) { word('Akmal', q, 'me'); sysNote('Bridge belum sambung — jalankan main.py.', true); return; }
+    if (!api) { word('Akmal', q, 'me'); sysNote('Bridge not connected — run main.py.', true); return; }
 
     word('Akmal', q, 'me');
     liveBubble = null;
@@ -4266,15 +4269,15 @@ footer {
       const r = await api.ask(q, eng);
       if (!r.ok) { busy = false; sysNote(r.msg, true); window.jarvisState('idle'); }
     } catch (e) {
-      busy = false; sysNote('Ralat: ' + e.message, true); window.jarvisState('idle');
+      busy = false; sysNote('Error: ' + e.message, true); window.jarvisState('idle');
     }
   }
 
   async function newSession() {
     if (api) await api.new_session();
-    if (talk) talk.innerHTML = '<div class="talk-empty"><b>Sesi baru.</b>Sejarah dibuang. Sambung bila sedia, Akmal.</div>';
+    if (talk) talk.innerHTML = '<div class="talk-empty"><b>New session.</b>History cleared. Carry on when ready, Akmal.</div>';
     msgCount = 0;
-    if (talkMeta) talkMeta.textContent = 'sesi baru';
+    if (talkMeta) talkMeta.textContent = 'new session';
     liveBubble = null;
     traceEnd();
     orbTasks.clear();
@@ -4298,9 +4301,9 @@ footer {
       }
     } else if (kind === 'tool') {
       trace(d);
-      act('⚙ ' + d.name + (d.detail ? ' · ' + d.detail : ''));
+      act('⚙ ' + (TOOL_LABEL[d.name] || d.name) + (d.detail ? ' · ' + d.detail : ''));
       // label reads as the work being done, not the API call
-      const lab = TOOL_LABEL[d.name] || 'kerja';
+      const lab = TOOL_LABEL[d.name] || 'working';
       orbTasks.upsert(d.name, lab, d.detail || '');
       if (d.items && d.items.length) orbTasks.items(d.items, { max: 4 });
     } else if (kind === 'result') {
@@ -4341,7 +4344,7 @@ footer {
       window.stageShow('media');
       if (d.play && window.stageMedia) {
         const i = window.stageMedia.open(d.play);
-        if (i < 0) sysNote('Fail "' + d.play + '" tiada dalam media/.', true);
+        if (i < 0) sysNote('File "' + d.play + '" is not in media/.', true);
       }
     } else if (kind === 'text') {
       // the ```jarvis-analysis block is data, not prose
@@ -4355,7 +4358,7 @@ footer {
             try {
               const fixed = raw.replace(/,\s*([}\]])/g, '$1').replace(/'/g, '"');
               window.stageAnalysis(JSON.parse(fixed));
-            } catch (e2) { sysNote('Blok analisis tidak sah.', true); }
+            } catch (e2) { sysNote('Analysis block is invalid.', true); }
           }
         }
         d.text = (d.text || '').replace(blk[0], '').trim();
@@ -4368,12 +4371,12 @@ footer {
       document.body.dataset.busy = '';
       traceEnd();
       if (!d.ok) {
-        sysNote('✕ ' + (d.error || 'gagal') + ' · ' + d.secs + 's', true);
+        sysNote('✕ ' + (d.error || 'failed') + ' · ' + d.secs + 's', true);
         window.jarvisState('idle');
-        act('Gagal.');
+        act('Failed.');
         orbTasks.done(false);
       } else {
-        act('Siap · ' + d.secs + 's');
+        act('Done · ' + d.secs + 's');
         if (lastReply && shouldSpeak()) speak(lastReply);
         else window.jarvisState('idle');
       }
@@ -4389,11 +4392,11 @@ footer {
   window.onVoice = function (kind, d) {
     if (kind === 'level') { if (listenMode) window.jarvisLevel(Math.min(1, .12 + d * 1.2)); }
     else if (kind === 'status') { act('◆ ' + d); }
-    else if (kind === 'transcribing') { act('◆ Memproses suara…'); window.jarvisState('thinking'); }
-    else if (kind === 'text') { listenMode = false; act('◆ Dengar: "' + d + '"'); send(d, true); }
-    else if (kind === 'none') { listenMode = false; window.jarvisState('idle'); act('Tak dengar apa-apa. Tekan mic cuba lagi.'); }
+    else if (kind === 'transcribing') { act('◆ Processing speech…'); window.jarvisState('thinking'); }
+    else if (kind === 'text') { listenMode = false; act('◆ Heard: "' + d + '"'); send(d, true); }
+    else if (kind === 'none') { listenMode = false; window.jarvisState('idle'); act('Heard nothing. Press the mic and try again.'); }
     else if (kind === 'error') { listenMode = false; window.jarvisState('idle'); sysNote('Mic: ' + d, true); }
-    else if (kind === 'wake') { listenMode = true; window.jarvisState('listening'); act('◆ Hey Akmal, cakap je…'); }
+    else if (kind === 'wake') { listenMode = true; window.jarvisState('listening'); act('◆ Hey Akmal, just talk…'); }
     else if (kind === 'wake_only') { listenMode = false; speak('Ya Akmal?'); }
     else if (kind === 'control') {
       listenMode = false; window.jarvisState('idle');
@@ -4402,10 +4405,10 @@ footer {
   };
 
   window.onPrayer = function (d) {
-    const txt = d.name + ' dalam ' + d.mins + ' minit (' + d.time + ')';
+    const txt = d.name + ' in ' + d.mins + ' min (' + d.time + ')';
     word('Jarvis', '🕌 ' + txt, 'jarvis');
-    speak('Akmal, lagi ' + d.mins + ' minit masuk waktu ' + d.name + '.');
-    act('Waktu solat');
+    speak('Akmal, ' + d.mins + ' min until ' + d.name + '.');
+    act('Prayer time');
   };
 
   window.onBrief = function (text) {
@@ -4415,7 +4418,7 @@ footer {
       box.style.color = 'var(--ink)';
     }
     speak(text);
-    act('Laporan pagi');
+    act('Morning brief');
     window.stageShow('comms');
   };
 
@@ -4453,7 +4456,7 @@ footer {
       if (!list.length) {
         const e = document.createElement('span');
         e.className = 'dock-empty';
-        e.textContent = which === 'desktop' ? 'Desktop kosong' : 'Tiada entri';
+        e.textContent = which === 'desktop' ? 'Desktop is empty' : 'Nothing here';
         row.appendChild(e);
         return;
       }
@@ -4476,8 +4479,8 @@ footer {
 
     async function go(it) {
       if (!api || !api.dock_open) return;
-      if (it.ok === false) { sysNote('"' + it.name + '" tak dijumpai pada mesin ini.', true); return; }
-      act('membuka ' + it.name + '…');
+      if (it.ok === false) { sysNote('"' + it.name + '" was not found on this machine.', true); return; }
+      act('opening ' + it.name + '…');
       const r = await api.dock_open(which, it.name);
       if (r && r.ok && r.folder) {
         // folder: masuk panel fail HUD, bukan tetingkap Explorer bertimbun
@@ -4485,9 +4488,9 @@ footer {
         if (window.stageFiles && window.stageFiles.open) window.stageFiles.open(r.folder);
         else if (window.stageFiles && window.stageFiles.reload) window.stageFiles.reload(r.folder);
       } else if (r && r.ok) {
-        act('dibuka · ' + it.name);
+        act('opened · ' + it.name);
       } else {
-        sysNote('✕ ' + ((r && r.msg) || 'gagal membuka') + ' ' + it.name, true);
+        sysNote('✕ ' + ((r && r.msg) || 'could not open') + ' ' + it.name, true);
       }
     }
 
@@ -4578,7 +4581,7 @@ footer {
 
     function flash(ok, msg) {
       if (!saved) return;
-      saved.textContent = msg || (ok ? 'disimpan' : 'gagal');
+      saved.textContent = msg || (ok ? 'saved' : 'failed');
       saved.style.color = ok ? 'var(--ok)' : 'var(--bad)';
       saved.classList.add('on');
       clearTimeout(flashTimer);
@@ -4586,16 +4589,16 @@ footer {
     }
 
     async function put(key, value) {
-      if (!api || !api.set_setting) { flash(false, 'bridge tiada'); return; }
+      if (!api || !api.set_setting) { flash(false, 'no bridge'); return; }
       try {
         const r = await api.set_setting(key, value);
-        flash(!!(r && r.ok), r && r.ok ? 'disimpan' : ((r && r.msg) || 'gagal'));
+        flash(!!(r && r.ok), r && r.ok ? 'saved' : ((r && r.msg) || 'failed'));
         // label suara di rail mesti ikut serta-merta, bukan selepas restart
         if (r && r.ok && key === 'voice') {
           $('railVoice').textContent = ((full && full.voice_provider) || 'tts') + ' · ' + value;
         }
         if (r && r.ok && key === 'chat_model') chatModel = value;
-      } catch (e) { flash(false, 'ralat: ' + e.message); }
+      } catch (e) { flash(false, 'error: ' + e.message); }
     }
 
     if (F.model) F.model.addEventListener('change', () => put('model', F.model.value));
@@ -4623,14 +4626,14 @@ footer {
       el.addEventListener('blur', commit);
       el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el.blur(); } });
     };
-    onText(F.rate, 'voice_rate', /^[+-]\d{1,2}%$/, '+8%', 'ikut bentuk +8%');
-    onText(F.pitch, 'voice_pitch', /^[+-]\d{1,2}Hz$/, '+0Hz', 'ikut bentuk +0Hz');
+    onText(F.rate, 'voice_rate', /^[+-]\d{1,2}%$/, '+8%', 'use the form +8%');
+    onText(F.pitch, 'voice_pitch', /^[+-]\d{1,2}Hz$/, '+0Hz', 'use the form +0Hz');
 
     async function open() {
       if (!api || !api.get_settings) return;
       wrap.hidden = false;
       [F.rate, F.pitch].forEach(el => el && el.classList.remove('bad'));
-      try { fill(await api.get_settings()); } catch (e) { flash(false, 'gagal baca tetapan'); }
+      try { fill(await api.get_settings()); } catch (e) { flash(false, 'could not read settings'); }
     }
     const close = () => { wrap.hidden = true; };
     window.stageOpenSettings = open;
@@ -4679,7 +4682,7 @@ footer {
 
   // buttons that had no handler
   const on = (sel, fn) => { const el = document.querySelector(sel); if (el) el.addEventListener('click', fn); };
-  on('.iconbar .power', () => { word('Jarvis', 'Tutup laptop? Taip "shutdown" untuk teruskan.', 'jarvis'); });
+  on('.iconbar .power', () => { word('Jarvis', 'Shut down the laptop? Type "shutdown" to go ahead.', 'jarvis'); });
   on('.iconbar button[title="Sembunyi"]', () => api && api.minimize());
   on('.iconbar .quit', () => { if (api) api.quit(); });
   on('.comms-head .btn', () => newSession());
@@ -4734,7 +4737,7 @@ footer {
   else addEventListener('pywebviewready', boot, { once: true });
 
   // typed input before the bridge arrives should not vanish
-  setTimeout(() => { if (!api) sysNote('Bridge belum siap — command akan gagal sampai pywebviewready.', true); }, 4000);
+  setTimeout(() => { if (!api) sysNote('Bridge not ready — commands will fail until pywebviewready.', true); }, 4000);
 
 })();
 </script>

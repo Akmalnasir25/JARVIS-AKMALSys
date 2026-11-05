@@ -186,12 +186,12 @@ def tools_for(text, history):
 
 # Model chat rootsys (ujian 3 Nov 2026: masa satu langkah dengan tool)
 CHAT_MODELS = [
-    {"id": "deepseek-v4.1-flash", "group": "DeepSeek", "note": "2-3 s · disyorkan"},
+    {"id": "deepseek-v4.1-flash", "group": "DeepSeek", "note": "2-3 s · recommended"},
     {"id": "deepseek-v4.1-flash-mod", "group": "DeepSeek", "note": ""},
     {"id": "deepseek-v4-flash", "group": "DeepSeek", "note": ""},
-    {"id": "deepseek-v4-pro", "group": "DeepSeek", "note": "timeout masa ujian"},
+    {"id": "deepseek-v4-pro", "group": "DeepSeek", "note": "timed out in testing"},
     {"id": "deepseek-v4-pro-mod", "group": "DeepSeek", "note": ""},
-    {"id": "minimax-m3.1-flash", "group": "MiniMax", "note": "2 s · paling laju"},
+    {"id": "minimax-m3.1-flash", "group": "MiniMax", "note": "2 s · fastest"},
     {"id": "minimax-m3.1-flash-mod", "group": "MiniMax", "note": ""},
     {"id": "minimax-m3", "group": "MiniMax", "note": ""},
     {"id": "step-5-preview", "group": "StepFun", "note": "3-4 s"},
@@ -216,31 +216,31 @@ CHAT_MODELS = [
 CHAT_FALLBACK = "minimax-m3.1-flash"
 
 CLAUDE_MODELS = [
-    {"id": "haiku", "label": "Haiku", "note": "Paling laju, jimat kuota"},
-    {"id": "sonnet", "label": "Sonnet", "note": "Seimbang (disyorkan)"},
-    {"id": "opus", "label": "Opus", "note": "Paling pandai, lambat & makan kuota"},
+    {"id": "haiku", "label": "Haiku", "note": "Fastest, saves quota"},
+    {"id": "sonnet", "label": "Sonnet", "note": "Balanced (recommended)"},
+    {"id": "opus", "label": "Opus", "note": "Smartest, slow and quota-hungry"},
 ]
 
 # Suara: dua suara BM asli + suara "Multilingual" (gaya AI/teknologi) yang boleh baca BM
 VOICES = [
-    {"id": "ms-MY-OsmanNeural", "label": "Osman", "note": "BM asli · lelaki"},
-    {"id": "ms-MY-YasminNeural", "label": "Yasmin", "note": "BM asli · perempuan"},
-    {"id": "en-US-AndrewMultilingualNeural", "label": "Andrew", "note": "Multilingual · tenang, gaya AI"},
-    {"id": "en-US-BrianMultilingualNeural", "label": "Brian", "note": "Multilingual · santai, muda"},
-    {"id": "de-DE-FlorianMultilingualNeural", "label": "Florian", "note": "Multilingual · dalam, futuristik"},
-    {"id": "en-AU-WilliamMultilingualNeural", "label": "William", "note": "Multilingual · tegas"},
-    {"id": "en-US-AvaMultilingualNeural", "label": "Ava", "note": "Multilingual · perempuan, gaya AI"},
-    {"id": "en-US-EmmaMultilingualNeural", "label": "Emma", "note": "Multilingual · perempuan, mesra"},
+    {"id": "ms-MY-OsmanNeural", "label": "Osman", "note": "Native Malay · male"},
+    {"id": "ms-MY-YasminNeural", "label": "Yasmin", "note": "Native Malay · female"},
+    {"id": "en-US-AndrewMultilingualNeural", "label": "Andrew", "note": "Multilingual · calm, AI style"},
+    {"id": "en-US-BrianMultilingualNeural", "label": "Brian", "note": "Multilingual · relaxed, young"},
+    {"id": "de-DE-FlorianMultilingualNeural", "label": "Florian", "note": "Multilingual · deep, futuristic"},
+    {"id": "en-AU-WilliamMultilingualNeural", "label": "William", "note": "Multilingual · firm"},
+    {"id": "en-US-AvaMultilingualNeural", "label": "Ava", "note": "Multilingual · female, AI style"},
+    {"id": "en-US-EmmaMultilingualNeural", "label": "Emma", "note": "Multilingual · female, warm"},
 ]
 
 # Suara Google Cloud TTS (sebutan BM Malaysia). Muncul dalam Settings bila google_tts_api_key ada dalam secrets.json
 GOOGLE_VOICES = [
-    {"id": "ms-MY-Wavenet-D", "label": "Google D", "note": "Wavenet · lelaki, dalam · lalai"},
-    {"id": "ms-MY-Wavenet-B", "label": "Google B", "note": "Wavenet · lelaki"},
-    {"id": "ms-MY-Wavenet-A", "label": "Google A", "note": "Wavenet · perempuan"},
-    {"id": "ms-MY-Wavenet-C", "label": "Google C", "note": "Wavenet · perempuan"},
-    {"id": "ms-MY-Standard-D", "label": "Standard D", "note": "Standard · lelaki · lebih murah"},
-    {"id": "ms-MY-Standard-A", "label": "Standard A", "note": "Standard · perempuan · lebih murah"},
+    {"id": "ms-MY-Wavenet-D", "label": "Google D", "note": "Wavenet · male, deep · default"},
+    {"id": "ms-MY-Wavenet-B", "label": "Google B", "note": "Wavenet · male"},
+    {"id": "ms-MY-Wavenet-A", "label": "Google A", "note": "Wavenet · female"},
+    {"id": "ms-MY-Wavenet-C", "label": "Google C", "note": "Wavenet · female"},
+    {"id": "ms-MY-Standard-D", "label": "Standard D", "note": "Standard · male · cheaper"},
+    {"id": "ms-MY-Standard-A", "label": "Standard A", "note": "Standard · female · cheaper"},
 ]
 
 
@@ -249,11 +249,11 @@ def all_voices():
 
 # Suara English (bila reply_language = en)
 EN_VOICES = [
-    {"id": "en-GB-RyanNeural", "label": "Ryan (UK)", "note": "Gaya JARVIS, British"},
-    {"id": "en-GB-ThomasNeural", "label": "Thomas (UK)", "note": "British, tenang"},
-    {"id": "en-US-AndrewMultilingualNeural", "label": "Andrew (US)", "note": "Natural, tenang"},
-    {"id": "en-US-AvaMultilingualNeural", "label": "Ava (US)", "note": "Perempuan, natural"},
-    {"id": "en-GB-SoniaNeural", "label": "Sonia (UK)", "note": "Perempuan, British"},
+    {"id": "en-GB-RyanNeural", "label": "Ryan (UK)", "note": "JARVIS style, British"},
+    {"id": "en-GB-ThomasNeural", "label": "Thomas (UK)", "note": "British, calm"},
+    {"id": "en-US-AndrewMultilingualNeural", "label": "Andrew (US)", "note": "Natural, calm"},
+    {"id": "en-US-AvaMultilingualNeural", "label": "Ava (US)", "note": "Female, natural"},
+    {"id": "en-GB-SoniaNeural", "label": "Sonia (UK)", "note": "Female, British"},
 ]
 
 GMAIL_READ = ["mcp__claude_ai_Gmail__search_threads", "mcp__claude_ai_Gmail__get_thread",
@@ -475,13 +475,13 @@ class Api:
         """Buka satu fail media dalam stage. Terima nama penuh atau sebahagian."""
         items = self.media_index()
         if not items:
-            return {"ok": False, "msg": "Folder media/ kosong.", "items": []}
+            return {"ok": False, "msg": "media/ folder is empty.", "items": []}
         key = str(name or "").strip().lower()
         hit = next((i for i in items if i["name"].lower() == key), None)
         if hit is None and key:
             hit = next((i for i in items if key in i["name"].lower()), None)
         if hit is None:
-            return {"ok": False, "msg": f"Tak jumpa \"{name}\" dalam media/.", "items": items}
+            return {"ok": False, "msg": f"No \"{name}\" in media/.", "items": items}
         self._emit("media", {"items": items, "play": hit["name"]})
         return {"ok": True, "name": hit["name"], "url": hit["url"]}
 
@@ -517,7 +517,7 @@ class Api:
         target = target.resolve()
         safe = self._safe_path(target)
         if safe is None or not safe.is_dir():
-            return {"ok": False, "msg": "Folder luar kawasan kerja.", "path": str(target), "entries": []}
+            return {"ok": False, "msg": "Folder is outside the workspace.", "path": str(target), "entries": []}
         entries = []
         try:
             for p in sorted(safe.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
@@ -541,15 +541,15 @@ class Api:
         """Pratonton teks. Fail binari ditolak, bukan dihantar sebagai mojibake."""
         p = self._safe_path(path)
         if p is None or not p.is_file():
-            return {"ok": False, "msg": "Fail tiada atau luar kawasan kerja."}
+            return {"ok": False, "msg": "File missing, or outside the workspace."}
         if p.stat().st_size > 2 * 1024 * 1024:
-            return {"ok": False, "msg": "Fail lebih 2 MB — buka di luar sahaja."}
+            return {"ok": False, "msg": "File is over 2 MB — open it outside the stage."}
         try:
             raw = p.read_bytes()
         except OSError as e:
             return {"ok": False, "msg": str(e)}
         if b"\x00" in raw[:4096]:
-            return {"ok": False, "msg": "Fail binari — tiada pratonton teks.", "binary": True}
+            return {"ok": False, "msg": "Binary file — no text preview.", "binary": True}
         try:
             text = raw.decode("utf-8")
         except UnicodeDecodeError:
@@ -561,7 +561,7 @@ class Api:
         """Escape hatch: buka fail dengan app lalai Windows. Butang 'Buka luar' sahaja."""
         p = self._safe_path(path)
         if p is None or not p.exists():
-            return {"ok": False, "msg": "Fail tiada atau luar kawasan kerja."}
+            return {"ok": False, "msg": "File missing, or outside the workspace."}
         try:
             os.startfile(str(p))
             return {"ok": True}
@@ -619,11 +619,11 @@ class Api:
         kind = (kind or "").strip().lower()
         want = (name or "").strip().lower()
         if not want:
-            return {"ok": False, "msg": "Tiada nama."}
+            return {"ok": False, "msg": "No name given."}
         if kind in ("desktop",):
             base = known_folder("Desktop")
             if base is None:
-                return {"ok": False, "msg": "Tiada Desktop."}
+                return {"ok": False, "msg": "No Desktop folder."}
             try:
                 for p in base.iterdir():
                     if ((p.stem if p.suffix.lower() in (".lnk", ".url") else p.name).lower() == want
@@ -634,14 +634,14 @@ class Api:
                         return {"ok": True, "opened": str(p)}
             except OSError as e:
                 return {"ok": False, "msg": str(e)}
-            return {"ok": False, "msg": f'"{name}" tiada di Desktop.'}
+            return {"ok": False, "msg": f'"{name}" is not on the Desktop.'}
         group = "apps" if kind in ("apps", "app") else "folders"
         for item in load_json(SHORTCUTS, {}).get(group, []):
             if item.get("name", "").strip().lower() != want:
                 continue
             t = resolve(item)
             if t is None:
-                return {"ok": False, "msg": f'"{name}" tak dijumpai pada mesin ini.'}
+                return {"ok": False, "msg": f'"{name}" is not on this machine.'}
             if Path(t).is_dir():
                 return {"ok": True, "folder": str(t)}
             try:
@@ -653,7 +653,7 @@ class Api:
                     return {"ok": True, "opened": str(t)}
                 except Exception as e:
                     return {"ok": False, "msg": str(e)}
-        return {"ok": False, "msg": f'"{name}" tiada dalam shortcuts.json.'}
+        return {"ok": False, "msg": f'"{name}" is not in shortcuts.json.'}
 
     # ---------- Stage: dokumen (Fasa 6) ----------
     # Dibaca di Python, bukan di browser. PDF.js + docx-preview + SheetJS akan
@@ -667,16 +667,16 @@ class Api:
         """Buka satu dokumen untuk dibaca dalam stage. Tiada tulis, tiada ubah."""
         p = self._safe_path(path)
         if p is None or not p.is_file():
-            return {"ok": False, "msg": "Fail tiada atau luar kawasan kerja."}
+            return {"ok": False, "msg": "File missing, or outside the workspace."}
         if p.stat().st_size > self.DOC_MAX_BYTES:
-            return {"ok": False, "msg": "Fail lebih 40 MB — buka di luar sahaja."}
+            return {"ok": False, "msg": "File is over 40 MB — open it outside the stage."}
         ext = p.suffix.lower().lstrip(".")
         handler = {"pdf": self._doc_pdf, "docx": self._doc_docx, "pptx": self._doc_pptx,
                    "xlsx": self._doc_xlsx, "xlsm": self._doc_xlsx,
                    "md": self._doc_text, "markdown": self._doc_text, "txt": self._doc_text,
                    "csv": self._doc_csv, "json": self._doc_text, "log": self._doc_text}.get(ext)
         if handler is None:
-            return {"ok": False, "msg": "Format .%s belum disokong dalam stage." % ext}
+            return {"ok": False, "msg": ".%s files are not supported in the stage yet." % ext}
         try:
             out = handler(p, page)
         except Exception as e:
@@ -818,12 +818,12 @@ class Api:
         """
         p = self._safe_path(path)
         if p is None:
-            return {"ok": False, "msg": "Laluan luar kawasan kerja — tidak ditulis."}
+            return {"ok": False, "msg": "Path outside the workspace — nothing written."}
         if not p.parent.is_dir():
-            return {"ok": False, "msg": f"Folder induk tiada: {p.parent}"}
+            return {"ok": False, "msg": f"Parent folder missing: {p.parent}"}
         if p.exists():
             if p.is_dir():
-                return {"ok": False, "msg": "Itu folder, bukan fail."}
+                return {"ok": False, "msg": "That is a folder, not a file."}
             try:
                 current = p.stat().st_size
             except OSError as e:
@@ -832,8 +832,8 @@ class Api:
             # file passes no expected_size and skips straight through
             if expected_size is not None and int(expected_size) != current:
                 return {"ok": False, "conflict": True, "size": current,
-                        "msg": f"Fail berubah di luar editor ({current} bait, "
-                               f"dijangka {expected_size}). Simpan semula untuk timpa."}
+                        "msg": f"File changed outside the editor ({current} bytes, "
+                               f"expected {expected_size}). Press Save again to overwrite."}
             try:
                 shutil.copy2(p, p.with_suffix(p.suffix + ".bak"))
             except OSError:
@@ -959,7 +959,7 @@ class Api:
         """
         u = str(url or "").strip()
         if not u:
-            return {"ok": False, "msg": "Alamat kosong."}
+            return {"ok": False, "msg": "Empty address."}
         if not re.match(r"^https?://", u):
             u = "https://" + u
         # a bare host with no dot is a search, not a site — same call the
@@ -1007,9 +1007,9 @@ class Api:
                 on_top=True,
             )
         except Exception as e:
-            return {"ok": False, "msg": f"Tetingkap web gagal dibuka: {e}"}
+            return {"ok": False, "msg": f"Web window failed to open: {e}"}
         if win is None:
-            return {"ok": False, "msg": "Tetingkap web tidak dapat dimulakan."}
+            return {"ok": False, "msg": "The web window could not be started."}
         self._web_win = win
         self._web_url = u
         self._web_open = True
@@ -1141,7 +1141,7 @@ class Api:
         """
         q = str(query or "").strip()
         if not q:
-            return {"ok": False, "msg": "Carian kosong."}
+            return {"ok": False, "msg": "Empty search."}
         r = self.web_open("https://duckduckgo.com/?q=" + quote_plus(q), notify=notify)
         if notify is False and r.get("ok"):
             r["query"] = q
@@ -1293,7 +1293,7 @@ class Api:
                     return json.load(r)["choices"][0]["message"]
             except Exception as e:
                 if attempt == 0 and m != fallback and fallback:
-                    self._emit("note", {"text": f"{m} lambat/gagal ({str(e)[:40]}), tukar ke {fallback}"})
+                    self._emit("note", {"text": f"{m} slow/failed ({str(e)[:40]}), switching to {fallback}"})
                     continue
                 raise
 
@@ -1321,7 +1321,7 @@ class Api:
             lines.append(f"- {x.get('title')}{date} ({x.get('link')}): {x.get('snippet', '')}")
         for x in (d.get("topStories") or [])[:3]:
             lines.append(f"- Berita: {x.get('title')} ({x.get('source')}, {x.get('date', '')})")
-        return "\n".join(lines) or "Tiada hasil."
+        return "\n".join(lines) or "No results."
 
     def _web_search(self, query):
         """Carian web rasmi: Serper (Google) → Tavily → Claude Code WebSearch, ikut key yang ada."""
@@ -1331,7 +1331,7 @@ class Api:
                 return self._serper(s["serper_api_key"], query)
             except Exception as e:
                 if not (s.get("tavily_api_key") or self._claude):
-                    return f"Carian Google gagal: {e}"
+                    return f"Google search failed: {e}"
         if s.get("tavily_api_key"):
             req = urllib.request.Request(
                 "https://api.tavily.com/search", method="POST",
@@ -1342,9 +1342,9 @@ class Api:
                 d = json.load(r)
             lines = [f"Ringkasan: {d['answer']}"] if d.get("answer") else []
             lines += [f"- {x.get('title')} ({x.get('url')}): {x.get('content', '')[:400]}" for x in d.get("results", [])]
-            return "\n".join(lines) or "Tiada hasil."
+            return "\n".join(lines) or "No results."
         if not self._claude:
-            return "Carian web tak tersedia: tiada key Tavily dan Claude Code tak dijumpai."
+            return "Web search unavailable: no Tavily key and Claude Code not found."
         result = self._claude_quick(
             f"Cari di web dan beri ringkasan fakta terkini yang padat (maksimum 8 baris) berserta "
             f"sumber dalam format [tajuk](url) dan tarikh jika ada, untuk: {query}", ["WebSearch", "WebFetch"])
@@ -1354,7 +1354,7 @@ class Api:
     def _claude_quick(self, prompt, tools, model="haiku", timeout=120):
         """Panggilan Claude Code ringkas dengan tool terhad (carian web, Gmail, Drive, tengok skrin)."""
         if not self._claude:
-            return "Claude Code tak dijumpai."
+            return "Claude Code not found."
         if any(t.startswith("mcp__") for t in tools):
             # Sambungan Gmail/Drive dibuat di latar; tanpa ToolSearch dulu, Claude selalu kata "server masih menyambung"
             service = "gmail" if any("Gmail" in t for t in tools) else "google drive"
@@ -1370,7 +1370,7 @@ class Api:
         try:
             return json.loads(p.stdout.decode("utf-8", "replace")).get("result") or "Tiada hasil."
         except json.JSONDecodeError:
-            return "Gagal: " + p.stderr.decode("utf-8", "replace")[-300:]
+            return "Failed: " + p.stderr.decode("utf-8", "replace")[-300:]
 
     # ---------- Info harian: cuaca, solat, laporan pagi ----------
     def _cfg_place(self):
@@ -1505,24 +1505,24 @@ class Api:
                     target = resolve(item)
                     if target:
                         os.startfile(str(target))
-                        return f"Dah buka {item['name']}.", str(target) if isinstance(target, Path) else ""
+                        return f"Opened {item['name']}.", str(target) if isinstance(target, Path) else ""
         place = self._resolve_place(name)
         if place:
             os.startfile(str(place))
-            return f"Dah buka {place.name} ({place}).", str(place)
+            return f"Opened {place.name} ({place}).", str(place)
         lnk = find_start_menu(name)
         if lnk:
             os.startfile(str(lnk))
-            return f"Dah buka {lnk.stem}.", ""
-        return f'Tak jumpa "{name}" dalam PC.', ""
+            return f"Opened {lnk.stem}.", ""
+        return f'Could not find "{name}" on this PC.', ""
 
     def _tool_list(self, folder):
         p = self._resolve_place(folder)
         if not p or not p.is_dir():
-            return f'Folder "{folder}" tak dijumpai.', "", "", []
+            return f'Folder "{folder}" was not found.', "", "", []
         entries = sorted(p.iterdir(), key=lambda e: (not e.is_dir(), e.name.lower()))
         lines = [("[folder] " if e.is_dir() else "") + e.name for e in entries[:80]]
-        more = f"\n…dan {len(entries) - 80} lagi" if len(entries) > 80 else ""
+        more = f"\n…and {len(entries) - 80} more" if len(entries) > 80 else ""
         listing = "\n".join(str(e) for e in entries[:12])  # untuk cabang peta hologram
         return (f"Isi {p} ({len(entries)} item):\n" + "\n".join(lines) + more,
                 str(p), listing, self._as_items(entries, 6))
@@ -1545,15 +1545,15 @@ class Api:
                 if len(hits) >= 30 or time.time() > deadline:
                     break
         if not hits:
-            return f'Tiada fail dengan nama "{keyword}".', "", []
-        return (f"Jumpa {len(hits)} fail:\n" + "\n".join(hits[:30]),
+            return f'No files named "{keyword}".', "", []
+        return (f"Found {len(hits)} files:\n" + "\n".join(hits[:30]),
                 "\n".join(hits[:12]),
                 [{"text": os.path.basename(h), "dir": False} for h in hits[:6]])
 
     def _tool_read(self, path):
         p = self._resolve_place(path)
         if not p or not p.is_file():
-            return f'Fail "{path}" tak dijumpai. Guna find_files dulu.', ""
+            return f'File "{path}" was not found. Use find_files first.', ""
         ext, limit = p.suffix.lower(), 12000
         try:
             if ext == ".pdf":
@@ -1581,10 +1581,10 @@ class Api:
                 text = p.read_text(encoding="utf-8", errors="replace")
                 head = "Fail teks"
             else:
-                return f"Jenis fail {ext} tak boleh dibaca dalam mod ni.", str(p)
+                return f"{ext} files cannot be read in this mode.", str(p)
         except Exception as e:
-            return f"Gagal baca fail: {e}", str(p)
-        text = text.strip() or "(tiada teks, mungkin PDF imej/scan)"
+            return f"Could not read the file: {e}", str(p)
+        text = text.strip() or "(no text — probably a scanned/image PDF)"
         cut = f"\n…(dipotong, jumlah {len(text)} aksara)" if len(text) > limit else ""
         return f"{head}: {p.name}\n\n{text[:limit]}{cut}", str(p)
 
@@ -1592,7 +1592,7 @@ class Api:
         secs = max(5, float(minutes) * 60)
         due = time.strftime("%H:%M", time.localtime(time.time() + secs))
         threading.Timer(secs, self._fire_reminder, args=(message,)).start()
-        return f"Peringatan diset untuk pukul {due}: {message}"
+        return f"Reminder set for {due}: {message}"
 
     def _fire_reminder(self, message):
         try:
@@ -1614,12 +1614,12 @@ class Api:
         lat, lon, zone = self._cfg_place()
         if name == "open_media":
             want = str(args.get("name", "") or "").strip()
-            self._emit("tool", {"name": label, "detail": want or "senarai media/", "full": ""})
+            self._emit("tool", {"name": label, "detail": want or "listing media/", "full": ""})
             res = self.open_media(want)
             if not res.get("ok"):
-                return res.get("msg", "Tak jumpa media.") + " Senarai: " + ", ".join(
+                return res.get("msg", "No media found.") + " List: " + ", ".join(
                     i["name"] for i in res.get("items", [])[:20])
-            return f"Dah main {res['name']} dalam panel MEDIA."
+            return f"Playing {res['name']} in the MEDIA panel."
         if name == "weather":
             self._emit("tool", {"name": label, "detail": load_json(CONFIG, {}).get("location", ""), "full": ""})
             return sv.weather_text(sv.weather(lat, lon))
@@ -1654,7 +1654,7 @@ class Api:
             act = args.get("action", "")
             done = sv.do_control(act)
             self._emit("tool", {"name": label, "detail": done or act, "full": ""})
-            return f"Dah buat: {done}." if done else f"Tindakan {act} tak dikenali."
+            return f"Done: {done}." if done else f"Action {act} not recognised."
         if name == "system":
             act = str(args.get("action", "") or "")
             rest = {k: v for k, v in args.items() if k != "action" and v is not None}
@@ -1663,7 +1663,7 @@ class Api:
             if act == "show_doc":
                 # System tidak tahu tentang HUD, jadi show_doc diselesaikan di sini
                 r = self._open_doc_in_stage(rest.get("path", ""))
-                return r.get("label", "Dah cuba buka.")
+                return r.get("label", "Tried to open it.")
             res = self._sys.do(act, **rest)
             if res.get("need_confirm"):
                 # Token disimpan supaya "ya" dari Akmal menyambung kerja yang sama
@@ -1672,22 +1672,22 @@ class Api:
                 self._push(f"window.jarvisConfirm && window.jarvisConfirm({json.dumps(res)})")
                 return (f"Perlu pengesahan Akmal: {res['ask']} JANGAN panggil tool ini lagi. "
                         f"Tanya Akmal dalam satu ayat pendek dan berhenti.")
-            return res.get("msg") or ("Siap." if res.get("ok") else "Tak jadi.")
+            return res.get("msg") or ("Done." if res.get("ok") else "Failed.")
         detail = str(next(iter(args.values()), "")) if args else ""
         if name == "set_reminder":
             detail = f"{args.get('minutes')} min · {args.get('message', '')}"
         if name == "system_status":
-            self._emit("tool", {"name": label, "detail": "CPU, RAM, disk, bateri", "full": ""})
+            self._emit("tool", {"name": label, "detail": "CPU, RAM, disk, battery", "full": ""})
             st = self.get_stats()
             up = int(time.time() - st["boot"])
-            bat = "tiada" if st["battery"] is None else f"{st['battery']}%" + (" (tengah cas)" if st["plugged"] else "")
+            bat = "n/a" if st["battery"] is None else f"{st['battery']}%" + (" (charging)" if st["plugged"] else "")
             return (f"CPU {st['cpu']}%, RAM {st['ram']}% ({st['ram_used']}/{st['ram_total']} GB), disk C {st['disk']}%, "
-                    f"bateri {bat}, internet turun {st['down']} KB/s, PC hidup {up // 3600} jam {up % 3600 // 60} minit.")
+                    f"battery {bat}, down {st['down']} KB/s, uptime {up // 3600} h {up % 3600 // 60} min.")
         if name == "web_search":
             q = args.get("query", "")
             self._emit("tool", {"name": label, "detail": q, "full": q})
             if not q:
-                return "Query kosong."
+                return "Empty query."
             self._last_links = []
             result = self._web_search(q)
             if self._last_links:  # cabang hasil carian (tajuk + ikon laman) dalam peta hologram
@@ -1695,7 +1695,7 @@ class Api:
             return result
         if name == "set_reminder":
             self._emit("tool", {"name": label, "detail": detail, "full": ""})
-            return self._tool_reminder(args.get("minutes", 1), args.get("message", "Peringatan"))
+            return self._tool_reminder(args.get("minutes", 1), args.get("message", "Reminder"))
         if name == "open_item":
             msg, path = self._tool_open(args.get("name", ""))
             self._emit("tool", {"name": label, "detail": detail, "full": path or ""})
@@ -1717,7 +1717,7 @@ class Api:
             msg, path = self._tool_read(args.get("path", ""))
             self._emit("tool", {"name": label, "detail": Path(path).name if path else detail, "full": f'"{path}"' if path else ""})
             return msg
-        return f"Tool {name} tak wujud."
+        return f"Tool {name} does not exist."
 
     def _make_analysis(self, s, question, answer, collected):
         """Tukar jawapan analisis jadi dashboard (JSON) dalam panggilan berasingan tanpa tool. Berfungsi untuk semua model."""
@@ -1811,7 +1811,7 @@ class Api:
         """Tukar panel stage dari Python (contoh: dari arahan suara)."""
         name = re.sub(r"[^a-z]", "", str(name or "").lower())
         if name not in ("comms", "media", "term", "files", "editor", "browse", "docs", "ana", "native"):
-            return {"ok": False, "msg": "Panel tak dikenali."}
+            return {"ok": False, "msg": "Unknown panel."}
         self._push(f"window.stageShow && window.stageShow({json.dumps(name)})")
         return {"ok": True, "pane": name}
 
@@ -1940,7 +1940,7 @@ class Api:
             out = {"ok": True, "src": "data:audio/mpeg;base64," + base64.b64encode(audio).decode(),
                    "via": "edge"}
             if cfg.get("_tts_fallback"):
-                out["note"] = "Google gagal, guna edge-tts: " + cfg["_tts_fallback"][:120]
+                out["note"] = "Google failed, using edge-tts: " + cfg["_tts_fallback"][:120]
             return out
         except Exception as e:
             return {"ok": False, "msg": str(e), "via": "edge"}
@@ -1951,7 +1951,7 @@ class Api:
         tidak berulang kali cuba laluan yang memang tak akan jadi."""
         key = load_json(SECRETS, {}).get("google_tts_api_key")
         if not key:
-            return {"ok": False, "hard": True, "msg": "google_tts_api_key tiada dalam secrets.json"}
+            return {"ok": False, "hard": True, "msg": "google_tts_api_key is missing from secrets.json"}
 
         lang = "en-GB" if voice.startswith("en-") else "ms-MY"
         rate = 1 + int(str(cfg.get("voice_rate", "+0%")).rstrip("%")) / 100
@@ -2202,7 +2202,7 @@ class Api:
 
     @staticmethod
     def _sys_report(res):
-        msg = res.get("msg") or ("Siap." if res.get("ok") else "Tak jadi.")
+        msg = res.get("msg") or ("Done." if res.get("ok") else "Failed.")
         label = ("✔ " if res.get("ok") else "✖ ") + msg
         if res.get("need_confirm"):
             label = "? " + msg
@@ -2356,7 +2356,7 @@ class Api:
         """Papar satu dokumen dalam panel DOK, dari suara atau dari model."""
         r = self.docs_open(path, page)
         if not r.get("ok"):
-            return {"handled": True, "label": "✖ " + r.get("msg", "Dokumen tak dapat dibaca.")}
+            return {"handled": True, "label": "✖ " + r.get("msg", "The document could not be read.")}
         self.stage_pane("docs")
         pj = "null" if page is None else str(int(page))
         # Python membaca dulu supaya label jujur, JS membaca semula untuk melukis.
@@ -2397,10 +2397,10 @@ class Api:
     def _app_place(self):
         rect = getattr(self, "_app_rect", None)
         if not rect:
-            return {"ok": False, "msg": "Rect stage belum diukur."}
+            return {"ok": False, "msg": "Stage rect has not been measured."}
         x, y, w, h, scale = rect
         ok = self._sys.embed.place(x, y, w, h, scale)
-        return {"ok": ok, "msg": "" if ok else "Tetingkap tak dapat diletakkan."}
+        return {"ok": ok, "msg": "" if ok else "The window could not be placed."}
 
     def hud_hwnd(self):
         """HWND HUD yang sebenar — dari objek Window, bukan gelintar tajuk.
@@ -2432,13 +2432,13 @@ class Api:
         """Ambil tetingkap lain masuk ke dalam stage."""
         hud = self.hud_hwnd()
         if not hud:
-            return {"ok": False, "msg": "Tetingkap Jarvis tak dijumpai."}
+            return {"ok": False, "msg": "Jarvis window not found."}
         # Cari HWND app SEBELUM menyentuh HUD. find_window membaca senarai
         # tetingkap dan mencari padanan kabur; kalau HUD dapat fokus dahulu,
         # "notepad" tidak lagi di hadapan dan padanan boleh tersasar.
         target = sysctl.find_window(title)
         if not target:
-            return {"ok": False, "msg": "Tak jumpa tetingkap \"%s\"." % title,
+            return {"ok": False, "msg": "Window \"%s\" not found." % title,
                     "title": ""}
         ok, msg = self._sys.embed.attach(hud, title)
         if ok:
@@ -2459,7 +2459,7 @@ class Api:
         """Pulihkan tetingkap ke desktop dengan gaya dan ibu asalnya."""
         ok = self._sys.embed.detach()
         self._emit("app", {"attached": ""})
-        return {"ok": True, "msg": "Tetingkap dipulangkan ke desktop." if ok else "Tiada app di-embed."}
+        return {"ok": True, "msg": "Window returned to the desktop." if ok else "No app is embedded."}
 
     def app_show(self, on):
         """Dipanggil setiap kali panel bertukar."""
@@ -2522,7 +2522,7 @@ class Api:
                     sv.beep()
                     return {"handled": True, "label": f"Media {res['name']}"}
                 msg, _ = self._tool_open(m.group(2))
-                if not msg.startswith("Tak jumpa"):
+                if not msg.startswith("Could not find"):
                     sv.beep()
                     return {"handled": True, "label": msg}
         return {"handled": False}
@@ -2577,7 +2577,7 @@ class Api:
                     return near
                 self._voice_emit("status", f'Double-checking "{text[:40]}"…')
             except Exception as e:
-                self._voice_emit("status", f"Google STT gagal ({str(e)[:50]}), guna Whisper")
+                self._voice_emit("status", f"Google STT failed ({str(e)[:50]}), using Whisper")
         segs, _ = self._whisper().transcribe(
             audio, language=cfg.get("whisper_language", "ms"), beam_size=int(cfg.get("whisper_beam", 5)), best_of=5,
             temperature=[0.0, 0.2, 0.4], condition_on_previous_text=False,

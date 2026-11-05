@@ -717,14 +717,14 @@ class System:
         tok = secrets.token_hex(4)
         self._pending[tok] = {"action": action, "args": args, "until": time.time() + CONFIRM_TTL}
         return {"ok": False, "need_confirm": True, "token": tok, "ask": ask,
-                "msg": ask + " (sahkan dalam %d saat)" % int(CONFIRM_TTL)}
+                "msg": ask + " (confirm within %d s)" % int(CONFIRM_TTL)}
 
     def confirm(self, token):
         rec = self._pending.pop(token, None)
         if not rec:
-            return {"ok": False, "msg": "Token tak sah atau dah luput."}
+            return {"ok": False, "msg": "Token is invalid or expired."}
         if time.time() > rec["until"]:
-            return {"ok": False, "msg": "Token dah luput — minta semula."}
+            return {"ok": False, "msg": "Token expired — ask again."}
         return self.do(rec["action"], _confirmed=True, **rec["args"])
 
     def cancel(self, token=None):
@@ -732,13 +732,13 @@ class System:
             self._pending.pop(token, None)
         else:
             self._pending.clear()
-        return {"ok": True, "msg": "Dibatalkan."}
+        return {"ok": True, "msg": "Cancelled."}
 
     # ---------- kemasukan tunggal ----------
     def do(self, action, _confirmed=False, **kw):
         h = getattr(self, "_a_" + str(action or ""), None)
         if h is None:
-            return {"ok": False, "msg": "Tindakan \"%s\" tak dikenali." % action}
+            return {"ok": False, "msg": "Action \"%s\" not recognised." % action}
         kind = getattr(h, "kind", SOFT)
         if kind == HARD and not _confirmed:
             ask = getattr(h, "ask", "Tindakan ini susah diundur. Teruskan?")
@@ -748,7 +748,7 @@ class System:
         try:
             return h(**kw)
         except TypeError as e:
-            return {"ok": False, "msg": "Argumen tak padan: %s" % e}
+            return {"ok": False, "msg": "Arguments do not match: %s" % e}
         except Exception as e:
             return {"ok": False, "msg": "%s: %s" % (type(e).__name__, e)}
 
@@ -763,12 +763,12 @@ class System:
     def _a_status(self):
         s = self.status()
         b = "tak disokong monitor" if s["brightness"] is None else "%d%%" % s["brightness"]
-        return {"ok": True, "msg": "Volume %s%%%s, kecerahan %s, %d tetingkap, depan: %s" % (
+        return {"ok": True, "msg": "Volume %s%%%s, brightness %s, %d windows, front: %s" % (
             s["volume"], " (mute)" if s["mute"] else "", b, s["windows"], s["front"] or "-"), **s}
 
     def _a_windows(self, limit=15):
         wins = list_windows(int(limit))
-        return {"ok": True, "msg": "; ".join(w["title"][:60] for w in wins) or "Tiada tetingkap.",
+        return {"ok": True, "msg": "; ".join(w["title"][:60] for w in wins) or "No windows.",
                 "windows": wins}
 
     def _a_processes(self, limit=15):
@@ -778,23 +778,23 @@ class System:
 
     def _a_clip_read(self):
         t = clipboard_get()
-        return {"ok": True, "text": t, "msg": (t[:300] + ("…" if len(t) > 300 else "")) or "Clipboard kosong."}
+        return {"ok": True, "text": t, "msg": (t[:300] + ("…" if len(t) > 300 else "")) or "Clipboard is empty."}
 
     def _a_shell(self, cmd=""):
         ok, out = shell_run(cmd)
-        return {"ok": ok, "msg": out[:1500] if out else "(tiada output)", "full": out}
+        return {"ok": ok, "msg": out[:1500] if out else "(no output)", "full": out}
 
     # ═════════════ ubah ═════════════
     def _a_volume(self, level=None, delta=None):
         if delta is not None:
             cur = volume_get()
             if cur is None:
-                return {"ok": False, "msg": "Peranti audio tak dijumpai."}
+                return {"ok": False, "msg": "No audio device found."}
             level = cur + int(delta)
         if level is None:
-            return {"ok": False, "msg": "Bagi level 0-100 atau delta."}
+            return {"ok": False, "msg": "Give a level 0-100 or a delta."}
         if not volume_set(level):
-            return {"ok": False, "msg": "Tak dapat set volume."}
+            return {"ok": False, "msg": "Could not set the volume."}
         if mute_get():
             mute_set(False)  # naikkan volume maksudnya Akmal nak dengar
         return {"ok": True, "msg": "Volume %d%%." % volume_get(), "volume": volume_get()}
@@ -808,13 +808,13 @@ class System:
     def _a_brightness(self, level=None, delta=None):
         cur = brightness_get()
         if cur is None:
-            return {"ok": False, "msg": "Monitor ni tak sokong kawalan kecerahan (WMI)."}
+            return {"ok": False, "msg": "This monitor does not support brightness control (WMI)."}
         if delta is not None:
             level = cur + int(delta)
         if level is None:
-            return {"ok": False, "msg": "Bagi level 0-100 atau delta."}
+            return {"ok": False, "msg": "Give a level 0-100 or a delta."}
         if not brightness_set(level):
-            return {"ok": False, "msg": "Tak dapat set kecerahan."}
+            return {"ok": False, "msg": "Could not set the brightness."}
         time.sleep(0.25)  # WMI lambat sikit kemas kini nilainya
         return {"ok": True, "msg": "Kecerahan %d%%." % (brightness_get() or level),
                 "brightness": brightness_get()}
@@ -822,39 +822,39 @@ class System:
     def _a_focus(self, title=""):
         hwnd = find_window(title)
         if not hwnd:
-            return {"ok": False, "msg": "Tak jumpa tetingkap \"%s\"." % title}
+            return {"ok": False, "msg": "Window \"%s\" not found." % title}
         ok = focus_window(hwnd)
-        return {"ok": ok, "msg": "Fokus ke %s." % title if ok else "Windows tak bagi fokus."}
+        return {"ok": ok, "msg": "Focused %s." % title if ok else "Windows refused focus."}
 
     def _a_minimize(self, title=""):
         hwnd = find_window(title) if title else _u32.GetForegroundWindow()
         if not hwnd:
-            return {"ok": False, "msg": "Tak jumpa tetingkap."}
+            return {"ok": False, "msg": "Window not found."}
         minimize_window(hwnd)
-        return {"ok": True, "msg": "Dah minimize."}
+        return {"ok": True, "msg": "Minimised."}
 
     def _a_maximize(self, title=""):
         hwnd = find_window(title) if title else _u32.GetForegroundWindow()
         if not hwnd:
-            return {"ok": False, "msg": "Tak jumpa tetingkap."}
+            return {"ok": False, "msg": "Window not found."}
         maximize_window(hwnd)
-        return {"ok": True, "msg": "Dah maximize."}
+        return {"ok": True, "msg": "Maximised."}
 
     def _a_launch(self, name=""):
         ok, info = launch_app(name)
-        return {"ok": ok, "msg": ("Buka %s." % info) if ok else info}
+        return {"ok": ok, "msg": ("Opened %s." % info) if ok else info}
 
     def _a_url(self, url=""):
         ok, u = run_url(url)
-        return {"ok": ok, "msg": "Buka %s" % u}
+        return {"ok": ok, "msg": "Opened %s" % u}
 
     def _a_clip_write(self, text=""):
         ok = clipboard_set(text)
-        return {"ok": ok, "msg": "Dah salin %d aksara ke clipboard." % len(str(text)) if ok else "Gagal salin."}
+        return {"ok": ok, "msg": "Copied %d characters to the clipboard." % len(str(text)) if ok else "Copy failed."}
 
     def _a_type(self, text=""):
         ok = type_text(text)
-        return {"ok": ok, "msg": "Dah taip %d aksara." % len(str(text)) if ok else "Gagal taip."}
+        return {"ok": ok, "msg": "Typed %d characters." % len(str(text)) if ok else "Typing failed."}
 
     def _a_show_doc(self, path=""):
         """Dibuat oleh Api (ia perlu _window untuk tukar panel), bukan di sini.
@@ -863,7 +863,7 @@ class System:
         panel DOK mesti dibuka, itu kerja pemanggil. Jadi tindakan ini
         ditandakan sebagai 'delegated' dan Api yang menyelesaikannya.
         """
-        return {"ok": False, "msg": "show_doc perlu diselesaikan oleh Api."}
+        return {"ok": False, "msg": "show_doc must be handled by Api."}
     _a_show_doc.delegated = True
 
     def _a_lock(self):
@@ -877,25 +877,25 @@ class System:
 
     def _a_power_cancel(self):
         ok, msg = power_action("cancel")
-        return {"ok": ok, "msg": "Dah batalkan." if ok else (msg or "Tiada apa nak batal.")}
+        return {"ok": ok, "msg": "Cancelled." if ok else (msg or "Nothing to cancel.")}
 
     # ═════════════ pukal — perlukan token ═════════════
     def _a_kill(self, name=""):
         hits, names = kill_process(name)
         if not hits:
-            return {"ok": False, "msg": "Tiada proses bernama \"%s\"." % name}
-        return {"ok": True, "msg": "Tutup %d proses: %s." % (hits, ", ".join(sorted(set(names))))}
+            return {"ok": False, "msg": "No process named \"%s\"." % name}
+        return {"ok": True, "msg": "Closed %d processes: %s." % (hits, ", ".join(sorted(set(names))))}
     _a_kill.kind = HARD
-    _a_kill.ask = lambda name="", **_: "Tutup paksa %s? Kerja yang belum disimpan akan hilang." % name
+    _a_kill.ask = lambda name="", **_: "Force close %s? Unsaved work will be lost." % name
 
     def _a_close_window(self, title=""):
         hwnd = find_window(title)
         if not hwnd:
-            return {"ok": False, "msg": "Tak jumpa tetingkap \"%s\"." % title}
+            return {"ok": False, "msg": "Window \"%s\" not found." % title}
         close_window(hwnd)
-        return {"ok": True, "msg": "Hantar arahan tutup ke %s." % title}
+        return {"ok": True, "msg": "Sent a close command to %s." % title}
     _a_close_window.kind = HARD
-    _a_close_window.ask = lambda title="", **_: "Tutup tetingkap \"%s\"?" % title
+    _a_close_window.ask = lambda title="", **_: "Close the window \"%s\"?" % title
 
     def _a_recycle(self, paths=None):
         if isinstance(paths, str):
@@ -903,27 +903,27 @@ class System:
         n, msg = recycle_paths(paths or [])
         return {"ok": n > 0, "msg": msg, "count": n}
     _a_recycle.kind = HARD
-    _a_recycle.ask = lambda paths=None, **_: "Buang %s ke Recycle Bin?" % (
+    _a_recycle.ask = lambda paths=None, **_: "Send %s to the Recycle Bin?" % (
         ", ".join(Path(str(p)).name for p in (paths or []))[:80])
 
     def _a_shutdown(self):
         ok, msg = power_action("shutdown")
         return {"ok": ok, "msg": msg}
     _a_shutdown.kind = HARD
-    _a_shutdown.ask = "Tutup laptop sekarang?"
+    _a_shutdown.ask = "Shut down the laptop now?"
 
     def _a_restart(self):
         ok, msg = power_action("restart")
         return {"ok": ok, "msg": msg}
     _a_restart.kind = HARD
-    _a_restart.ask = "Restart laptop sekarang?"
+    _a_restart.ask = "Restart the laptop now?"
 
     def _a_sleep(self):
         if sleep_pc():
-            return {"ok": True, "msg": "Laptop masuk tidur."}
-        return {"ok": False, "msg": "Tak dapat tidurkan laptop."}
+            return {"ok": True, "msg": "Laptop is going to sleep."}
+        return {"ok": False, "msg": "Could not put the laptop to sleep."}
     _a_sleep.kind = HARD
-    _a_sleep.ask = "Tidurkan laptop sekarang?"
+    _a_sleep.ask = "Put the laptop to sleep now?"
 
 
 # Senarai nama tindakan untuk prompt model dan untuk pengesahan awal.

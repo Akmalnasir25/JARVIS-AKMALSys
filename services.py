@@ -42,9 +42,9 @@ def _get_json(url, timeout=30):
 
 # ---------- Cuaca & kualiti udara (Open-Meteo) ----------
 WEATHER_CODES = {
-    0: "cerah", 1: "cerah sikit berawan", 2: "berawan", 3: "mendung", 45: "berkabus", 48: "berkabus",
-    51: "gerimis", 53: "gerimis", 55: "gerimis lebat", 61: "hujan renyai", 63: "hujan", 65: "hujan lebat",
-    80: "hujan sekejap-sekejap", 81: "hujan", 82: "hujan lebat", 95: "ribut petir", 96: "ribut petir", 99: "ribut petir kuat",
+    0: "clear", 1: "mostly clear", 2: "cloudy", 3: "overcast", 45: "foggy", 48: "foggy",
+    51: "drizzle", 53: "drizzle", 55: "heavy drizzle", 61: "light rain", 63: "rain", 65: "heavy rain",
+    80: "showers", 81: "rain", 82: "heavy rain", 95: "thunderstorm", 96: "thunderstorm", 99: "severe thunderstorm",
 }
 
 
@@ -63,7 +63,7 @@ def weather(lat, lon):
     rain_hours = [t[-5:] for t, p in zip(hours.get("time", []), hours.get("precipitation_probability", [])) if p and p >= 60]
     data = {
         "temp": round(cur["temperature_2m"]), "feels": round(cur["apparent_temperature"]),
-        "humidity": cur["relative_humidity_2m"], "desc": WEATHER_CODES.get(cur["weather_code"], "berawan"),
+        "humidity": cur["relative_humidity_2m"], "desc": WEATHER_CODES.get(cur["weather_code"], "cloudy"),
         "max": round(day["temperature_2m_max"][0]), "min": round(day["temperature_2m_min"][0]),
         "rain_chance": day["precipitation_probability_max"][0], "rain_from": rain_hours[0] if rain_hours else None,
     }
@@ -72,9 +72,9 @@ def weather(lat, lon):
 
 
 def weather_text(w):
-    rain = f", peluang hujan {w['rain_chance']}%" + (f" (mungkin mula sekitar {w['rain_from']})" if w["rain_from"] else "")
-    return (f"Sekarang {w['temp']}°C (terasa {w['feels']}°C), {w['desc']}, kelembapan {w['humidity']}%. "
-            f"Hari ini {w['min']}–{w['max']}°C{rain}.")
+    rain = f", {w['rain_chance']}% chance of rain" + (f" (may start around {w['rain_from']})" if w["rain_from"] else "")
+    return (f"Now {w['temp']}°C (feels like {w['feels']}°C), {w['desc']}, humidity {w['humidity']}%. "
+            f"Today {w['min']}–{w['max']}°C{rain}.")
 
 
 # ---------- Waktu solat (JAKIM e-Solat) ----------
@@ -137,11 +137,11 @@ def next_prayer(times):
 
 def prayer_text(times, zone):
     if not times:
-        return "Waktu solat belum dapat (server JAKIM lambat, tengah cuba ambil di latar)."
+        return "Prayer times are not ready yet (the JAKIM server is slow; fetching in the background)."
     parts = ", ".join(f"{name} {times[k]}" for k, name in PRAYERS if k in times)
     nxt = next_prayer(times)
-    tail = f" Seterusnya {nxt[0]} pukul {nxt[1]} ({nxt[2]} minit lagi)." if nxt else " Semua waktu hari ini dah lepas."
-    return f"Waktu solat hari ini (zon {zone}): {parts}.{tail}"
+    tail = f" Next is {nxt[0]} at {nxt[1]} ({nxt[2]} min left)." if nxt else " Every time for today has passed."
+    return f"Prayer times today (zone {zone}): {parts}.{tail}"
 
 
 # ---------- Kawalan laptop melalui kekunci ----------
