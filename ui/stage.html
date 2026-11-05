@@ -1201,8 +1201,81 @@ main.stage-wrap {
 }
 .doc-err { padding: 22px; color: var(--bad); font-size: 10.5px; line-height: 1.7; }
 
+/* ── DROP TO ANALYSE ──────────────────────────────────────────
+   The veil is the whole point of the drag having feedback: WebView2 gives no
+   cursor change and no highlight of its own, so without this the drop zone is
+   invisible right up until the file lands. */
+.drop-veil {
+  position: fixed; inset: 0; z-index: 90; display: none;
+  place-items: center; backdrop-filter: blur(7px) saturate(1.25);
+  background:
+    radial-gradient(60% 55% at 50% 38%, hsl(272 96% 52% / .26), transparent 70%),
+    radial-gradient(48% 42% at 72% 70%, hsl(318 92% 54% / .18), transparent 72%),
+    hsl(258 40% 6% / .72);
+}
+.drop-veil.on { display: grid; animation: dropIn .22s ease both; }
+@keyframes dropIn { from { opacity: 0; } to { opacity: 1; } }
+.drop-card {
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+  padding: 34px 46px; border-radius: 3px; text-align: center;
+  border: 1px dashed hsl(272 100% 76% / .50);
+  background: linear-gradient(158deg, hsl(272 92% 30% / .42), hsl(318 86% 32% / .16) 62%, hsl(196 90% 34% / .12));
+  box-shadow: 0 0 0 1px hsl(318 96% 70% / .10), 0 34px 90px -40px hsl(272 100% 60% / .9);
+}
+.drop-card .glyph {
+  width: 42px; height: 42px; display: grid; place-items: center; color: hsl(276 100% 88%);
+  filter: drop-shadow(0 0 14px hsl(272 100% 76% / .75));
+}
+.drop-card .glyph svg { width: 34px; height: 34px; }
+.drop-card b {
+  font: 600 13px/1 var(--font-display); letter-spacing: .19em; text-transform: uppercase;
+  background: linear-gradient(92deg, hsl(276 100% 90%), hsl(318 98% 82%) 55%, hsl(196 100% 80%));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.drop-card span {
+  font: 400 9.5px/1.5 var(--font-mono); letter-spacing: .07em; color: var(--ink-dim);
+  max-width: 30ch;
+}
+
+/* ── the listing the analyser hands back ───────────────────── */
+.feed { display: flex; flex-direction: column; scrollbar-width: none; }
+.feed::-webkit-scrollbar { display: none; }
+.feed-row {
+  display: grid; grid-template-columns: 1fr 74px 68px 88px; gap: 10px;
+  align-items: center; padding: 5px 22px;
+  border-bottom: 1px solid hsl(var(--hue) 60% 80% / .055);
+  font: 400 10px/1.5 var(--font-mono); color: var(--ink-dim);
+  animation: feedIn .34s cubic-bezier(.2,.7,.2,1) both;
+}
+@keyframes feedIn { from { opacity: 0; transform: translateX(-7px); } to { opacity: 1; transform: none; } }
+.feed-row:hover { background: hsl(var(--hue) 90% 70% / .045); }
+.feed-row .nm {
+  color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  direction: rtl; text-align: left;   /* keeps the filename visible on long paths */
+}
+.feed-row .tp {
+  font: 500 8px/1 var(--font-display); letter-spacing: .13em; text-transform: uppercase;
+  color: hsl(196 100% 76%);
+}
+.feed-row .sz, .feed-row .dt { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.feed-row.head {
+  position: sticky; top: 0; z-index: 1; animation: none;
+  background: linear-gradient(96deg, hsl(272 92% 34% / .38), hsl(318 86% 34% / .16));
+  border-bottom-color: hsl(272 100% 74% / .22);
+}
+.feed-row.head span {
+  font: 600 8px/1 var(--font-display); letter-spacing: .17em; text-transform: uppercase;
+  color: hsl(276 100% 88%);
+}
+
 /* ── ANALYSIS panel ───────────────────────────────────────── */
 .ana-shell { padding: 14px; display: flex; flex-direction: column; gap: 11px; height: 100%; overflow-y: auto; }
+/* The default WebView2 scrollbar is a solid grey slab down the middle of a
+   dark pane — it was the widest bright object on the report. Every other
+   scroll surface in this HUD hides it and scrolls by wheel, so this one does
+   the same instead of inventing a second convention. */
+.ana-shell { scrollbar-width: none; }
+.ana-shell::-webkit-scrollbar { display: none; }
 .ana-title { font: 600 15px/1.3 var(--font-display); letter-spacing: .03em; color: var(--ink); }
 .ana-sum { font-size: 10.5px; line-height: 1.6; color: var(--ink-dim); }
 .ana-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 9px; }
@@ -1220,10 +1293,26 @@ main.stage-wrap {
 .ana-card.shown { opacity: 1; transform: none; }
 .ana-card.shown::after { width: 96%; }
 .ana-card b { display: block; font: 600 19px/1 var(--font-display); color: var(--cyan); font-variant-numeric: tabular-nums; }
+/* each card carries its own hue, set inline by render() as --card-hue */
+.ana-card b {
+  background: linear-gradient(92deg,
+    hsl(var(--card-hue, 196) 100% 84%),
+    hsl(calc(var(--card-hue, 196) + 34) 98% 74%));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.ana-card::after {
+  background: linear-gradient(90deg,
+    hsl(var(--card-hue, 196) 100% 74% / .85), transparent);
+}
 .ana-card span { display: block; margin-top: 5px; font-size: 8px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
 .ana-card small { display: block; margin-top: 4px; font-size: 9px; line-height: 1.45; color: var(--ink-dim); }
 .ana-card.focus { border-color: var(--line-hard); }
-.ana-card.focus b, .ana-card.focus span { color: var(--amber); }
+/* Focus must beat the per-card gradient, so the fill is dropped here rather
+   than only recolouring — a clipped gradient ignores `color`. */
+.ana-card.focus b {
+  background: none; -webkit-text-fill-color: var(--amber); color: var(--amber);
+}
+.ana-card.focus span { color: var(--amber); }
 .ana-card.focus::after { background: linear-gradient(90deg, var(--amber), transparent); }
 
 .ana-charts { display: flex; flex-direction: column; gap: 11px; }
@@ -2035,6 +2124,8 @@ nav.rail {
           <span class="title">Docs</span>
           <span class="meta" id="docMeta">no doc yet</span>
           <span class="grow"></span>
+          <button type="button" class="btn" id="docPickFile" title="Read a file and report what is in it">File…</button>
+          <button type="button" class="btn" id="docPickDir" title="Read a folder and report what is in it">Folder…</button>
           <button type="button" class="btn" id="docPrev" disabled>‹</button>
           <span class="doc-count" id="docPage">–</span>
           <button type="button" class="btn" id="docNext" disabled>›</button>
@@ -2163,7 +2254,17 @@ nav.rail {
 
   <!-- ══════════ FOOTER ══════════ -->
   <footer>
-    <div class="dock">
+    <div class="drop-veil" id="dropVeil" aria-hidden="true">
+    <div class="drop-card">
+      <div class="glyph">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      </div>
+      <b>Drop to analyse</b>
+      <span>a file or a folder — I will measure it and draw the report</span>
+    </div>
+  </div>
+
+  <div class="dock">
       <div class="dock-tabs" role="tablist">
         <button type="button" role="tab" data-dock="desktop" aria-selected="true">DESKTOP</button>
         <button type="button" role="tab" data-dock="apps" aria-selected="false">APPS</button>
@@ -3009,6 +3110,9 @@ nav.rail {
     // ── drawings ──────────────────────────────────────────────
     const PAL = ['hsl(272 100% 76%)', 'hsl(318 96% 74%)', 'hsl(196 100% 70%)',
                  'hsl(44 100% 64%)', 'hsl(158 84% 64%)', 'hsl(6 96% 70%)'];
+    // Card hues only — the same six, as bare numbers so one can drive both a
+    // text colour and a gradient stop.
+    const HUE = [272, 318, 196, 44, 158, 6];
 
     function barRows(box, rows) {
       const max = Math.max(...rows.map(r => Math.abs(Number(r.value) || 0)), 1);
@@ -3115,9 +3219,13 @@ nav.rail {
       followEl.textContent = '';
 
       const cards = (a.cards || []).slice(0, 6);
-      cards.forEach(c => {
+      cards.forEach((c, i) => {
         const d = document.createElement('div');
         d.className = 'ana-card';
+        // A card's hue follows its position, so a dashboard reads as a set of
+        // related tiles rather than one colour repeated four times. Same
+        // rotation as PAL, kept in step with the charts below it.
+        d.style.setProperty('--card-hue', HUE[i % HUE.length]);
         const v = document.createElement('b');
         v.textContent = esc(c.value);
         const l = document.createElement('span');
@@ -4059,7 +4167,40 @@ nav.rail {
 
       // text / md / json / log
       body.appendChild(el('pre', 'doc-text', r.text || ''));
+      act('📄 ' + (r.name || ''));
     }
+
+    /* A listing handed over by the analyser. Deliberately not a document —
+       "what is in this folder" is a table, and trying to render 200 rows as a
+       document would lose the columns that make it readable. */
+    function paintFeed(r) {
+      body.textContent = '';
+      body.scrollTop = 0;
+      deck = []; follow = null; cur = null;
+      const rows = (r && r.rows) || [];
+      pageTag.textContent = rows.length + ' rows';
+      btPrev.disabled = btNext.disabled = btOpen.disabled = true;
+      meta.textContent = (r && r.title ? r.title + ' · ' : '') + rows.length + ' files';
+      if (!rows.length) {
+        body.appendChild(el('div', 'doc-err', 'Nothing to list.'));
+        return;
+      }
+      const head = el('div', 'feed-row head');
+      ['File', 'Type', 'Size', 'Modified'].forEach(t => head.appendChild(el('span', '', t)));
+      body.appendChild(head);
+      const wrap = el('div', 'feed');
+      rows.forEach((row, i) => {
+        const line = el('div', 'feed-row');
+        line.style.animationDelay = Math.min(i * 9, 420) + 'ms';
+        line.append(el('span', 'nm', row.path || ''), el('span', 'tp', row.type || ''),
+                    el('span', 'sz', row.size_h || ''), el('span', 'dt', row.date || ''));
+        line.title = row.path || '';
+        wrap.appendChild(line);
+      });
+      body.appendChild(wrap);
+      act('📁 ' + (r.title || 'listing'));
+    }
+    window.stageFeed = paintFeed;
 
     // The slides currently painted, and which one the projector is on. Both
     // live out here because paint() rebuilds the whole body each open, so the
@@ -4098,6 +4239,103 @@ nav.rail {
       if (pg) pg.textContent = n + ' / ' + total;
       return true;
     }
+
+    // ── pilih fail / folder untuk dianalisis ──────────────────
+    // Dialog ialah jalan utama: ia API pywebview yang didokumenkan dan
+    // memulangkan laluan penuh setiap kali. Seret-lepas hanya penghias —
+    // WebView2 menghantar laluan melalui FilesDropped, tetapi hanya bila ada
+    // listener 'drop' didaftarkan pada DOM (pywebview mengekalkan kiraan
+    // num_listeners dan berhenti awal bila ia sifar).
+    async function analyse(paths, kind) {
+      if (!api || !api.analyse_path) return false;
+      setBusy(true, kind === 'folder' ? 'Measuring the folder…' : 'Measuring…');
+      try {
+        const r = await api.analyse_path(null, paths || null);
+        if (r && r.ok) {
+          act('📊 ' + (r.title || 'report'));
+          return true;
+        }
+        body.textContent = '';
+        body.appendChild(el('div', 'doc-err', (r && r.msg) || 'Could not read it.'));
+        return false;
+      } catch (e) {
+        body.textContent = '';
+        body.appendChild(el('div', 'doc-err', 'Error: ' + e.message));
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function pick(kind) {
+      if (!api || !api.pick_upload) return;
+      const r = await api.pick_upload(kind);
+      if (!r || !r.ok) {
+        if (r && r.msg) {
+          body.textContent = '';
+          body.appendChild(el('div', 'doc-err', r.msg));
+        }
+        return;
+      }
+      await analyse(r.paths, kind);
+    }
+
+    const btFile = document.getElementById('docPickFile');
+    const btDir = document.getElementById('docPickDir');
+    if (btFile) btFile.addEventListener('click', () => pick('file'));
+    if (btDir) btDir.addEventListener('click', () => pick('folder'));
+
+    // Python pushes a selection here after pywebview's FilesDropped route has
+    // resolved real paths. A native drop event in this page carries File
+    // objects but never a filesystem path, so this is the only reliable way
+    // in from a drag.
+    window.stagePick = (paths, kind) => analyse(paths, kind);
+    window.stageDropFail = () => {
+      showVeil(false);
+      body.textContent = '';
+      body.appendChild(el('div', 'doc-err',
+        'Dropped, but the window handed over no readable path. Use File… or Folder… instead.'));
+    };
+
+    // ── seret-lepas ───────────────────────────────────────────
+    // These exist so the browser emits dragover/drop at all — WebView2 gives
+    // no drop target otherwise. The *paths* still arrive through pywebview's
+    // own FilesDropped route, which needs a listener added via webview.dom;
+    // that one lives in Python (Api.upload_bridge) because dom.DOMEventHandler
+    // has to be attached after the window loads. When both fire, the same
+    // paths arrive twice — harmless, the analyser just runs on the same
+    // selection, and the second run is a no-op refresh.
+    const veil = document.getElementById('dropVeil');
+    let dragDepth = 0;
+    const showVeil = on => { if (veil) veil.classList.toggle('on', on); };
+
+    window.addEventListener('dragenter', e => {
+      if (!e.dataTransfer || !Array.from(e.dataTransfer.types || []).includes('Files')) return;
+      dragDepth++;
+      showVeil(true);
+    }, true);
+    window.addEventListener('dragover', e => {
+      if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    }, true);
+    window.addEventListener('dragleave', e => {
+      dragDepth = Math.max(0, dragDepth - 1);
+      // A drop that has landed leaves dragDepth at 0 but the veil must stay up
+      // until the analysis starts, so the drop branch is what clears it.
+      if (dragDepth === 0 && !(e.dataTransfer && e.dataTransfer.dropEffect === 'none')) showVeil(false);
+    }, true);    window.addEventListener('drop', e => {
+      dragDepth = 0;
+      showVeil(false);
+      const files = e.dataTransfer && e.dataTransfer.files;
+      if (!files || !files.length) return;
+      e.preventDefault();
+      // The File objects carry no filesystem path here, so this branch only
+      // keeps the page from navigating to the dropped file and holds the veil
+      // up while Python's FilesDropped listener resolves the real paths.
+      if (veil) veil.classList.add('on');
+    }, true);
 
     async function open(path, page) {
       if (!api || !api.docs_open) {
@@ -4170,7 +4408,7 @@ nav.rail {
     });
 
     return {
-      open, scan, slide,
+      open, scan, slide, analyse,
       get file() { return cur; },
       get files() { return files.slice(); },
       setDir: p => { dir = p; return scan(); }

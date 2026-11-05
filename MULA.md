@@ -160,6 +160,48 @@ tambah csv/md/txt/json.
 4. Atau cakap/taip: **`buka laporan.pdf`** — Jarvis cari dalam workdir, Desktop,
    Documents, Downloads, dan buka terus dalam panel ini.
 
+### Laporan fail atau folder
+
+Tiga jalan masuk, satu laporan:
+
+| Jalan | Cara |
+|---|---|
+| **File…** | Klik, pilih satu atau banyak fail dalam dialog Windows |
+| **Folder…** | Klik, pilih satu folder |
+| **Seret-lepas** | Seret fail/folder dari Explorer ke atas HUD |
+
+Ketiga-tiganya berakhir pada `Api.analyse_path()`, jadi laporannya sama.
+Fail contoh: **`analisis folder Downloads`** — Jarvis faham laluan yang disebut
+dan terus mengukur.
+
+Angka diukur dengan `os.scandir`, bukan dianggarkan oleh model:
+
+- bilangan fail dan folder, jumlah saiz, purata per fail
+- pecahan jenis (kod, imej, dokumen, video, arkib…) sebagai donut
+- kiraan dan saiz ikut sambungan sebagai bar
+- umur fail: < 1 minggu, 1–4 minggu, 1–6 bulan, 6–12 bulan, > 1 tahun
+- 12 fail terbesar, fail kosong, tarikh fail terbaru dan tertua
+- **fail berganda** — saiz sama disahkan dengan hash 64 KB pertama
+- kata yang paling kerap muncul dalam nama fail
+
+Folder `node_modules`, `.git`, `__pycache__`, `dist`, `build`, `.venv` dan
+seumpamanya **dilangkau**: 40 ribu fail dependency tidak menceritakan apa-apa
+tentang projek yang memilikinya. Had 120,000 fail — bila had itu dicapai,
+laporan menyebutnya, kerana angka yang terpotong mesti diakui, bukan
+dibulatkan diam-diam.
+
+Satu fail pula dibaca sifatnya: saiz, jenis, hash, bilangan baris dan perkataan
+(jika teks), pengkodan, dan tarikh ubah suah.
+
+Senarai penuh fail dipaparkan dalam panel DOK sebagai jadual — nama, jenis,
+saiz, tarikh — dihantar melalui `window.stageFeed()`.
+
+**Had ruang kerja masih terpakai.** Memilih fail sendiri bukan alasan untuk
+melangkau `_safe_path`: dialog boleh dihantar ke mana-mana folder melalui
+kotak alamatnya, jadi sempadan workdir / Desktop / Documents / Downloads /
+`shortcuts.json` masih diperiksa selepas pilihan. Laluan di luar itu ditolak
+dengan sebab, bukan didiamkan.
+
 ---
 
 ## 8 · ANA — dashboard analisis
@@ -216,3 +258,6 @@ sebelum sempat jalan.
 | suara keluar English | `reply_language: "en"` dalam `config.json` |
 | TTS guna edge, bukan Google | kunci `google_tts_api_key` — semak `secrets.json` |
 | `create_window` gagal | pywebview mesti 6.x; semak `python -c "import webview"` |
+| seret-lepas tak buat apa-apa | WebView2 tidak menghantar laluan; guna **File…** / **Folder…** |
+| "outside the workspace" | laluan di luar workdir/Desktop/Documents/Downloads — tambah dalam `shortcuts.json` |
+| laporan kata "stopped after 120,000 files" | folder itu memang sebesar itu; had dalam `inspect_path.MAX_ENTRIES` |

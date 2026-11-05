@@ -22,6 +22,7 @@ import webview
 
 import services as sv
 import system as sysctl
+import inspect_path as ip
 from media_server import MediaServer
 
 ROOT = Path(__file__).resolve().parent
@@ -125,6 +126,11 @@ CHAT_TOOLS = WEB_TOOLS + [
                       "bergerak. Guna bila Akmal tanya tentang repo/projek/code dia, atau minta laporan atau "
                       "statistik kerja dia. Tiada argumen diperlukan; `limit` hadkan bilangan repo.",
         {"limit": {"type": "number", "description": "Bilangan repo maksimum (lalai 12)"}}),
+    _fn("analyse_path", "Ukur apa yang ada dalam satu fail atau folder pada mesin ini — bilangan fail, saiz, jenis, "
+                        "umur, fail terbesar, fail berganda — dan papar sebagai laporan bergerak. Guna bila Akmal "
+                        "beri laluan atau nama folder/fail dan minta analisis, laporan, atau tanya apa di dalamnya. "
+                        "Laluan mesti di bawah home, Desktop, Documents, Downloads atau workdir.",
+        {"path": {"type": "string", "description": "Laluan penuh fail atau folder untuk dianalisis"}}),
     _fn("control_pc", "Kawal laptop: slide, volume, media, scroll, tukar tetingkap.",
         {"action": {"type": "string", "enum": ["next_slide", "prev_slide", "start_show", "end_show", "black_screen",
                                                "vol_up", "vol_down", "mute", "play_pause", "next_track", "prev_track",
@@ -736,6 +742,227 @@ class Api:
         else:
             self._deck["path"] = None
         return out
+
+    def _wire_drop(self, window):
+        """Hidupkan seret-lepas: daftar satu listener 'drop' supaya WebView2
+        menghantar laluan sebenar, kemudian kutip laluan itu dan hantar ke stage.
+
+        pywebview menyimpan laluan dalam _dnd_state['paths'] dan tidak
+        memanggil balik sesiapa. Ia juga berhenti awal dalam on_script_notify
+        bila num_listeners == 0, jadi listener mesti didaftar melalui
+        webview.dom — bukan addEventListener biasa dalam halaman.
+        """
+        try:
+            from webview.dom import _dnd_state
+        except ImportError:
+            return
+        try:
+            # create_element menunggu events.loaded, jadi ini selamat di sini.
+            sink = window.dom.create_element('<div id="dropSink" hidden></div>', window.dom.body)
+            sink.on('drop', lambda e: None)
+        except Exception:
+            return     # dialog File… / Folder… kekal sebagai jalan yang berfungsi
+
+        seen = 0
+        # Bounded, not "while True": this runs on the GUI thread, and once the
+        # window is gone there is nothing to push to. Two hours of watching is
+        # far past any session; a stale loop is a leak with no upside.
+        for _ in range(18_000):
+            time.sleep(0.4)
+            try:
+                paths = _dnd_state['paths']
+                if len(paths) <= seen:
+                    continue
+                fresh = paths[seen:]
+                seen = len(paths)
+                real = []
+                for _name, full in fresh:
+                    p = self._safe_path(full)
+                    if p is not None and p.exists():
+                        real.append(str(p))
+                if not real:
+                    self._push("window.stageDropFail && window.stageDropFail()")
+                    continue
+                kind = "file" if len(real) == 1 and Path(real[0]).is_file() else "folder"
+                self._push("window.stagePick && window.stagePick(%s, %s)"
+                           % (json.dumps(real), json.dumps(kind)))
+            except Exception:
+                continue
+
+
+    # Dua jalan masuk, satu laporan. Dialog ialah jalan yang akan berfungsi
+    # setiap kali — ia API dokumentasi pywebview. Seret-lepas bergantung pada
+    # WebView2 menghantar laluan sebenar melalui FilesDropped, yang hanya
+    # hidup bila ada listener 'drop' didaftarkan pada DOM.
+    # ---------- Stage: apa dalam fail / folder ----------
+
+    def pick_upload(self, kind="file"):
+        """Buka dialog Windows. Pulangkan laluan yang lulus _safe_path sahaja.
+
+        Memilih fail sendiri bukan alasan untuk melangkau _safe_path: dialog
+        boleh dihantar ke mana-mana folder melalui kotak alamatnya, jadi
+        sempadan kerja masih perlu diperiksa selepas pilihan.
+        """
+        try:
+            import webview as _wv
+            FD = _wv.FileDialog
+            if kind == "folder":
+                res = self._window.create_file_dialog(FD.FOLDER)
+            else:
+                res = self._window.create_file_dialog(FD.OPEN, allow_multiple=True)
+        except Exception as e:
+            return {"ok": False, "msg": "The picker did not open: %s" % e}
+        if not res:
+            return {"ok": False, "msg": "", "cancel": True}
+        if isinstance(res, str):
+            res = (res,)
+        picked, rejected = [], []
+        for raw in res:
+            p = self._safe_path(raw)
+            if p is None or not p.exists():
+                rejected.append(Path(str(raw)).name)
+            else:
+                picked.append(str(p))
+        if not picked:
+            return {"ok": False, "msg": "That is outside the workspace.", "rejected": rejected}
+        return {"ok": True, "paths": picked, "rejected": rejected}
+
+    def _resolve_target(self, raw):
+        """Laluan penuh, atau nama folder/fail yang dicari dalam akar kerja.
+
+        Model sering memulangkan "Downloads" dan bukan
+        "C:\\Users\\akmal\\Downloads". Mencari nama itu dalam akar yang sama
+        dengan _safe_path lebih berguna daripada menolaknya — tetapi carian
+        masih terkurung dalam akar itu, jadi ia tidak membuka apa-apa yang
+        _safe_path tidak benarkan.
+        """
+        p = self._safe_path(raw)
+        if p is not None and p.exists():
+            return p
+        want = Path(os.path.expanduser(str(raw))).name.lower()
+        if not want:
+            return None
+        cfg = load_json(CONFIG, {})
+        roots = [Path(os.path.expanduser(cfg.get("workdir", "~"))), ROOT, HOME / "Desktop",
+                 HOME / "Documents", HOME / "Downloads"]
+        for item in load_json(SHORTCUTS, {}).get("folders", []):
+            t = resolve(item)
+            if t is not None:
+                roots.append(Path(t))
+        for r in roots:
+            try:
+                cand = r.resolve() / want
+                if cand.exists():
+                    return self._safe_path(cand)
+            except OSError:
+                continue
+        return None
+
+    def analyse_path(self, path=None, paths=None):
+        """Ukur fail atau folder, kemudian lukis laporan itu.
+
+        Angka datang dari inspect_path (os.scandir), bukan dari model. Model
+        hanya dipanggil kemudian, di _run_chat, untuk menutup dengan satu
+        ayat — laporan yang salah kira tetapi nampak meyakinkan lebih teruk
+        daripada laporan yang gagal.
+        """
+        targets = []
+        for raw in (paths or ([path] if path else [])):
+            p = self._resolve_target(raw)
+            if p is not None and p.exists():
+                targets.append(p)
+        if not targets:
+            return {"ok": False, "msg": "Nothing readable in that selection."}
+        if len(targets) > 12:
+            return {"ok": False, "msg": "Twelve at a time, otherwise the report says nothing."}
+
+        self._emit("tool", {"name": "Inspecting",
+                            "detail": "measuring %d object%s" % (len(targets),
+                                                                 "" if len(targets) == 1 else "s"),
+                            "full": ""})
+        reports, failed = [], []
+        for p in targets:
+            d = ip.inspect(p)
+            if d.get("ok"):
+                reports.append(d)
+            else:
+                failed.append("%s — %s" % (p.name, d.get("msg", "unreadable")))
+
+        if not reports:
+            return {"ok": False, "msg": "; ".join(failed) or "Nothing could be read."}
+
+        if len(reports) == 1:
+            dash = ip.dashboard(reports[0])
+            rows = ip.listing(reports[0])
+            title = reports[0]["name"]
+        else:
+            dash, rows, title = self._multi_report(reports)
+
+        if not dash:
+            return {"ok": False, "msg": "That came back empty."}
+
+        self._analysis_shown = True
+        self._chat_tool("present_analysis", dash)
+        if rows:
+            self._push("window.stageFeed && window.stageFeed(%s)"
+                       % json.dumps({"title": title, "rows": rows[:200]},
+                                    ensure_ascii=False))
+        lines = self._report_lines(reports, failed)
+        return {"ok": True, "title": title, "summary": dash.get("summary", ""),
+                "spoken": lines, "count": len(rows)}
+
+    def _multi_report(self, reports):
+        """Beberapa fail dipilih sekali gus — satu laporan, bukan lima."""
+        rows, cards, charts, pts = [], [], [], []
+        total = sum(r.get("size", 0) for r in reports)
+        kinds = {}
+        for r in reports:
+            k = r.get("type") if r.get("kind") == "file" else "folder"
+            kinds[k] = kinds.get(k, 0) + 1
+            rows.append({"path": r["name"], "size": r.get("size", 0),
+                         "size_h": r.get("size_h", ""), "date": r.get("modified", ""),
+                         "type": k})
+        cards = [
+            {"label": "Selected", "value": str(len(reports)), "note": "files and folders"},
+            {"label": "Total size", "value": ip._human(total),
+             "note": "avg %s each" % ip._human(total / len(reports))},
+            {"label": "Mostly", "value": max(kinds, key=kinds.get) if kinds else "mixed",
+             "note": "by count"},
+            {"label": "Largest", "value": max(r.get("size_h") or "0 B", key=len),
+             "note": "single object"},
+        ]
+        charts = [{"title": "What was picked", "kind": "donut",
+                   "items": [{"label": k, "value": v, "display": str(v)}
+                             for k, v in sorted(kinds.items(), key=lambda x: -x[1])]},
+                  {"title": "Size by object", "kind": "bar",
+                   "items": [{"label": r["name"][:18], "value": r.get("size", 0),
+                              "display": r.get("size_h", "")}
+                             for r in sorted(reports, key=lambda x: -x.get("size", 0))[:8]]}]
+        pts = [{"text": "%d objects, %s together." % (len(reports), ip._human(total)),
+                "target": "card:0"},
+               {"text": "Largest is %s." % max(reports, key=lambda r: r.get("size", 0))["name"],
+                "target": "card:3"}]
+        return ({"title": "Report — %d objects" % len(reports),
+                 "summary": "%d objects · %s" % (len(reports), ip._human(total)),
+                 "cards": cards, "charts": charts, "points": pts,
+                 "followups": ["Which one is the biggest?", "What is duplicated?"]},
+                rows, "%d objects" % len(reports))
+
+    def _report_lines(self, reports, failed):
+        """Fakta tepat untuk model — supaya ayat penutup tidak mereka angka."""
+        out = []
+        for r in reports[:6]:
+            if r["kind"] == "folder":
+                out.append("%s: folder, %d files, %d dirs, %s, mostly %s, newest %s"
+                           % (r["name"], r["files"], r["dirs"], r["size_h"],
+                              r["types"][0][0] if r["types"] else "mixed", r["newest"]))
+            else:
+                out.append("%s: %s file, %s, %s, modified %s"
+                           % (r["name"], r["ext"] or "no extension", r["size_h"],
+                              r["type"], r["age"]))
+        if failed:
+            out.append("could not read: " + "; ".join(failed))
+        return "\n".join(out)
 
     def _doc_pdf(self, p, page=None):
         """Teks per halaman, dan imej halaman semasa untuk bentuk asal."""
@@ -1717,6 +1944,13 @@ class Api:
                      f'+{r["ins"]}/-{r["dels"]} lines in 6 months' for r in data["repos"]]
             return ("Dashboard shown. Exact figures:" + chr(10).join(lines) +
                     chr(10) + "Reply with ONE short closing sentence. Do not repeat the numbers.")
+        if name == "analyse_path":
+            res = self.analyse_path(args.get("path"))
+            if not res.get("ok"):
+                return "Could not analyse it: " + (res.get("msg") or "unknown reason")
+            return ("Report drawn and narrated to Akmal, titled %r. Exact measured facts:\n%s\n"
+                    "Reply with ONE short closing sentence. Do not invent or restate numbers."
+                    % (res.get("title", ""), res.get("spoken", "")))
         if name == "present_analysis":
             self._analysis_shown = True
             self._emit("tool", {"name": "Analysis", "detail": args.get("title", ""), "full": ""})
@@ -2991,7 +3225,7 @@ def main():
     threading.Thread(target=api._mic_loop, daemon=True).start()       # "Hey Jarvis" + rakaman
     threading.Thread(target=api._prayer_watch, daemon=True).start()   # peringatan waktu solat
     sv.prayer_today(api._cfg_place()[2])                               # ambil waktu solat sebulan jika belum ada
-    webview.start()
+    webview.start(api._wire_drop, api._window)
 
 
 if __name__ == "__main__":

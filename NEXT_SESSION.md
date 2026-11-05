@@ -598,3 +598,82 @@ git status               # mesti bersih
 - Deck follow is optimistic: clicking a thumbnail in PowerPoint desyncs the
   pane until a spoken slide number corrects it. A real fix needs UI Automation
   on the PowerPoint window, not a keystroke counter.
+
+---
+
+## Session 05 Nov (b) — fail/folder upload, measure, report
+
+### What shipped
+- **`inspect_path.py`** (new, no GUI deps). `inspect_file()` / `inspect_folder()`
+  / `inspect()` / `dashboard()` / `listing()`. Measures with `os.scandir`; the
+  model never touches a number.
+- **`Api.pick_upload(kind)`** — `FileDialog.OPEN` (multi) or `FileDialog.FOLDER`,
+  every returned path re-checked through `_safe_path`.
+- **`Api._resolve_target(raw)`** — accepts a bare name ("Downloads") and finds
+  it under the same roots `_safe_path` allows. Still fenced by `_safe_path`.
+- **`Api.analyse_path(path, paths)`** — 1..12 targets, emits the same
+  `present_analysis` payload shape `_repo_dashboard` uses, so `render()` draws
+  it with no new UI. Also pushes a flat listing to DOK via `window.stageFeed`.
+- **`Api._wire_drop(window)`** — registered as `webview.start(func, window)`.
+  Creates a hidden sink element via `window.dom.create_element` and calls
+  `sink.on('drop', ...)` so pywebview's `_dnd_state['num_listeners']` rises
+  above 0; a bounded 0.4 s poll then drains `_dnd_state['paths']` and pushes
+  real paths into the page. Bounded (18 000 iterations), not `while True`.
+- **`analyse_path` chat tool** — "analisis folder Downloads" routes with no
+  button. Returns exact measured lines to the model so the closing sentence
+  cannot invent a figure.
+- **DOK pane** — `File…` / `Folder…` buttons, drag veil, `.feed` table.
+- **ANA cards** — `--card-hue` per card from a six-hue rotation (`HUE[]`),
+  gradient-clipped value text. Manuel's standing rule: never one colour.
+- **`MULA.md`** — new "Laporan fail atau folder" section + three new rows in
+  the troubleshooting table.
+- **`ui/_ip_test.py`** — 34 checks against a synthetic fixture with known
+  counts, known duplicates, and a `node_modules` that must be ignored. Green.
+- **`ui/_upload_live.py`** — 27 checks driving the real Api and reading the
+  DOM back. Green. Screenshots `11-upload-listing.png`, `12-upload-report.png`.
+
+### Traps hit this session
+1. **An Edit anchor ate a `def` line.** Replacing `return out\n\n    def _doc_pdf`
+   with a block that ended in `return out` silently deleted
+   `def _doc_pdf(self, p, page=None):`, leaving its docstring floating under
+   the previous function. Symptom: `AttributeError: 'Api' object has no
+   attribute '_doc_pdf'` at `docs_open`, only on PDF. Fix: always grep the
+   method name after inserting a block near another method. Guard now: an
+   `ast` walk asserting every expected `Api` method still exists.
+2. **`.acard` / `.apoint` are not the class names.** The analysis pane uses
+   `.ana-card` / `.ana-point`. Probe selectors must be read off the render
+   code, not guessed from the feature's name.
+3. **The analysis pane's scroller is `.ana-shell`, not `.pane-body`.** A
+   windowed `::-webkit-scrollbar` rule for it rendered as a grey slab; the rest
+   of the HUD hides scrollbars entirely. Matched that convention instead:
+   `scrollbar-width: none` + `::-webkit-scrollbar { display: none }`.
+4. **`.ana-card b` was `var(--cyan)` for every card**, so four cards read as one
+   colour. Gradient-clipped text also ignores `color`, so the `.focus` state
+   must reset `background: none` *and* set `-webkit-text-fill-color`.
+5. **`docs_open` is Python-only — it does not paint.** The DOM stays empty
+   until JS calls `stageDocs.open(path)`. A probe that only calls `docs_open`
+   and then checks for `#docBody img` will always fail.
+6. **A native `drop` listener in the page is not enough.** No filesystem path
+   reaches the page from a `File` object; pywebview's `FilesDropped` route is
+   the only one that carries a real path, and it is gated on
+   `_dnd_state['num_listeners'] > 0`, which only `element.on('drop', cb)` via
+   `webview.dom` raises. Hence `_wire_drop` in Python, with the page pushing
+   into `window.stagePick`.
+
+### Baseline failures, NOT caused by this work
+`ui/_live.py` reports 59 ok / 4 failed, and the same 4 fail with this session's
+changes stashed (`git stash push main.py ui/stage.html`, re-run, pop):
+- `imej pdf render` — the harness checks the image 1.6 s after
+  `_open_doc_in_stage`, before the `evaluate_js` paint lands. PDF rendering
+  itself verified independently: 1075×1521, page "1 / 8", one `#docBody img`.
+- `stageApp.attach` / `rect host` / `host stage kelihatan` — needs a live
+  Notepad HWND; the harness's `launch_app` does not leave one behind in a
+  non-interactive run.
+
+### Still open
+- `_make_analysis`'s prompt still asks for "Bahasa Melayu Malaysia santai"
+  instead of following `reply_language`.
+- Deck follow is optimistic (unchanged).
+- Drag-and-drop is wired but not proven end to end: a real `drop` through
+  WebView2 needs a human hand on the mouse. The `File…` / `Folder…` buttons
+  are the verified route.
