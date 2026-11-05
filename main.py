@@ -48,6 +48,8 @@ ROOT = Path(__file__).resolve().parent
 SHORTCUTS = ROOT / "shortcuts.json"
 CONFIG = ROOT / "config.json"
 SESSIONS = ROOT / "sessions.json"  # sesi Claude terakhir bagi setiap projek
+CHAT_LOG = ROOT / "sessions.json"  # sejarah chat disimpan dalam kunci berasingan
+DASH_CACHE = ROOT / "cache.json"   # dashboard analisis, ikut hash data
 SECRETS = ROOT / "secrets.json"  # API key (DeepSeek via rootsys); jangan kongsi fail ini
 HOME = Path.home()
 MEDIA = ROOT / "media"  # semua fail media yang dipaparkan dalam stage
@@ -62,37 +64,37 @@ START_MENUS = [
     Path(os.environ.get("PROGRAMDATA", "")) / "Microsoft/Windows/Start Menu/Programs",
 ]
 
-PERSONA = """Kamu ialah JARVIS, AI pembantu peribadi Akmal.
-Bahasa: Bahasa Melayu MALAYSIA gaya santai KL, macam pembantu muda yang power IT dan rapat dengan Akmal.
-- Kata ganti: guna "saya" untuk diri sendiri. Panggil dia dengan nama, "Akmal" (bukan bos, tuan, encik). JANGAN guna "aku", "kau", "kamu", "anda" atau "saudara". (Akmal sendiri guna "aku", itu biasa.)
+PERSONA = """Kamu ialah JARVIS, AI pembantu peribadi Sir.
+Bahasa: Bahasa Melayu MALAYSIA gaya santai KL, macam pembantu muda yang power IT dan rapat dengan Sir.
+- Kata ganti: guna "saya" untuk diri sendiri. Panggil dia "Sir" (bukan bos, tuan, encik, atau nama). JANGAN guna "aku", "kau", "kamu", "anda" atau "saudara". (Dia sendiri guna "aku", itu biasa.)
 - Ayat pendek, terus ke point. Perkataan harian Malaysia: nak, tak, dah, je, la, kot, takpe, okay, settle, jap, sikit, banyak, tengok, cakap.
-- Campur English sikit macam orang KL (contoh: "okay Akmal, dah settle", "file tu saya dah check").
+- Campur English sikit macam orang KL (contoh: "okay Sir, dah settle", "file tu saya dah check").
 - BUKAN Bahasa Indonesia. Jangan guna perkataan Indonesia. Tukar: kondisi→keadaan, silakan→sila, disarankan→disyorkan,
   pengaturan→tetapan, bisa→boleh, saja→je/sahaja, aja→je, nggak/enggak→tak, banget→sangat, sepertinya→rasanya,
-  kamu→Akmal, uang→duit, mobil→kereta, kantor→pejabat, kalian→korang, memeriksa→semak/check, otorisasi→kebenaran,
-  mengunduh→download, tersedia→ada, mohon maaf→sorry, terima kasih banyak→thanks Akmal, gimana→macam mana.
+  kamu→Sir, uang→duit, mobil→kereta, kantor→pejabat, kalian→korang, memeriksa→semak/check, otorisasi→kebenaran,
+  mengunduh→download, tersedia→ada, mohon maaf→sorry, terima kasih banyak→thanks Sir, gimana→macam mana.
 - Jawapan mungkin dibaca dengan suara, jadi elak jadual besar dan simbol pelik. Kalau ringkas, satu dua ayat cukup."""
 
 SYSTEM_PROMPT = PERSONA + """
 
 Kamu berjalan dalam HUD desktop Windows 11 dan boleh buat kerja dalam PC.
 - Untuk buka app, folder atau fail, guna Start-Process.
-- Sebelum tindakan yang susah diundur (padam atau tulis ganti fail, hantar mesej/email, install software, ubah setting sistem), stop dan tanya dulu. Sambung hanya lepas Akmal setuju dalam mesej seterusnya.
+- Sebelum tindakan yang susah diundur (padam atau tulis ganti fail, hantar mesej/email, install software, ubah setting sistem), stop dan tanya dulu. Sambung hanya lepas Sir setuju dalam mesej seterusnya.
 - Bila kerja siap, lapor hasil dalam satu dua ayat.
-- Bila Akmal minta ANALISIS (data, fail Excel/CSV, disk, jualan, markah, dll.): lepas kumpul dan kira data, akhiri jawapan dengan satu blok kod ```jarvis-analysis berisi JSON:
+- Bila Sir minta ANALISIS (data, fail Excel/CSV, disk, jualan, markah, dll.): lepas kumpul dan kira data, akhiri jawapan dengan satu blok kod ```jarvis-analysis berisi JSON:
   {"title": "...", "summary": "1 ayat", "cards": [{"label": "...", "value": "...", "note": "..."}],
    "charts": [{"title": "...", "kind": "bar|line|donut", "items": [{"label": "...", "value": 123, "display": "RM123"}]}],
    "points": [{"text": "1-2 ayat gaya KL untuk dibaca dengan suara", "target": "card:0 | chart:0 | chart:0:2"}],
    "followups": ["soalan susulan pendek"]}
   2-4 kad, 0-2 graf, 3-6 poin. HUD akan paparkan dan bacakan poin satu-satu, jadi teks di luar blok cukup satu ayat.
-- Untuk Gmail atau Google Drive: guna ToolSearch dulu untuk muatkan tool tu (cuba lagi kalau server masih menyambung). Baca sahaja, jangan hantar, padam atau ubah email/fail tanpa Akmal setuju.
+- Untuk Gmail atau Google Drive: guna ToolSearch dulu untuk muatkan tool tu (cuba lagi kalau server masih menyambung). Baca sahaja, jangan hantar, padam atau ubah email/fail tanpa Sir setuju.
 - Kalau mesej bermula dengan [Projek aktif: ...], kamu tengah kerja dalam folder projek tu. Baca struktur projek dulu sebelum ubah code, buat perubahan kecil dan tepat, dan bagitau file mana yang diubah."""
 
 CHAT_PROMPT = PERSONA + """
 
-Dalam mod ni kamu tak boleh access atau run apa-apa dalam PC. Kalau Akmal minta buat kerja dengan file, app atau code dalam PC, suruh dia tukar ke mod CLAUDE.
-Tool yang kamu ada: web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Akmal guna mod CLAUDE.
-ANALISIS: bila Akmal minta analisis, kumpul data secukupnya (maksimum 3-4 langkah tool, baca fail paling penting sahaja seperti README, package.json, data), kira angka penting, kemudian jawab dengan ringkasan padat yang ada angka. HUD akan tukar jawapan kamu jadi dashboard visual.
+Dalam mod ni kamu tak boleh access atau run apa-apa dalam PC. Kalau Sir minta buat kerja dengan file, app atau code dalam PC, suruh dia tukar ke mod CLAUDE.
+Tool yang kamu ada: web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Sir guna mod CLAUDE.
+ANALISIS: bila Sir minta analisis, kumpul data secukupnya (maksimum 3-4 langkah tool, baca fail paling penting sahaja seperti README, package.json, data), kira angka penting, kemudian jawab dengan ringkasan padat yang ada angka. HUD akan tukar jawapan kamu jadi dashboard visual.
 Kamu ADA akses internet melalui tool web_search. Biasanya SATU carian dah cukup; cari lagi hanya kalau hasil pertama memang tak menjawab. Guna bila soalan perlukan maklumat terkini atau fakta yang kamu tak pasti (harga, berita, cuaca, jadual, skor, release terbaru). Jangan cakap kamu takde internet. Lepas cari, jawab ringkas dan sebut sumber secara santai (contoh: "ikut Bernama semalam...")."""
 
 WEB_TOOLS = [{
@@ -113,7 +115,7 @@ def _fn(name, desc, props=None, required=None):
 
 # Tool DeepSeek: semuanya baca sahaja atau selamat (tiada padam/ubah fail)
 CHAT_TOOLS = WEB_TOOLS + [
-    _fn("open_item", "Buka app, folder atau fail dalam PC untuk Akmal. HANYA bila Akmal minta buka. Untuk tengok isi, guna list_folder/read_file.",
+    _fn("open_item", "Buka app, folder atau fail dalam PC untuk Sir. HANYA bila Sir minta buka. Untuk tengok isi, guna list_folder/read_file.",
         {"name": {"type": "string", "description": "Nama app/folder/fail, atau path penuh"}}, ["name"]),
     _fn("system_status", "Status PC sekarang: CPU, RAM, disk C, bateri, internet, berapa lama PC hidup."),
     _fn("list_folder", "Senaraikan isi sesuatu folder.",
@@ -122,14 +124,31 @@ CHAT_TOOLS = WEB_TOOLS + [
         {"keyword": {"type": "string", "description": "Sebahagian nama fail, contoh: laporan, .pdf, surat"}}, ["keyword"]),
     _fn("read_file", "Baca kandungan fail teks, PDF atau Word (.docx) untuk dirumus atau dijawab.",
         {"path": {"type": "string", "description": "Path penuh fail (guna find_files dulu jika tak tahu)"}}, ["path"]),
+    _fn("read_telegram", "Baca Telegram Sir sendiri: senarai chat, kandungan satu chat, ringkasan perbualan, "
+        "atau cari mesej. Untuk 'apa orang cakap dalam chat X', 'cari mesej pasal Y', "
+        "'ringkaskan perbualan Z', 'siapa aktif dalam group tu', 'apa fail orang hantar'.",
+        {"action": {"type": "string", "description": "dialogs | thread | digest | search",
+                    "enum": ["dialogs", "thread", "digest", "search"]},
+         "chat": {"type": "string", "description": "Nama chat atau id. Untuk thread dan digest."},
+         "query": {"type": "string", "description": "Kata kunci carian. Untuk search sahaja."},
+         "days": {"type": "number", "description": "Hadkan kepada N hari terakhir (pilihan)"},
+         "limit": {"type": "number", "description":
+                   "thread: berapa mesej (lalai 40, maks 500). digest: berapa mesej dilombong (lalai 800)"}},
+        ["action"]),
+    _fn("telegram_files", "Cari fail atau dokumen dalam Telegram Sir ikut jenis: PDF, gambar, video, audio, link.",
+        {"kind": {"type": "string", "description": "document | photo | video | audio | link",
+                  "enum": ["document", "photo", "video", "audio", "link"]},
+         "query": {"type": "string", "description": "Sebahagian nama fail atau kata kunci (pilihan)"},
+         "chat": {"type": "string", "description": "Hadkan pada satu chat (pilihan)"}},
+        ["kind"]),
     _fn("set_reminder", "Set peringatan. Jarvis akan bercakap bila sampai masa.",
         {"minutes": {"type": "number", "description": "Berapa minit dari sekarang"},
          "message": {"type": "string", "description": "Apa yang perlu diingatkan"}}, ["minutes", "message"]),
-    _fn("weather", "Cuaca semasa dan ramalan hari ini di lokasi Akmal (suhu, hujan, kelembapan)."),
-    _fn("prayer_times", "Waktu solat hari ini (JAKIM) di lokasi Akmal, dan solat seterusnya."),
-    _fn("check_email", "Semak Gmail Akmal (baca sahaja): email belum dibaca, cari email ikut topik/pengirim.",
+    _fn("weather", "Cuaca semasa dan ramalan hari ini di lokasi Sir (suhu, hujan, kelembapan)."),
+    _fn("prayer_times", "Waktu solat hari ini (JAKIM) di lokasi Sir, dan solat seterusnya."),
+    _fn("check_email", "Semak Gmail Sir (baca sahaja): email belum dibaca, cari email ikut topik/pengirim.",
         {"request": {"type": "string", "description": "Apa yang nak disemak, contoh: email penting hari ini, email dari PPD"}}, ["request"]),
-    _fn("search_drive", "Cari atau baca fail dalam Google Drive Akmal (baca sahaja).",
+    _fn("search_drive", "Cari atau baca fail dalam Google Drive Sir (baca sahaja).",
         {"request": {"type": "string", "description": "Contoh: fail RPH minggu lepas, dokumen PIBG terbaru"}}, ["request"]),
     _fn("look_at_screen", "Tengok apa yang ada atas skrin laptop sekarang (screenshot) dan jawab soalan pasal skrin.",
         {"question": {"type": "string", "description": "Soalan pasal skrin, contoh: apa error ni?"}}, ["question"]),
@@ -147,11 +166,11 @@ CHAT_TOOLS = WEB_TOOLS + [
         ["title", "points"]),
     _fn("repo_stats", "Kira statistik sebenar setiap repo git dalam Desktop, Documents, Downloads dan home "
                       "(commit, bahasa, saiz, fail, hari sejak commit terakhir), kemudian papar sebagai dashboard "
-                      "bergerak. Guna bila Akmal tanya tentang repo/projek/code dia, atau minta laporan atau "
+                      "bergerak. Guna bila Sir tanya tentang repo/projek/code dia, atau minta laporan atau "
                       "statistik kerja dia. Tiada argumen diperlukan; `limit` hadkan bilangan repo.",
         {"limit": {"type": "number", "description": "Bilangan repo maksimum (lalai 12)"}}),
     _fn("analyse_path", "Ukur apa yang ada dalam satu fail atau folder pada mesin ini — bilangan fail, saiz, jenis, "
-                        "umur, fail terbesar, fail berganda — dan papar sebagai laporan bergerak. Guna bila Akmal "
+                        "umur, fail terbesar, fail berganda — dan papar sebagai laporan bergerak. Guna bila Sir "
                         "beri laluan atau nama folder/fail dan minta analisis, laporan, atau tanya apa di dalamnya. "
                         "Laluan mesti di bawah home, Desktop, Documents, Downloads atau workdir.",
         {"path": {"type": "string", "description": "Laluan penuh fail atau folder untuk dianalisis"}}),
@@ -161,9 +180,9 @@ CHAT_TOOLS = WEB_TOOLS + [
                                                "scroll_down", "scroll_up", "show_desktop", "switch_window", "snip"]}}, ["action"]),
     _fn("system", "Kawal Windows dengan nilai tepat: set volume/kecerahan ke peratus, fokus atau tutup app, "
                   "kunci/sleep/restart/shutdown laptop, baca dan tulis clipboard, senarai tetingkap dan proses, "
-                  "taip teks, buka app atau URL. Guna ini bila Akmal beri arahan bertindih dengan PC. "
+                  "taip teks, buka app atau URL. Guna ini bila Sir beri arahan bertindih dengan PC. "
                   "Untuk tindakan yang susah diundur (kill, close_window, recycle, sleep, shutdown, restart) "
-                  "tool akan pulangkan need_confirm + token; masa itu TANYA Akmal dan jangan ulang panggilan "
+                  "tool akan pulangkan need_confirm + token; masa itu TANYA Sir dan jangan ulang panggilan "
                   "sehingga dia setuju.",
         {"action": {"type": "string", "enum": ["status", "volume", "mute", "brightness", "focus", "minimize",
                                                "maximize", "launch", "url", "clip_read", "clip_write", "type",
@@ -208,6 +227,9 @@ TOOL_TRIGGERS = {
     "weather": r"cuaca|hujan|suhu|weather|payung|ribut|panas terik|mendung",
     "prayer_times": r"solat|azan|subuh|zohor|asar|maghrib|isyak|imsak|syuruk|waktu",
     "check_email": r"e-?mel|email|gmail|inbox|surat masuk",
+    "read_telegram": r"telegram|tg\b|chat\b|perbualan|group|kumpulan|mesej|message",
+    "telegram_files": r"telegram.*\b(fail|file|dokumen|document|pdf|gambar|photo|video|audio)\b|"
+                      r"\b(fail|file|dokumen|document|pdf|gambar|photo|video|audio)\b.*telegram",
     "search_drive": r"\bdrive\b",
     "look_at_screen": r"skrin|screen|paparan|nampak|tengok ni|error ni",
     "control_pc": r"slide|volume|bunyi|mute|lagu|muzik|music|scroll|tingkap|window|present",
@@ -242,7 +264,7 @@ def clean_yt_title(raw, wanted=""):
     t = re.sub(r"\s{2,}", " ", t).strip(" -–|")
     return t
 
-# Akmal's rule: if the answer carries data, it gets drawn. So the gate is not
+# Sir's rule: if the answer carries data, it gets drawn. So the gate is not
 # only the question's wording — the reply is measured too. Two or more distinct
 # numeric signals, or one number that is plainly a figure (a percentage, a
 # currency amount, a thousand-separated count), is enough. A single bare number
@@ -375,22 +397,22 @@ CURRENT_LANG = None      # diisi semasa main(); lang_note baca ini, bukan cakera
 
 
 def lang_note():
-    """Jika reply_language = en: jawab dalam English penuh walaupun Akmal tanya dalam BM."""
+    """Jika reply_language = en: jawab dalam English penuh walaupun Sir tanya dalam BM."""
     if (CURRENT_LANG or load_json(CONFIG, {}).get("reply_language", "ms")) != "en":
         return ""
-    return ("\n\nLANGUAGE OVERRIDE (highest priority): Akmal may speak or type in Malay, but you must ALWAYS reply "
+    return ("\n\nLANGUAGE OVERRIDE (highest priority): He may speak or type in Malay, but you must ALWAYS reply "
             "ONLY in natural, fluent English, like JARVIS from Iron Man: calm, polite, slightly witty. Do not mix in any "
-            "Malay words or Malay slang. Call him Akmal. Ignore the earlier Malay-style and pronoun rules.")
+            "Malay words or Malay slang. Call him Sir. Ignore the earlier Malay-style and pronoun rules.")
 
 
 def location_note():
-    """Lokasi lalai Akmal (config.json "location") untuk soalan berkaitan tempat."""
+    """Lokasi lalai Sir (config.json "location") untuk soalan berkaitan tempat."""
     loc = load_json(CONFIG, {}).get("location")
     if not loc:
         return ""
-    return (f"\nLokasi Akmal: {loc}. Untuk soalan berkaitan tempat (IPU/kualiti udara, cuaca, hujan, waktu solat, "
+    return (f"\nLokasi Sir: {loc}. Untuk soalan berkaitan tempat (IPU/kualiti udara, cuaca, hujan, waktu solat, "
             f"trafik, kedai/restoran berdekatan, berita tempatan), guna lokasi ini secara default dan masukkan nama "
-            f"tempat dalam carian. Guna tempat lain hanya kalau Akmal sebut.")
+            f"tempat dalam carian. Guna tempat lain hanya kalau Sir sebut.")
 
 
 def load_json(path, default):
@@ -466,8 +488,18 @@ class Api:
         self._session = None
         self._project = None
         self._continue_next = False
-        self._sessions = load_json(SESSIONS, {})  # folder projek -> session_id Claude
-        self._chat_history = []
+        # sessions.json holds two maps under separate keys: "projects" is the
+        # Claude session id per folder, "chat" is the last conversation. One file
+        # so the gitignored secret-adjacent store stays a single thing to guard —
+        # it was already the only place session state lived.
+        _sess = load_json(SESSIONS, {})
+        if "projects" not in _sess and any("/" in k or "\\" in k for k in _sess):
+            _sess = {"projects": _sess, "chat": []}      # migrate the old flat shape
+        self._sessions = _sess.get("projects", {}) if isinstance(_sess, dict) else {}
+        self._chat_history = _sess.get("chat", []) if isinstance(_sess, dict) else []
+        if not isinstance(self._chat_history, list):
+            self._chat_history = []
+        self._chat_history = self._chat_history[-40:]
         self._chat_busy = False
         self._listening = False
         self._stt = None
@@ -494,7 +526,7 @@ class Api:
         self._web_url = ""
         self._stage_rect = None   # browse-body rect in screen px, set by JS
         self._sys = sysctl.System()  # satu instance: token pengesahan hidup di sini
-        self._pending_cmd = None     # ayat penuh yang menunggu pengesahan Akmal
+        self._pending_cmd = None     # ayat penuh yang menunggu pengesahan Sir
         self._pending_token = None   # token terakhir yang belum dijawab
         self._app_rect = None        # rect stage untuk app yang di-embed
         psutil.cpu_percent(None)  # panggilan pertama sentiasa 0, jadi panaskan dulu
@@ -542,7 +574,8 @@ class Api:
                 "voice_provider": cfg.get("voice_provider", "google"),
                 "chat_model": self._chat_model(load_json(SECRETS, {})),
                 "reply_language": cfg.get("reply_language", "ms"),
-                "speak_replies": cfg.get("speak_replies", True)}
+                "speak_replies": cfg.get("speak_replies", True),
+                "history": self._chat_history[-40:]}
 
     # ---------- Stage: media ----------
     MEDIA_EXT = {".mp4": "video", ".mkv": "video", ".webm": "video", ".mov": "video", ".avi": "video",
@@ -600,9 +633,9 @@ class Api:
     def _safe_path(self, raw):
         """Hadkan capaian panel fail kepada tempat kerja yang dibenarkan.
 
-        Folder shortcut Akmal (shortcuts.json) masuk senarai akar juga —
+        Folder shortcut Sir (shortcuts.json) masuk senarai akar juga —
         tanpanya, klik "Pictures" pada dock memaparkan "Folder luar kawasan
-        kerja", yang bukan jawapan yang berguna untuk folder yang Akmal
+        kerja", yang bukan jawapan yang berguna untuk folder yang Sir
         sendiri letak dalam dock.
         """
         cfg = load_json(CONFIG, {})
@@ -1096,7 +1129,7 @@ class Api:
                     body.append(txt)
             slides.append({"n": i + 1, "title": title or ("Slide %d" % (i + 1)), "body": body})
         # `page` is the slide the deck is showing right now. The doc pane marks
-        # it and scrolls to it, so when Akmal says "next slide" the text pane
+        # it and scrolls to it, so when Sir says "next slide" the text pane
         # and the projector agree instead of drifting apart.
         cur = None
         try:
@@ -1150,12 +1183,12 @@ class Api:
     def fs_write(self, path, text, expected_size=None):
         """Simpan teks ke fail. Gated oleh _safe_path + semakan konflik.
 
-        Tiga pagar, sebab satu-satunya fungsi yang mengubah fail Akmal:
+        Tiga pagar, sebab satu-satunya fungsi yang mengubah fail Sir:
 
         1. _safe_path — skop sama seperti fs_list/fs_read. Luar kawasan kerja tolak.
         2. expected_size — saiz fail semasa masa ianya dibuka. Kalau berubah di
            antara, fail telah disentuh di luar editor, jadi tulis ditolak dan
-           editor boleh tanya Akmal nak timpa atau tidak. Ini yang menghalang
+           editor boleh tanya Sir nak timpa atau tidak. Ini yang menghalang
            tab lama memadam kerja yang lebih baru.
         3. simpanan .bak sekali — bukan versioning, cuma jaring untuk satu
            pusingan salah. Ditulis sebelum tulis baru, ditimpa setiap simpan.
@@ -1612,10 +1645,12 @@ class Api:
                 self._sessions[str(self._project)] = self._session
             else:
                 self._sessions.pop(str(self._project), None)
-            try:
-                SESSIONS.write_text(json.dumps(self._sessions, indent=2), encoding="utf-8")
-            except OSError:
-                pass
+        payload = {"projects": self._sessions,
+                   "chat": self._chat_history[-40:]}
+        try:
+            SESSIONS.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
 
     def _chat_model(self, s):
         return load_json(CONFIG, {}).get("chat_model") or s.get("model")
@@ -1934,7 +1969,7 @@ class Api:
         p = subprocess.run(
             [self._claude, "-p", "--output-format", "json", "--model", model,
              "--allowedTools", ",".join(tools), "--max-turns", "14"],
-            input=(prompt + ("\n\nReply in natural English only." if load_json(CONFIG, {}).get("reply_language") == "en" else "\n\nJawab dalam Bahasa Melayu MALAYSIA (bukan Bahasa Indonesia), guna \"saya\" dan panggil pengguna \"Akmal\".")).encode("utf-8"),
+            input=(prompt + ("\n\nReply in natural English only." if load_json(CONFIG, {}).get("reply_language") == "en" else "\n\nJawab dalam Bahasa Melayu MALAYSIA (bukan Bahasa Indonesia), guna \"saya\" dan panggil dia \"Sir\".")).encode("utf-8"),
             capture_output=True, timeout=timeout, cwd=HOME, creationflags=NO_WINDOW,
         )
         try:
@@ -2027,7 +2062,7 @@ class Api:
             if key in results:
                 facts.append(f"{key.upper()}: {results[key]}")
         s = load_json(SECRETS, {})
-        prompt = ("Buat laporan harian untuk dibaca dengan SUARA bila Akmal baru buka laptop. 4-6 ayat pendek, "
+        prompt = ("Buat laporan harian untuk dibaca dengan SUARA bila Sir baru buka laptop. 4-6 ayat pendek, "
                   "gaya KL santai, mula dengan sapaan ikut waktu sekarang. Sebut cuaca (dan kalau nak hujan), IPU, "
                   "waktu solat seterusnya, dan email penting jika ada. Jangan guna senarai atau simbol.\n\nDATA:\n" + "\n".join(facts))
         try:
@@ -2181,6 +2216,7 @@ class Api:
                  "prayer_times": "Prayer", "check_email": "Gmail", "search_drive": "Drive",
                  "look_at_screen": "Screen", "control_pc": "Control", "open_media": "Media",
                  "play_youtube": "YouTube",
+                 "read_telegram": "Telegram", "telegram_files": "TG Files",
                  "system": "System", "repo_stats": "Repos"}.get(name, name)
         lat, lon, zone = self._cfg_place()
         if name == "open_media":
@@ -2240,7 +2276,7 @@ class Api:
             shot = Path(os.environ.get("TEMP", str(HOME))) / f"jarvis-screen-{int(time.time())}.png"
             try:
                 sv.screenshot(str(shot))
-                return self._claude_quick(f"Baca imej {shot} (screenshot skrin laptop Akmal). Soalan: {q}\n"
+                return self._claude_quick(f"Baca imej {shot} (screenshot skrin laptop Sir). Soalan: {q}\n"
                                           "Jawab dalam BM santai, ringkas dan tepat.", ["Read"], model="sonnet")
             finally:
                 shot.unlink(missing_ok=True)
@@ -2262,14 +2298,14 @@ class Api:
             res = self.analyse_path(args.get("path"))
             if not res.get("ok"):
                 return "Could not analyse it: " + (res.get("msg") or "unknown reason")
-            return ("Report drawn and narrated to Akmal, titled %r. Exact measured facts:\n%s\n"
+            return ("Report drawn and narrated to Sir, titled %r. Exact measured facts:\n%s\n"
                     "Reply with ONE short closing sentence. Do not invent or restate numbers."
                     % (res.get("title", ""), res.get("spoken", "")))
         if name == "present_analysis":
             self._analysis_shown = True
             self._emit("tool", {"name": "Analysis", "detail": args.get("title", ""), "full": ""})
             self._emit("analysis", args)
-            return ("Analisis sedang dipaparkan dan dibacakan satu-satu kepada Akmal. Balas dengan SATU ayat penutup "
+            return ("Analisis sedang dipaparkan dan dibacakan satu-satu kepada Sir. Balas dengan SATU ayat penutup "
                     "yang sangat pendek sahaja (jangan ulang angka).")
         if name == "control_pc":
             act = args.get("action", "")
@@ -2287,12 +2323,12 @@ class Api:
                 return r.get("label", "Tried to open it.")
             res = self._sys.do(act, **rest)
             if res.get("need_confirm"):
-                # Token disimpan supaya "ya" dari Akmal menyambung kerja yang sama
+                # Token disimpan supaya "ya" dari Sir menyambung kerja yang sama
                 self._pending_token = res["token"]
                 self._pending_cmd = act
                 self._push(f"window.jarvisConfirm && window.jarvisConfirm({json.dumps(res)})")
-                return (f"Perlu pengesahan Akmal: {res['ask']} JANGAN panggil tool ini lagi. "
-                        f"Tanya Akmal dalam satu ayat pendek dan berhenti.")
+                return (f"Perlu pengesahan Sir: {res['ask']} JANGAN panggil tool ini lagi. "
+                        f"Tanya Sir dalam satu ayat pendek dan berhenti.")
             return res.get("msg") or ("Done." if res.get("ok") else "Failed.")
         detail = str(next(iter(args.values()), "")) if args else ""
         if name == "set_reminder":
@@ -2338,7 +2374,357 @@ class Api:
             msg, path = self._tool_read(args.get("path", ""))
             self._emit("tool", {"name": label, "detail": Path(path).name if path else detail, "full": f'"{path}"' if path else ""})
             return msg
+        if name in ("read_telegram", "telegram_files"):
+            return self._tool_telegram(name, args)
         return f"Tool {name} does not exist."
+
+    # ---------- INBOX pane (HUD side) ----------
+    # Thin wrappers. All the real work is in telegram_user.py so it can be
+    # tested without a window; these only exist because pywebview needs the
+    # methods on the Api object.
+    def ib_status(self):
+        sec = load_json(SECRETS, {})
+        ok = bool((sec.get("telegram_session") or "").strip()
+                  and sec.get("telegram_api_id")
+                  and (sec.get("telegram_api_hash") or "").strip())
+        st = {"configured": {"telegram": ok,
+                             "whatsapp": bool((sec.get("whatsapp_token") or "").strip())},
+              "driver": None}
+        acc = getattr(self, "_tg_user", None)
+        if acc:
+            try:
+                st["driver"] = acc.status()
+            except Exception:
+                pass
+        return st
+
+    def ib_dialogs(self, limit=60):
+        acc = self._tg_account()
+        if not acc:
+            return {"ok": False, "msg": getattr(self, "_tg_err", "") or
+                    "Telegram belum disambung — jalankan python telegram_login.py"}
+        try:
+            ds = acc.dialogs(limit=int(limit or 60))
+            return {"ok": True, "dialogs": ds, "me": (acc.me or {}).get("username", "")}
+        except Exception as e:
+            return {"ok": False, "msg": f"{type(e).__name__}: {e}"}
+
+    def ib_thread(self, dialog_id, limit=60, until_id=0):
+        acc = self._tg_account()
+        if not acc:
+            return {"ok": False, "msg": "Telegram belum disambung."}
+        try:
+            return {"ok": True, **acc.thread(int(dialog_id), limit=int(limit or 60),
+                                             until_id=int(until_id or 0))}
+        except Exception as e:
+            return {"ok": False, "msg": f"{type(e).__name__}: {e}"}
+
+    def ib_overview(self, top=5):
+        """A tiny, cached unread summary for the right-hand column.
+
+        The left rail already carries CPU, RAM, disk, battery. The right column
+        was carrying four canned prompt buttons and a static panel map, which
+        told Sir nothing about his own machine. This replaces it with the one
+        live number that actually changes: what is waiting for him.
+
+        Cached for 45s because the column polls, and dialogs() is a real network
+        round trip — re-fetching it every few seconds would be a hot loop on a
+        laptop battery for a number that moves in minutes, not seconds.
+        """
+        now = time.time()
+        cache = getattr(self, "_ib_over", None)
+        if cache and (now - cache[0]) < 45:
+            return cache[1]
+        acc = self._tg_account()
+        if not acc:
+            return {"ok": False, "msg": "belum sambung"}
+        try:
+            ds = acc.dialogs(limit=60)
+        except Exception as e:
+            return {"ok": False, "msg": f"{type(e).__name__}: {e}"}
+        waiting = [d for d in ds if d.get("unread")]
+        waiting.sort(key=lambda d: (-d["unread"], -d["at"]))
+        out = {
+            "ok": True,
+            "chats": len(ds),
+            "waiting": len(waiting),
+            "unread": sum(d["unread"] for d in waiting),
+            "top": [{"id": d["id"], "name": d["name"], "unread": d["unread"],
+                     "at": d["at"], "type": d["type"],
+                     "canWrite": d.get("canWrite", True)} for d in waiting[:top]],
+            "at": int(now),
+        }
+        self._ib_over = (now, out)
+        return out
+
+    def ib_digest(self, dialog_id, limit=800, days=0):
+        """Who talks, what recurs, what got dropped in a chat. Built because a
+        model cannot read 2,000 raw messages — this hands it the shape of the
+        conversation instead of the conversation."""
+        acc = self._tg_account()
+        if not acc:
+            return {"ok": False, "msg": "Telegram belum disambung."}
+        try:
+            return {"ok": True, **acc.digest(int(dialog_id), limit=int(limit or 800),
+                                             days=int(days) if days else None)}
+        except Exception as e:
+            return {"ok": False, "msg": f"{type(e).__name__}: {e}"}
+
+    def ib_send_tg(self, dialog_id, text):
+        """Send one message. This is the only outward write in the whole pane,
+        and it is always an explicit press — never a side effect of reading."""
+        text = (text or "").strip()
+        if not text:
+            return {"ok": False, "msg": "Kosong."}
+        acc = self._tg_account()
+        if not acc:
+            return {"ok": False, "msg": "Telegram belum disambung."}
+        try:
+            r = acc.send(int(dialog_id), text)
+            return {"ok": True, **r}
+        except Exception as e:
+            return {"ok": False, "msg": f"{type(e).__name__}: {e}"}
+
+    def ib_search(self, query="", kind="", days=0, dialog_id=None):
+        acc = self._tg_account()
+        if not acc:
+            return {"ok": False, "msg": "Telegram belum disambung."}
+        try:
+            rows = acc.search(query=query, kind=kind, limit=40,
+                              dialog_id=dialog_id, days=int(days) if days else None)
+            return {"ok": True, "rows": rows}
+        except Exception as e:
+            return {"ok": False, "msg": f"{type(e).__name__}: {e}"}
+
+    def ib_auto(self, key, on=None):
+        """Auto-reply flag, per chat. Off unless explicitly switched on: an
+        assistant that answers your friends unasked is a liability, not a
+        feature."""
+        if not hasattr(self, "_ib_auto"):
+            self._ib_auto = {}
+        k = str(key)
+        if on is None:
+            return {"ok": True, "on": bool(self._ib_auto.get(k))}
+        self._ib_auto[k] = bool(on)
+        return {"ok": True, "on": self._ib_auto[k]}
+
+    # ---------- Telegram (user account, not a bot) ----------
+    # A bot sees only what is sent to it, from the day it was created. These
+    # two tools answer from the account's own history, which is what "cari fail
+    # dalam Telegram aku" actually means. The session string lives in
+    # secrets.json and never leaves this machine.
+    def _tg_account(self):
+        # A connected TgAccount is a live socket on a background event loop.
+        # `False` only means "not connected yet"; leaving it cached forever
+        # after a failed boot would mean a login never takes effect without a
+        # restart. A dead-but-cached account is also re-tried after TTL, so a
+        # revoked session surfaces as an error instead of a stale handle.
+        acc = getattr(self, "_tg_user", None)
+        if acc:
+            if (time.time() - getattr(self, "_tg_user_at", 0)) < 120:
+                return acc
+            try:
+                if acc.status().get("up"):
+                    self._tg_user_at = time.time()
+                    return acc
+            except Exception:
+                pass
+            self._tg_user = None
+        if acc is False and (time.time() - getattr(self, "_tg_user_at", 0)) < 20:
+            return False
+        sec = load_json(SECRETS, {})
+        ss = (sec.get("telegram_session") or "").strip()
+        api_id = sec.get("telegram_api_id") or 0
+        api_hash = (sec.get("telegram_api_hash") or "").strip()
+        if not (ss and api_id and api_hash):
+            self._tg_user = False
+            return False
+        try:
+            import telegram_user as TU
+            acc = TU.TgAccount(api_id, api_hash, ss).start(wait=25)
+            self._tg_user = acc
+            self._tg_user_at = time.time()
+            return acc
+        except Exception as e:
+            self._tg_err = f"{type(e).__name__}: {e}"
+            self._tg_user = False
+            self._tg_user_at = time.time()
+            return False
+
+    def _tg_resolve(self, acc, name):
+        """Chat name -> id. Exact id passes through; a name is matched against
+        the dialog list, because Telegram's own resolver needs a username and
+        Sir will say 'chat PIBG', not '@pibg_2024'."""
+        s = str(name or "").strip()
+        if not s:
+            return None
+        if s.lstrip("-").isdigit():
+            return int(s)
+        low = s.lower()
+        dialogs = acc.dialogs(limit=100)
+        for d in dialogs:
+            if d["name"].lower() == low:
+                return d["id"]
+        for d in dialogs:
+            if low in d["name"].lower():
+                return d["id"]
+        return None
+
+    def _digest_text(self, d):
+        """Render a digest as text a model can reason over.
+
+        The point is compression with shape intact: shares, not raw counts;
+        the top words, not the transcript; the longest lines, because length
+        is the cheapest proxy for an actual argument in a group chat.
+        """
+        v = d.get("volume") or {}
+        ch = (d.get("chat") or {}).get("name", "?")
+        frm = (datetime.fromtimestamp(v["from_ts"]).strftime("%d %b %Y")
+               if v.get("from_ts") else "—")
+        to = (datetime.fromtimestamp(v["to_ts"]).strftime("%d %b %Y")
+              if v.get("to_ts") else "—")
+        out = [f"CHAT: {ch}",
+               f"Tempoh: {frm} → {to}  ({v.get('span_days', 0)} hari)",
+               f"Mesej dilombong: {v.get('msgs', 0)}"
+               + (" (had dicapai — mungkin ada lagi di belakang)"
+                  if v.get("truncated") else ""),
+               f"Purata: {v.get('per_day', 0)}/hari · {v.get('avg_chars', 0)} aksara/mesej",
+               f"Daripada Sir: {v.get('mine', 0)} · daripada orang lain: {v.get('others', 0)}"]
+
+        ppl = d.get("people") or []
+        if ppl:
+            out.append("")
+            out.append(f"PENGIRIM TERATAS ({d.get('total_senders', 0)} orang keseluruhan):")
+            for p in ppl:
+                out.append(f"  {p['pct']:>5.1f}%  {p['n']:>4}  {p['name']}")
+
+        tw = d.get("topics") or []
+        if tw:
+            out.append("")
+            out.append("KATA YANG BERULANG: "
+                       + ", ".join(f"{t['w']}({t['n']})" for t in tw[:28]))
+
+        ft = d.get("file_types") or []
+        if ft:
+            out.append("")
+            out.append("FAIL DIHANTAR: " + ", ".join(
+                f"{f['ext']}×{f['n']}" for f in ft[:12]))
+            for f in (d.get("files") or [])[:12]:
+                mb = (f.get("size") or 0) / 1048576
+                when = datetime.fromtimestamp(f["at"]).strftime("%d %b") if f.get("at") else "—"
+                out.append(f"  {f.get('name') or '(media)'} · {when} · {f.get('by','?')}"
+                           + (f" · {mb:.1f} MB" if mb >= 0.1 else ""))
+
+        lk = d.get("links") or []
+        if lk:
+            out.append("")
+            out.append("LINK: " + ", ".join(f"{l['host']}×{l['n']}" for l in lk))
+
+        bd = d.get("busiest") or []
+        if bd:
+            out.append("")
+            out.append("HARI PALING SIBUK: "
+                       + ", ".join(f"{b['day']} ({b['n']})" for b in bd))
+
+        sm = d.get("samples") or []
+        if sm:
+            out.append("")
+            out.append("PETIKAN TERPANJANG (mesej yang ada isi, bukan 'ok'):")
+            for x in sm[:10]:
+                when = datetime.fromtimestamp(x["at"]).strftime("%d %b %H:%M") if x.get("at") else "—"
+                body = " ".join((x["text"] or "").split())
+                out.append(f"  [{when}] {x['by']}: {body[:300]}")
+
+        out.append("")
+        out.append("Nota: ini ringkasan struktur, bukan transkrip penuh. "
+                   "Guna action=thread untuk baca mesej sebenar bahagian tertentu.")
+        return "\n".join(out)
+
+    def _tool_telegram(self, name, args):
+        acc = self._tg_account()
+        if not acc:
+            why = getattr(self, "_tg_err", "")
+            return ("Telegram belum disambung. Jalankan: python telegram_login.py "
+                    "kemudian tambah telegram_api_id, telegram_api_hash dan "
+                    "telegram_session dalam secrets.json." + ((" (" + why + ")") if why else ""))
+        try:
+            if name == "telegram_files":
+                kind = str(args.get("kind", "document") or "document").lower()
+                q = str(args.get("query", "") or "").strip()
+                cid = self._tg_resolve(acc, args.get("chat")) if args.get("chat") else None
+                self._emit("tool", {"name": "TG Files", "detail": f"{kind} {q}".strip(),
+                                    "full": ""})
+                rows = acc.files(query=q, kind=kind, limit=40, dialog_id=cid)
+                if not rows:
+                    return f"Tiada fail jenis {kind} dijumpai dalam Telegram."
+                out = [f"{len(rows)} fail {kind} dalam Telegram:"]
+                for r in rows[:40]:
+                    f = r.get("file") or {}
+                    who = (r.get("chat") or {}).get("name", "?")
+                    mb = (f.get("size") or 0) / 1048576
+                    when = datetime.fromtimestamp(r["at"]).strftime("%d %b %Y")
+                    out.append(f"- {f.get('name') or '(tanpa nama)'} · {who} · {when} · "
+                               f"{mb:.1f} MB" + (f" · \"{r['text'][:60]}\"" if r.get("text") else ""))
+                return "\n".join(out)
+
+            action = str(args.get("action", "dialogs") or "dialogs").lower()
+            if action == "dialogs":
+                self._emit("tool", {"name": "Telegram", "detail": "senarai chat", "full": ""})
+                ds = acc.dialogs(limit=60)
+                if not ds:
+                    return "Tiada chat."
+                out = [f"{len(ds)} chat teratas:"]
+                for d in ds[:60]:
+                    when = datetime.fromtimestamp(d["at"]).strftime("%d %b") if d["at"] else "—"
+                    out.append(f"- {d['name']} ({d['type']}) · {when} · {d['unread']} unread"
+                               + (f" · \"{d['last'][:70]}\"" if d.get("last") else ""))
+                return "\n".join(out)
+
+            if action == "digest":
+                cid = self._tg_resolve(acc, args.get("chat"))
+                if cid is None:
+                    return f"Chat '{args.get('chat')}' tak dijumpai. Guna action=dialogs dulu."
+                n = min(2000, max(50, int(args.get("limit") or 800)))
+                self._emit("tool", {"name": "Telegram", "detail": f"ringkas {args.get('chat')}", "full": ""})
+                d = acc.digest(cid, limit=n,
+                               days=int(args["days"]) if args.get("days") else None)
+                return self._digest_text(d)
+
+            if action == "thread":
+                cid = self._tg_resolve(acc, args.get("chat"))
+                if cid is None:
+                    return f"Chat '{args.get('chat')}' tak dijumpai. Guna action=dialogs dulu."
+                self._emit("tool", {"name": "Telegram", "detail": f"baca {args.get('chat')}", "full": ""})
+                t = acc.thread(cid, limit=min(500, max(10, int(args.get("limit") or 40))))
+                if not t["msgs"]:
+                    return "Chat tu kosong."
+                out = [f"Chat: {t['chat']['name']} · {len(t['msgs'])} mesej terakhir"]
+                for m in t["msgs"]:
+                    who = "Sir" if m["out"] else t["chat"]["name"]
+                    when = datetime.fromtimestamp(m["at"]).strftime("%d %b %H:%M")
+                    body = (m["text"] or "").replace("\n", " ")[:220]
+                    if m.get("file"):
+                        body = (body + f" [fail: {m['file']['name']}]").strip()
+                    out.append(f"[{when}] {who}: {body}")
+                return "\n".join(out)
+
+            # search
+            q = str(args.get("query", "") or "").strip()
+            if not q:
+                return "Bagi kata kunci untuk carian."
+            self._emit("tool", {"name": "Telegram", "detail": f"cari '{q}'", "full": ""})
+            rows = acc.search(query=q, limit=40,
+                              days=int(args["days"]) if args.get("days") else None)
+            if not rows:
+                return f"Tiada mesej sebut '{q}'."
+            out = [f"{len(rows)} mesej sebut '{q}':"]
+            for r in rows[:40]:
+                who = (r.get("chat") or {}).get("name", "?")
+                when = datetime.fromtimestamp(r["at"]).strftime("%d %b %Y %H:%M")
+                out.append(f"[{when}] {who}: {(r['text'] or '')[:200]}")
+            return "\n".join(out)
+        except Exception as e:
+            return f"Telegram gagal: {type(e).__name__}: {e}"
 
     # ---------- Repo statistics ----------
     # Walked, not asked. The model can describe a repo; only git can count one.
@@ -2537,16 +2923,22 @@ class Api:
 
     def _make_analysis(self, s, question, answer, collected):
         """Tukar jawapan analisis jadi dashboard (JSON) dalam panggilan berasingan tanpa tool. Berfungsi untuk semua model."""
-        prompt = (f"Soalan Akmal: {question}\n\nJawapan analisis:\n{answer}\n\nData mentah (rujukan):\n" + "\n\n".join(collected)[-8000:] +
+        prompt = (f"Soalan Sir: {question}\n\nJawapan analisis:\n{answer}\n\nData mentah (rujukan):\n" + "\n\n".join(collected)[-8000:] +
                   "\n\nTukar analisis ini kepada SATU objek JSON sahaja (tiada teks lain) dengan format:\n"
                   '{"title": "...", "summary": "1 ayat", "cards": [{"label": "...", "value": "...", "note": "..."}], '
                   '"charts": [{"title": "...", "kind": "bar|line|donut", "items": '
                   '[{"label": "...", "value": 123, "display": "123"}]}], '
-                  '"points": [{"text": "1-2 ayat untuk dibaca dengan suara, guna saya dan panggil Akmal", "target": "card:0"}], '
+                  '"points": [{"text": "1-2 ayat untuk dibaca dengan suara, guna saya dan panggil Sir", "target": "card:0"}], '
                   '"followups": ["soalan susulan pendek"]}\n'
                   "2-4 kad, 0-3 graf (value mesti nombor; kind: bar untuk perbandingan, line untuk trend "
                   "mengikut masa, donut untuk pecahan), 3-6 poin. target: card:N, chart:N atau chart:N:M (bar ke-M). "
-                  "Bahasa Melayu Malaysia santai.")
+                  + ("In natural English." if load_json(CONFIG, {}).get("reply_language") == "en" else "Bahasa Melayu Malaysia santai, panggil dia Sir."))
+        key = self._dash_key(question, answer, collected)
+        hit = self._dash_cache_get(key)
+        if hit:
+            self._emit("note", {"text": "Dashboard recalled from cache"})
+            self._chat_tool("present_analysis", hit)
+            return
         try:
             out = self._chat_call(s, [{"role": "system", "content": "Kamu menukar analisis kepada JSON dashboard. Balas JSON sahaja."},
                                       {"role": "user", "content": prompt}])["content"] or ""
@@ -2554,6 +2946,7 @@ class Api:
             data = json.loads(re.sub(r",\s*([}\]])", r"\1", blob.group(0))) if blob else None
             if data and data.get("points"):
                 self._chat_tool("present_analysis", data)
+                self._dash_cache_put(key, data, question)
         except Exception:
             pass
 
@@ -2594,10 +2987,12 @@ class Api:
                 # Model tak berhenti menyiasat: jawab dalam perbualan bersih berdasarkan data yang dah dikumpul
                 reply = strip_tool_markup(self._chat_call(s, [
                     {"role": "system", "content": PERSONA + location_note() + lang_note()},
-                    {"role": "user", "content": f"Soalan Akmal: {text}\n\nData yang dah dikumpul:\n" +
+                    {"role": "user", "content": f"Soalan Sir: {text}\n\nData yang dah dikumpul:\n" +
                                                 "\n\n".join(collected)[-24000:] + "\n\nJawab sekarang berdasarkan data ini, ringkas."}])["content"] or "")
-            reply = reply or "Okay Akmal, dah siap."
+            reply = reply or "Okay Sir, dah siap."
             self._chat_history.append({"role": "assistant", "content": reply})
+            self._chat_history = self._chat_history[-40:]
+            self._save_session()
             self._emit("text", {"text": reply})
             # The question can ask for a dashboard, or the answer can simply be
             # full of figures — both routes end in the same pane. `_analysis_shown`
@@ -2636,7 +3031,7 @@ class Api:
         never sees that. So the step is counted here, optimistically, and the
         pane re-renders at the new slide. Anything that would desync — pressing
         Home, clicking the thumbnail strip, jumping to slide 12 by hand — is
-        corrected the moment Akmal says a slide number ("slide 12", "pergi
+        corrected the moment Sir says a slide number ("slide 12", "pergi
         slide lapan"), because that path re-opens the deck at an explicit page
         instead of stepping from a guess.
         """
@@ -2817,6 +3212,77 @@ class Api:
         except Exception as e:
             return {"ok": False, "msg": str(e), "via": "edge"}
 
+    def tts_stream(self, text, voice=None, rate=None, pitch=None):
+        """Mula sintesis berklausa dan pulangkan id kerja, bukan audio.
+
+        Laluan `tts()` menunggu seluruh jawapan siap. Untuk satu perenggan itu
+        bermakna 4-9 saat senyap di dalam orb sebelum suara pertama keluar, dan
+        itulah jeda yang paling terasa setiap kali bercakap. Di sini klausa
+        pertama mula disintesis serta-merta dan boleh dimainkan sementara yang
+        lain masih berjalan.
+
+        Pulangkan {"stream": True, "job": id}; halaman meninjau tts_read(id, n)
+        untuk byte seterusnya. Kalau tiada kunci atau suis mati, jatuh balik ke
+        laluan lama supaya tiada apa yang hilang.
+        """
+        if not load_json(CONFIG, {}).get("speak_replies", True):
+            return {"ok": False, "muted": True, "note": "speak_replies is off"}
+        cfg = load_json(CONFIG, {})
+        if rate:
+            cfg["voice_rate"] = rate
+        if pitch:
+            cfg["voice_pitch"] = pitch
+        english = cfg.get("reply_language", "ms") == "en"
+        voice = voice or (cfg.get("voice_en", "en-GB-RyanNeural") if english else cfg.get("voice", "ms-MY-Wavenet-D"))
+        text = sv.speech_normalize(text, "en" if english else "ms")
+        if not text.strip():
+            return {"ok": False, "msg": "Nothing to say."}
+
+        use_google = voice.startswith(("ms-MY-", "en-GB-Wavenet", "en-GB-Neural2", "en-GB-Studio",
+                                       "en-US-Wavenet", "en-US-Neural2"))
+        if use_google:
+            # verify the key once up front: a hard config error should not be
+            # discovered eight times, once per clause
+            if not load_json(SECRETS, {}).get("google_tts_api_key"):
+                use_google = False
+
+        def synth_one(clause):
+            if use_google:
+                r = self._google_tts(clause + " ", voice, cfg)
+                if r.get("ok"):
+                    return base64.b64decode(r["src"].split(",", 1)[1])
+                if r.get("hard"):
+                    return b""
+                # a transient Google failure must not strand the caller on a
+                # stream that will never fill, so this clause goes to edge-tts
+            import asyncio
+            import edge_tts
+
+            async def one():
+                buf = bytearray()
+                comm = edge_tts.Communicate(
+                    clause, voice if not voice.startswith("ms-MY-") else "ms-MY-OsmanNeural",
+                    rate=cfg.get("voice_rate", "+8%"), pitch=cfg.get("voice_pitch", "+0Hz"))
+                async for ch in comm.stream():
+                    if ch["type"] == "audio":
+                        buf.extend(ch["data"])
+                return bytes(buf)
+
+            try:
+                return asyncio.run(one())
+            except Exception:
+                return b""
+
+        import uuid
+        return sv.stream_tts_job(synth_one, text, uuid.uuid4().hex[:16])
+
+    def tts_read(self, job, offset=0):
+        """Byte seterusnya untuk satu kerja sintesis. Halaman meninjau ini."""
+        r = sv.tts_read(job, int(offset or 0))
+        if r.get("ok"):
+            r["data"] = base64.b64encode(r.pop("data") or b"").decode()
+        return r
+
     def _google_tts(self, text, voice, cfg):
         """Google Cloud Text-to-Speech (API rasmi).
         Pulangkan {"hard": True} untuk ralat konfigurasi (kunci tiada) supaya pemanggil
@@ -2920,7 +3386,7 @@ class Api:
         """Hidup/matikan pendengar "Hey Jarvis" tanpa memulakan semula Jarvis.
 
         Bila dimatikan, gelung mic tidak membuka aliran langsung, jadi Jarvis
-        tidak mendengar apa-apa sehingga butang mic ditekan. Ini yang Akmal
+        tidak mendengar apa-apa sehingga butang mic ditekan. Ini yang Sir
         minta: bunyi latar yang menyerupai suara tidak lagi menangkap arahan.
         """
         on = bool(on)
@@ -3126,7 +3592,7 @@ class Api:
     def resolve_system(self, text):
         """Padan ayat dengan satu tindakan sistem. Pulangkan {"handled","label"}.
 
-        Ini bukan AI dan sengaja bukan AI: bila Akmal cakap "volume 30", dia
+        Ini bukan AI dan sengaja bukan AI: bila Sir cakap "volume 30", dia
         mahu 30, bukan model yang berfikir dan mungkin memberi 40. Corak di
         bawah tertib dari spesifik ke longgar, dan yang tidak padan langsung
         jatuh ke false — ayat itu terus ke Claude seperti biasa.
@@ -3134,7 +3600,7 @@ class Api:
         Pengesahan: kalau tindakan itu tingkat 'pukal' (bunuh proses, tutup
         tetingkap, recycle, kuasa), token disimpan dalam self._pending_token
         dan ayat asal dalam self._pending_cmd, supaya "ya" selepas itu
-        menyambung kerja yang sama tanpa Akmal perlu ulang ayat penuh.
+        menyambung kerja yang sama tanpa Sir perlu ulang ayat penuh.
         """
         raw = str(text or "").strip()
         t = sv.clean_command(raw)
@@ -3251,7 +3717,7 @@ class Api:
         m = re.search(r"\b(?:tutup|close|kill)\s+(.+)$", low)
         if m:
             target = m.group(1).strip()
-            # kalau tajuk tetingkap wujud, itu yang Akmal maksudkan; kalau tidak,
+            # kalau tajuk tetingkap wujud, itu yang Sir maksudkan; kalau tidak,
             # mungkin dia sebut nama proses ("tutup chrome")
             if sysctl.find_window(target):
                 return "close_window", {"title": target}
@@ -3469,7 +3935,7 @@ class Api:
                 sv.beep()
                 return sysr
         # "pergi slide 8" — the deck pane jumps straight there. This path exists
-        # because stepping is a guess: eight keypresses desync the instant Akmal
+        # because stepping is a guess: eight keypresses desync the instant Sir
         # clicks a thumbnail or presses Home on the projector. A spoken number
         # is ground truth, so it re-opens the deck at that page instead.
         m_sl = re.match(r"^(?:(?:pergi|pig|gi|ke|to|jump|go)\s+)?slide\s*(\d{1,3})$|"
@@ -3542,10 +4008,10 @@ class Api:
         desk = known_folder("Desktop")
         names = [p.name for p in desk.iterdir() if p.is_dir()][:30] if desk else []
         apps = [a.get("name", "") for a in load_json(SHORTCUTS, {}).get("apps", [])]
-        return ["Jarvis", "Akmal"] + names + apps
+        return ["Jarvis", "Sir"] + names + apps
 
     def _stt_hint(self):
-        # Contoh gaya cakap Akmal (BM KL campur English) supaya Whisper tak tukar ke ejaan Indonesia
+        # Contoh gaya cakap Sir (BM KL campur English) supaya Whisper tak tukar ke ejaan Indonesia
         return ("Hey Jarvis, tolong check email aku. Buka folder Pengakap. Analisis fail sipeng kat desktop. "
                 "Next slide, volume naik. Cuaca hari ni macam mana? Okay, settle. " + ", ".join(self._stt_names()))
 

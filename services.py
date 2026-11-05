@@ -340,3 +340,158 @@ def screenshot(path):
     if hidden:
         _u32.ShowWindow(_jarvis_hwnd(), 9)  # SW_RESTORE
     return path
+
+
+# ---------- Streaming TTS ----------
+# The whole reply used to be one synthesis call. Google's round trip alone is
+# 2-5 s and edge-tts is often slower, so the stage sat in "thinking" through the
+# silence and then snapped into speech. Both providers can be fed a clause at a
+# time, and because MP3 is a stream of self-contained frames, the clauses can be
+# glued end to end and decoded as one uninterrupted clip.
+#
+# Ordering is the whole trick: clause N must be appended before clause N+1, but
+# they synthesise in parallel. So each clause gets a slot, and the writer drains
+# slots in order — one long synthesis never blocks the ones queued behind it
+# from finishing, only from being *written*, which is correct.
+
+# A full stop inside a token is not a sentence end. "main.py", "3.5", "akmalsys.com"
+# all contain one, so every dot that is followed by a word character is swapped
+# for a sentinel before the split and restored after it. A regex with lookahead
+# cannot do this: backtracking lets it give up on the dot and match from the next
+# character instead, which silently swallows the clause.
+_DOT = chr(0)
+CLAUSE_RX = re.compile("[^.!?" + chr(10) + "]+[.!?]*")
+
+
+def split_clauses(text, min_len=24, max_len=160):
+    """Potong teks ikut klausa supaya suara boleh mula selepas yang pertama.
+
+    Klausa pendek digabung ke hadapan — a four-word clause is not worth a round
+    trip and reads choppy alone. Klausa terlalu panjang dipotong pada koma atau
+    ruang terdekat supaya satu ayat gergasi tidak menghentikan semua di belakang.
+    """
+    if not text:
+        return []
+    protected = re.sub(r"\.(?=\w)", _DOT, text)
+    parts = [p for p in CLAUSE_RX.findall(protected) if p.strip()]
+    parts = [p.replace(_DOT, ".") for p in parts]
+
+    out = []
+    for p in parts:
+        if out and len(out[-1]) < min_len:
+            out[-1] += p
+            continue
+        while len(p) > max_len:
+            cut = max(p.rfind(", ", 0, max_len), p.rfind(" ", 0, max_len))
+            if cut <= 0:
+                break
+            out.append(p[:cut + 1])
+            p = p[cut + 1:]
+        if p.strip():
+            out.append(p)
+    if len(out) > 1 and len(out[-1]) < min_len:
+        out[-2] += out[-1]
+        out.pop()
+    return [c.strip() for c in out if c.strip()]
+
+
+class ClauseStream:
+    """Synthesise N clauses concurrently, emit the bytes strictly in order."""
+
+    def __init__(self, synth_one, clauses):
+        self._synth = synth_one
+        self._clauses = list(clauses)
+        self._slots = [None] * len(self._clauses)
+        self._ready = [threading.Event() for _ in self._clauses]
+        self._started = threading.Event()
+        self._error = None
+        self._threads = []
+
+    def start(self):
+        def worker(i):
+            try:
+                self._slots[i] = self._synth(self._clauses[i])
+            except Exception as e:                      # keep the rest alive
+                self._slots[i] = b""
+                if self._error is None:
+                    self._error = e
+            finally:
+                self._ready[i].set()
+                self._started.set()
+
+        for i in range(len(self._clauses)):
+            th = threading.Thread(target=worker, args=(i,), daemon=True)
+            th.start()
+            self._threads.append(th)
+        return self
+
+    def chunks(self, timeout=45.0):
+        """Yield bytes in order. First chunk arrives as soon as clause 0 is done."""
+        for i in range(len(self._clauses)):
+            if not self._ready[i].wait(timeout):
+                return
+            data = self._slots[i] or b""
+            if data:
+                yield data
+
+
+TTS_JOBS = {}
+TTS_BUFFERS = {}
+TTS_LOCK = threading.Lock()
+TTS_MAX_JOBS = 8
+
+
+def _evict_old_jobs(keep):
+    """Bounded memory. Each finished job is a few hundred kB of MP3 and every
+    one of them stays readable until the page has drained it, so the map is
+    capped rather than left to grow for the life of the process."""
+    with TTS_LOCK:
+        dead = [k for k, st in TTS_JOBS.items() if st.get("done") and k != keep]
+        while len(TTS_JOBS) > TTS_MAX_JOBS and dead:
+            k = dead.pop(0)
+            TTS_JOBS.pop(k, None)
+            TTS_BUFFERS.pop(k, None)
+
+
+def stream_tts_job(synth_one, text, job_id):
+    """Write an ordered MP3 stream into TTS_JOBS under `job_id`.
+
+    Returns a JSON-friendly manifest immediately. The browser polls the same id
+    and plays through a MediaSource, so it starts on the first clause instead of
+    waiting for the last one.
+    """
+    clauses = split_clauses(text)
+    if not clauses:
+        return {"ok": False, "msg": "Nothing to say."}
+    state = {"done": False, "error": None, "clauses": len(clauses), "bytes": 0}
+    stream = ClauseStream(synth_one, clauses).start()
+    TTS_JOBS[job_id] = state
+
+    TTS_BUFFERS[job_id] = bytearray()
+
+    def writer():
+        try:
+            for part in stream.chunks():
+                with TTS_LOCK:
+                    TTS_BUFFERS[job_id].extend(part)
+                    state["bytes"] = len(TTS_BUFFERS[job_id])
+        finally:
+            state["done"] = True
+            state["error"] = str(stream._error) if stream._error else None
+            _evict_old_jobs(keep=job_id)
+
+    threading.Thread(target=writer, daemon=True).start()
+    return {"ok": True, "job": job_id, "clauses": len(clauses), "stream": True}
+
+
+def tts_read(job_id, offset=0):
+    """Return bytes appended since `offset` plus the job's state."""
+    with TTS_LOCK:
+        buf = TTS_BUFFERS.get(job_id)
+        state = TTS_JOBS.get(job_id) or {}
+        if buf is None:
+            return {"ok": False, "msg": "No such job."}
+        data = bytes(buf[offset:])
+        return {"ok": True, "data": data, "offset": offset + len(data),
+                "done": bool(state.get("done")), "error": state.get("error"),
+                "clauses": state.get("clauses", 0), "total": len(buf)}
