@@ -162,7 +162,7 @@ body {
 
 .vignette {
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  background: radial-gradient(ellipse 80% 66% at 52% 44%, transparent 26%, rgba(0,0,0,.78) 100%);
+  background: radial-gradient(ellipse 88% 76% at 50% 42%, transparent 36%, rgba(0,0,0,.70) 100%);
 }
 .scanlines {
   position: fixed; inset: 0; z-index: 60; pointer-events: none;
@@ -829,7 +829,7 @@ main.stage-wrap {
   min-height: 130px;
   margin: 4px 0 2px;
 }
-#orb { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#orb { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 1; }
 .core-state {
   flex: 0 0 auto;
   text-align: center; pointer-events: none;
@@ -1167,6 +1167,38 @@ main.stage-wrap {
 .doc-slide h4 i { font-style: normal; font-size: 8px; letter-spacing: .16em; color: var(--ink-faint); }
 .doc-slide ul { margin: 0; padding-left: 16px; }
 .doc-slide li { font-size: 10px; line-height: 1.7; color: var(--ink-dim); }
+/* the slide the projector is on right now */
+.doc-slide.on {
+  border-color: hsl(var(--accent, 272) 100% 74% / .52);
+  background: linear-gradient(158deg, hsl(272 100% 74% / .12), hsl(318 95% 70% / .05));
+  box-shadow: 0 0 0 1px hsl(272 100% 74% / .14), 0 10px 26px -18px hsl(272 100% 70% / .8);
+}
+.doc-slide.on h4 { color: hsl(var(--alt, 318) 98% 80%); }
+.doc-slide.on h4 i { color: hsl(var(--alt, 318) 98% 78%); }
+.doc-slide.pending { animation: docJump 0.5s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes docJump {
+  from { opacity: 0; transform: translateY(9px) scale(.994); filter: blur(1.5px); }
+  to   { opacity: 1; transform: none; filter: none; }
+}
+.doc-follow {
+  position: sticky; top: 0; z-index: 2; margin: 0 22px 10px; padding: 6px 10px;
+  display: none; align-items: center; gap: 7px;
+  border: 1px solid hsl(272 100% 74% / .30);
+  background: linear-gradient(96deg, hsl(272 92% 40% / .30), hsl(318 88% 40% / .18));
+  font: 500 8.5px/1 var(--font-display); letter-spacing: .17em; text-transform: uppercase;
+  color: hsl(276 100% 88%);
+}
+.doc-follow.on { display: flex; }
+.doc-follow b { font-weight: 600; color: #fff; }
+.doc-follow .dot {
+  width: 5px; height: 5px; border-radius: 50%; background: hsl(0 0% 100% / .9);
+  box-shadow: 0 0 0 0 hsl(0 0% 100% / .55); animation: followPulse 1.7s ease-out infinite;
+}
+@keyframes followPulse {
+  0%   { box-shadow: 0 0 0 0 hsl(0 0% 100% / .5); }
+  70%  { box-shadow: 0 0 0 6px hsl(0 0% 100% / 0); }
+  100% { box-shadow: 0 0 0 0 hsl(0 0% 100% / 0); }
+}
 .doc-err { padding: 22px; color: var(--bad); font-size: 10.5px; line-height: 1.7; }
 
 /* ── ANALYSIS panel ───────────────────────────────────────── */
@@ -1219,6 +1251,42 @@ main.stage-wrap {
 .arow.focus .al, .arow.focus .av { color: var(--amber); }
 .arow.focus .ab i { background: linear-gradient(90deg, #8a5a10, var(--amber)); }
 .achart.focus h4 { color: var(--amber); border-bottom-color: var(--line-hard); }
+
+/* line: the polyline is drawn by stretching its dash gap from full length to
+   zero. A dash transition is the one reveal that works on a pane that is not
+   painting — the browser interpolates the dash offset, nothing waits on rAF. */
+.aline { position: relative; height: 74px; }
+.aline svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.aline .lg { stroke: hsl(var(--hue) 100% 74% / .10); stroke-width: 1; }
+.aline .ar {
+  fill: none; stroke: url(#anaLine); stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: var(--len, 400); stroke-dashoffset: var(--len, 400);
+  transition: stroke-dashoffset 1.5s cubic-bezier(.22,.7,.2,1);
+}
+.achart.lit .aline .ar { stroke-dashoffset: 0; }
+.aline .pt { fill: hsl(var(--hue) 100% 86% / .0); transition: fill .5s ease .9s; }
+.achart.lit .aline .pt { fill: hsl(var(--hue) 100% 88% / .85); }
+.aline .pk { fill: hsl(318 96% 78% / 0); transition: fill .4s ease; }
+.aline .pk.on { fill: hsl(318 96% 80% / 1); }
+.achart .ax { display: flex; justify-content: space-between; margin-top: 4px; }
+.achart .ax span { font: 500 7.5px/1 var(--font-mono); color: var(--ink-faint); letter-spacing: .06em; }
+.aline .hi { position: absolute; top: -2px; right: 0; font: 600 9px/1 var(--font-display); color: hsl(318 96% 80%); }
+
+/* donut: one arc per slice, each drawn by its own dash transition */
+.adonut { display: flex; align-items: center; gap: 14px; }
+.adonut svg { width: 92px; height: 92px; flex: 0 0 auto; transform: rotate(-90deg); }
+.adonut .sl {
+  fill: none; stroke-width: 9;
+  stroke-dasharray: 0 var(--c, 260);
+  transition: stroke-dasharray 1.1s cubic-bezier(.2,.8,.2,1);
+}
+.achart.lit .adonut .sl { stroke-dasharray: var(--l, 0) var(--c, 260); }
+.adonut .key { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.adonut .key div { display: flex; align-items: center; gap: 6px; font-size: 9.5px; color: var(--ink-dim); }
+.adonut .key i { width: 7px; height: 7px; flex: 0 0 auto; }
+.adonut .key b { font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; margin-left: auto; }
+.achart .arow .ab i { transform-origin: left center; }
 
 .ana-points { display: flex; flex-direction: column; gap: 5px; }
 .ana-point {
@@ -1470,6 +1538,186 @@ footer {
   footer { grid-template-columns: minmax(0,1fr); }
   .files-shell, .docs-shell { grid-template-columns: minmax(0,1fr); }
   .tree, .doc-side { display: none; }
+}
+
+/* ═════════════════════════════════════════════════════════════
+   DEPTH PASS — the flat single fill was the complaint.
+
+   Every large surface used to be one solid alpha wash of violet.
+   That reads as a painted rectangle, not as light. This block adds
+   the three things real light does: it has a SOURCE (a gradient
+   with a direction), it has GRAIN (a second, finer gradient at a
+   different angle), and it has MOTION (a slow drift so the surface
+   is never quite the same twice).
+
+   Nothing here introduces a new hue. It separates the hues that
+   already exist — violet and its partner rose — and lets the panel
+   accent bleed in at low alpha, which is what makes the chrome
+   feel lit by the panel rather than merely next to it.
+   ═════════════════════════════════════════════════════════════ */
+
+:root {
+  --grad-shell:
+    radial-gradient(120% 90% at 12% -10%, hsl(272 100% 74% / .16), transparent 62%),
+    radial-gradient(100% 70% at 88% 110%, hsl(318 95% 70% / .13), transparent 60%),
+    linear-gradient(158deg, rgba(19,9,37,.92) 0%, rgba(11,5,24,.86) 46%, rgba(6,3,14,.94) 100%);
+  --grad-panel:
+    radial-gradient(92% 66% at 50% -6%, hsl(var(--hue) 100% 76% / .17), transparent 70%),
+    radial-gradient(76% 56% at 102% 104%, hsl(var(--alt) 98% 70% / .14), transparent 68%),
+    linear-gradient(168deg, rgba(17,8,33,.74) 0%, rgba(11,5,22,.66) 55%, rgba(8,4,18,.80) 100%);
+}
+
+/* the panel surface itself: two lights and a direction, not a wash */
+.stage {
+  background: var(--grad-panel);
+}
+/* a slow sheen travelling across the panel. 22s, so it is company and not
+   a screensaver; prefers-reduced-motion kills it with the rest. */
+.stage::after {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: linear-gradient(115deg,
+    transparent 30%,
+    hsl(var(--hue) 100% 88% / .045) 46%,
+    hsl(var(--alt) 95% 82% / .055) 52%,
+    transparent 68%);
+  background-size: 260% 260%;
+  animation: panelSheen 22s linear infinite;
+  mix-blend-mode: screen;
+}
+@keyframes panelSheen {
+  0%   { background-position: 0% 120%; }
+  100% { background-position: 100% -40%; }
+}
+
+/* every glass surface gets the same two-light treatment at panel scale */
+.glass {
+  background:
+    radial-gradient(120% 90% at 8% -20%, hsl(var(--hue) 100% 76% / .09), transparent 62%),
+    linear-gradient(168deg, rgba(20,10,40,.80), rgba(9,4,20,.72));
+}
+/* a lit top edge — one hairline that sells the bevel far more than a
+   border does, because it only exists where light would actually land */
+.glass::after {
+  content: ""; position: absolute; inset: 0 0 auto; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, hsl(var(--hue) 100% 86% / .34) 18%,
+    hsl(var(--alt) 95% 82% / .30) 72%, transparent);
+}
+
+/* header bar: the same language, one step brighter, because it is the
+   top of the object and light falls from above */
+header {
+  background:
+    radial-gradient(80% 220% at 30% -60%, hsl(272 100% 78% / .13), transparent 70%),
+    linear-gradient(180deg, rgba(16,7,32,.66), rgba(6,3,14,0));
+}
+
+/* rail: a vertical wash so the nine tabs read as a lit column, with the
+   selected tab punching its own hue back through */
+nav.rail {
+  background: linear-gradient(180deg,
+    hsl(272 100% 74% / .075) 0%,
+    hsl(318 95% 70% / .030) 42%,
+    hsl(272 100% 74% / .010) 72%,
+    transparent 100%);
+}
+
+/* the chat bubbles: they used to be one flat fill each. A bubble with a
+   gradient reads as an object with a light side and a dark side. */
+.msg .bubble {
+  background: linear-gradient(150deg,
+    hsl(var(--hue) 60% 24% / .86) 0%,
+    hsl(var(--hue) 55% 15% / .74) 100%);
+  border-color: hsl(var(--hue) 90% 74% / .22);
+}
+.msg.me .bubble {
+  background: linear-gradient(150deg,
+    hsl(var(--hue) 90% 70% / .20) 0%,
+    hsl(var(--alt) 90% 68% / .13) 100%);
+}
+
+/* inputs and buttons pick up the same source direction */
+.btn {
+  background: linear-gradient(170deg, hsl(var(--hue) 90% 74% / .10), hsl(var(--hue) 90% 60% / .03));
+}
+.btn.solid {
+  background: linear-gradient(170deg, hsl(var(--hue) 100% 80% / .95), hsl(var(--alt) 92% 66% / .88));
+}
+
+/* the dock: a floor of light rather than a row of boxes */
+.dock-row {
+  background: linear-gradient(180deg, transparent 0%, hsl(var(--hue) 100% 74% / .035) 100%);
+}
+
+/* the ghost numeral gets a gradient fill through a clipped layer — the
+   single most visible "flat" element on the panel */
+.stage .ghost {
+  background: linear-gradient(150deg,
+    hsl(var(--hue) 100% 82% / .10) 0%,
+    hsl(var(--alt) 95% 78% / .055) 60%,
+    transparent 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 1px hsl(var(--alt) 95% 70% / .38);
+}
+
+/* metric cards inside analysis read as lit tiles */
+.ana-card {
+  background: linear-gradient(158deg,
+    hsl(var(--hue) 90% 70% / .11) 0%,
+    hsl(var(--hue) 70% 40% / .05) 55%,
+    hsl(var(--alt) 90% 60% / .055) 100%);
+}
+
+/* the orb's own backlight: a coloured bloom behind the canvas so the
+   particles sit in light instead of on a flat field */
+.orb-box::before {
+  content: ""; position: absolute; left: 50%; top: 50%;
+  width: 340px; height: 340px; transform: translate(-50%, -50%);
+  pointer-events: none; z-index: 0;
+  background: radial-gradient(circle,
+    hsl(var(--hue) 100% 78% / .16) 0%,
+    hsl(var(--alt) 95% 70% / .09) 34%,
+    transparent 68%);
+  animation: orbBloom 7s ease-in-out infinite;
+  transition: transform .3s;
+}
+@keyframes orbBloom {
+  0%, 100% { opacity: .78; transform: translate(-50%, -50%) scale(1); }
+  50%      { opacity: 1;   transform: translate(-50%, -50%) scale(1.06); }
+}
+.orb-box.has-tasks::before { transform: translate(calc(-50% - 72px), -50%); }
+
+/* ── YOUTUBE INLINE ─────────────────────────────────────────
+   A YouTube link used to be handed to a child WebView2 window, which is
+   the honest way to render youtube.com because the site refuses framing
+   via X-Frame-Options. But the WATCH page is not the site — every video
+   also has a player embed, and that embed is served with
+   frame-ancestors * (that is the whole point of it). So the moment the
+   URL carries a video id we swap the iframe source to the player and the
+   video runs inside the grid, at stage resolution, with no browser in
+   the chain at all. No key, no API, no scraping: the id is in the URL. */
+#webFrame.yt {
+  background: #000;
+}
+.browse-bar .yt-badge {
+  display: none;
+  align-items: center; gap: 5px;
+  padding: 2px 7px 2px 6px;
+  border: 1px solid hsl(0 84% 62% / .45);
+  background: linear-gradient(170deg, hsl(0 84% 58% / .18), hsl(354 80% 46% / .10));
+  font-size: 8px; letter-spacing: .14em; text-transform: uppercase;
+  color: hsl(6 96% 76%);
+  white-space: nowrap;
+}
+.browse-bar .yt-badge.on { display: inline-flex; }
+.browse-bar .yt-badge svg { width: 10px; height: 10px; }
+/* the embed is a player, so it gets the player's aspect box centred in
+   whatever space the panel has rather than being stretched */
+.browse-body.player { display: grid; place-items: center; background: #000; }
+.browse-body.player #webFrame {
+  width: min(100%, calc((100vh - 260px) * 1.7778));
+  height: auto; aspect-ratio: 16 / 9;
+  border: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1755,6 +2003,10 @@ footer {
             <form class="url" id="webForm" autocomplete="off">
               <input type="text" id="webUrl" spellcheck="false" placeholder="https:// — type an address or a search">
             </form>
+            <span class="yt-badge" id="webYt">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2C2 8.8 2 12 2 12s0 3.2.4 4.8a2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8C22 15.2 22 12 22 12s0-3.2-.4-4.8zM10 15.2V8.8L15.5 12 10 15.2z"/></svg>
+              inline
+            </span>
             <button type="button" class="btn" id="webGo">Open</button>
           </div>
           <div class="browse-body" id="webBody">
@@ -1766,7 +2018,9 @@ footer {
               <p>Pages open in a WebView2 window placed exactly over this area — the full engine, so every site works, not only the half that allow embedding. Press <b>Embed</b> if you would rather the page sat inside the grid.</p>
             </div>
             <iframe id="webFrame" hidden referrerpolicy="no-referrer"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+                    allow="autoplay; encrypted-media; picture-in-picture; fullscreen; clipboard-write"
+                    allowfullscreen
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"></iframe>
             <div class="web-veil" id="webVeil" hidden>
               <b>Waiting for window…</b>
               <span>the web window is placed over this area</span>
@@ -2483,19 +2737,58 @@ footer {
   if (bg) {
     const g = bg.getContext('2d');
     const dpr = Math.min(devicePixelRatio || 1, 1.5);
-    let W = 0, H = 0, dots = [];
+    let W = 0, H = 0, dots = [], blooms = [], t = 0;
+
+    /* The ground used to be 90 grey specks on black. A field of dust on
+       nothing still reads as nothing, which is why the whole room looked
+       flat no matter what the panels did. What was missing is a LIGHT
+       SOURCE: four enormous, very low-alpha colour bodies drifting at
+       different speeds behind everything. They are cheaper than a
+       backdrop-filter (one fillRect each, composited once per frame) and
+       they are the reason a screenshot now shows a gradient rather than a
+       fill — the hue genuinely varies across the screen. */
+    const HUES = [272, 318, 200, 44];   // violet, rose, sky, gold
     const sizeBg = () => {
       W = innerWidth; H = innerHeight;
       bg.width = Math.round(W * dpr); bg.height = Math.round(H * dpr);
       g.setTransform(dpr, 0, 0, dpr, 0, 0);
-      dots = Array.from({ length: 90 }, () => ({
+      dots = Array.from({ length: 96 }, () => ({
         x: Math.random() * W, y: Math.random() * H,
-        r: Math.random() * 1.1 + .25, a: Math.random() * .35 + .05,
+        r: Math.random() * 1.1 + .25, a: Math.random() * .30 + .04,
         v: Math.random() * .08 + .02
       }));
+      blooms = HUES.map((h, k) => ({
+        h,
+        x: W * [0.16, 0.82, 0.94, 0.06][k],
+        y: H * [0.12, 0.24, 0.88, 0.78][k],
+        r: Math.max(W, H) * [0.46, 0.38, 0.40, 0.30][k],
+        a: [0.31, 0.24, 0.16, 0.11][k],
+        sx: (Math.random() - .5) * 0.10,
+        sy: (Math.random() - .5) * 0.07,
+        ph: Math.random() * Math.PI * 2
+      }));
     };
+
     const drift = () => {
+      t += 0.006;
       g.clearRect(0, 0, W, H);
+
+      /* additive so overlapping bodies brighten instead of muddying —
+         two hues meeting should produce a third colour, not grey */
+      g.globalCompositeOperation = 'lighter';
+      for (const b of blooms) {
+        const x = b.x + Math.sin(t * (0.6 + b.sx) + b.ph) * W * 0.10;
+        const y = b.y + Math.cos(t * (0.5 + b.sy) + b.ph) * H * 0.07;
+        const r = b.r * (1 + Math.sin(t * 0.8 + b.ph) * 0.06);
+        const rad = g.createRadialGradient(x, y, 0, x, y, r);
+        rad.addColorStop(0,   `hsl(${b.h} 100% 62% / ${b.a})`);
+        rad.addColorStop(0.40, `hsl(${b.h} 98% 55% / ${b.a * 0.46})`);
+        rad.addColorStop(1,    `hsl(${b.h} 92% 48% / 0)`);
+        g.fillStyle = rad;
+        g.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+      g.globalCompositeOperation = 'source-over';
+
       for (const d of dots) {
         d.y -= d.v;
         if (d.y < -4) { d.y = H + 4; d.x = Math.random() * W; }
@@ -2506,6 +2799,7 @@ footer {
     };
     sizeBg(); addEventListener('resize', sizeBg); drift();
   }
+
 
   /* ═══════════════════════════════════════════════════════════
      MEDIA panel — one <video>/<audio> fed by the range server.
@@ -2712,6 +3006,108 @@ footer {
        at whatever the first frame wrote — usually zero. The reveal motion lives
        in CSS instead: the card fades in and its underline sweeps. */
 
+    // ── drawings ──────────────────────────────────────────────
+    const PAL = ['hsl(272 100% 76%)', 'hsl(318 96% 74%)', 'hsl(196 100% 70%)',
+                 'hsl(44 100% 64%)', 'hsl(158 84% 64%)', 'hsl(6 96% 70%)'];
+
+    function barRows(box, rows) {
+      const max = Math.max(...rows.map(r => Math.abs(Number(r.value) || 0)), 1);
+      rows.forEach(r => {
+        const row = document.createElement('div');
+        row.className = 'arow';
+        const al = document.createElement('span');
+        al.className = 'al';
+        al.textContent = esc(r.label);
+        al.title = esc(r.label);
+        const ab = document.createElement('span');
+        ab.className = 'ab';
+        const fill = document.createElement('i');
+        fill.dataset.w = (Math.abs(Number(r.value) || 0) / max * 100).toFixed(1) + '%';
+        ab.appendChild(fill);
+        const av = document.createElement('span');
+        av.className = 'av';
+        av.textContent = esc(r.display != null ? r.display : r.value);
+        row.append(al, ab, av);
+        box.appendChild(row);
+      });
+    }
+
+    function lineChart(box, rows) {
+      const vals = rows.map(r => Math.max(0, Number(r.value) || 0));
+      const max = Math.max(...vals, 1);
+      const W = 300, H = 64, n = Math.max(vals.length, 2);
+      const x = i => (i / (n - 1)) * W;
+      const y = v => H - (v / max) * (H - 6) - 3;
+      const pts = vals.map((v, i) => x(i).toFixed(1) + ',' + y(v).toFixed(1)).join(' ');
+      const wrap = document.createElement('div');
+      wrap.className = 'aline';
+      wrap.innerHTML =
+        '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
+        '<defs><linearGradient id="anaLine" x1="0" x2="1">' +
+        '<stop offset="0" stop-color="hsl(272 100% 78%)"/>' +
+        '<stop offset="0.55" stop-color="hsl(318 96% 74%)"/>' +
+        '<stop offset="1" stop-color="hsl(196 100% 72%)"/></linearGradient></defs>' +
+        [0.25, 0.55, 0.85].map(f =>
+          '<line class="lg" x1="0" y1="' + (H * f).toFixed(0) + '" x2="' + W + '" y2="' + (H * f).toFixed(0) + '"/>'
+        ).join('') +
+        '<polyline class="ar" points="' + pts + '"/>' +
+        vals.map((v, i) => '<circle class="pt" cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="1.9"/>').join('') +
+        vals.map((v, i) => '<circle class="pk" data-i="' + i + '" cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="3.4"/>').join('') +
+        '</svg>';
+      const hi = document.createElement('div');
+      hi.className = 'hi';
+      hi.textContent = max + ' peak';
+      wrap.appendChild(hi);
+      box.appendChild(wrap);
+      const ax = document.createElement('div');
+      ax.className = 'ax';
+      const first = rows[0] || {}, last = rows[rows.length - 1] || {};
+      const mkSpan = t => { const x = document.createElement('span'); x.textContent = t; return x; };
+      ax.append(mkSpan(esc(first.label || '')), mkSpan(esc(last.label || '')));
+      box.appendChild(ax);
+    }
+
+    function donutChart(box, rows) {
+      const vals = rows.map(r => Math.max(0, Number(r.value) || 0));
+      const total = vals.reduce((a, b) => a + b, 0) || 1;
+      const R = 34, C = 2 * Math.PI * R;
+      const wrap = document.createElement('div');
+      wrap.className = 'adonut';
+      let off = 0;
+      const arcs = vals.map((v, i) => {
+        const len = (v / total) * C;
+        const arc = '<circle class="sl" cx="46" cy="46" r="' + R + '" stroke="' + PAL[i % PAL.length] +
+                    '" stroke-dashoffset="' + (-off).toFixed(2) + '" ' +
+                    'style="--l:' + len.toFixed(2) + 'px;--c:' + C.toFixed(2) + 'px"/>';
+        off += len;
+        return arc;
+      }).join('');
+      wrap.innerHTML = '<svg viewBox="0 0 92 92">' + arcs + '</svg>';
+      const key = document.createElement('div');
+      key.className = 'key';
+      rows.slice(0, 6).forEach((r, i) => {
+        const d = document.createElement('div');
+        const sw = document.createElement('i');
+        sw.style.background = PAL[i % PAL.length];
+        d.append(sw, document.createTextNode(esc(r.label)));
+        const b = document.createElement('b');
+        b.textContent = ((vals[i] / total) * 100).toFixed(0) + '%';
+        d.appendChild(b);
+        key.appendChild(d);
+      });
+      wrap.appendChild(key);
+      box.appendChild(wrap);
+    }
+
+    function seedLine(box) {
+      const pl = box.querySelector('.aline .ar');
+      if (!pl) return;
+      try {
+        const len = pl.getTotalLength();
+        if (len) { pl.style.setProperty('--len', len.toFixed(0) + 'px'); }
+      } catch (e) { /* not painted yet; the CSS fallback length stands */ }
+    }
+
     function render(a) {
       cardsEl.textContent = '';
       chartsEl.textContent = '';
@@ -2736,33 +3132,39 @@ footer {
         cardsEl.appendChild(d);
       });
 
-      (a.charts || []).slice(0, 3).forEach(c => {
+      // Three drawings, one shell. Each reveal is a CSS transition on a
+      // property the browser interpolates on its own — dash offset for the
+      // line, dash array for the donut, width for the bars. None of them
+      // needs a live rAF loop, so a pane that is not painting still lands
+      // on the right picture the moment it is shown.
+      (a.charts || []).slice(0, 4).forEach(c => {
         const box = document.createElement('div');
         box.className = 'achart';
         const h = document.createElement('h4');
         h.textContent = esc(c.title);
         box.appendChild(h);
-        const rows = (c.items || []).slice(0, 8);
-        const max = Math.max(...rows.map(r => Math.abs(Number(r.value) || 0)), 1);
-        rows.forEach(r => {
-          const row = document.createElement('div');
-          row.className = 'arow';
-          const al = document.createElement('span');
-          al.className = 'al';
-          al.textContent = esc(r.label);
-          al.title = esc(r.label);
-          const ab = document.createElement('span');
-          ab.className = 'ab';
-          const fill = document.createElement('i');
-          fill.dataset.w = (Math.abs(Number(r.value) || 0) / max * 100).toFixed(1) + '%';
-          ab.appendChild(fill);
-          const av = document.createElement('span');
-          av.className = 'av';
-          av.textContent = esc(r.display != null ? r.display : r.value);
-          row.append(al, ab, av);
-          box.appendChild(row);
-        });
+        const kind = c.kind || 'bar';
+        const rows = (c.items || []).slice(0, kind === 'bar' ? 8 : 40);
+        if (kind === 'line') lineChart(box, rows);
+        else if (kind === 'donut') donutChart(box, rows);
+        else barRows(box, rows);
         chartsEl.appendChild(box);
+      });
+
+      chartsEl.querySelectorAll('.aline').forEach(seedLine);
+
+      // Cards and charts both arrive on a stagger of their own. The narration
+      // still lights the card a point is talking about — that is the focus
+      // ring, not the reveal — but nothing depends on the voice finishing,
+      // because the voice can be cancelled mid-sentence by a new question.
+      [...cardsEl.children].forEach((card, i) => {
+        setTimeout(() => reveal(card), 70 + i * 120);
+      });
+
+      // Narration can be interrupted (Replay, a new question, voice failure);
+      // the dashboard must still be readable when it is.
+      [...chartsEl.children].forEach((box, i) => {
+        setTimeout(() => reveal(box), 90 + i * 210);
       });
 
       (a.points || []).slice(0, 8).forEach(pt => {
@@ -2781,7 +3183,13 @@ footer {
       if (m[1] === 'point') return pointsEl.children[Number(m[2])] || null;
       const box = chartsEl.children[Number(m[2])];
       if (!box) return null;
-      return m[3] != null ? box.querySelectorAll('.arow')[Number(m[3])] || box : box;
+      if (m[3] == null) return box;
+      // a bar chart indexes its rows; a line chart indexes its points
+      const rows = box.querySelectorAll('.arow');
+      if (rows.length) return rows[Number(m[3])] || box;
+      const pts = box.querySelectorAll('.aline .pk');
+      if (pts.length) return pts[Number(m[3])] || box;
+      return box;
     }
 
     function focus(el) {
@@ -2791,7 +3199,13 @@ footer {
       const card = el.closest ? el.closest('.ana-card') : null;
       const chart = el.closest ? el.closest('.achart') : null;
       if (card) card.classList.add('focus');
-      if (chart) { chart.classList.add('focus'); if (el.classList.contains('arow')) el.classList.add('focus'); }
+      if (chart) {
+        chart.classList.add('focus');
+        if (el.classList.contains('arow')) el.classList.add('focus');
+        // a line chart has no rows: the highlighted point is the focus
+        chart.querySelectorAll('.pk.on').forEach(x => x.classList.remove('on'));
+        if (el.classList && el.classList.contains('pk')) el.classList.add('on');
+      }
       el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
@@ -2801,6 +3215,7 @@ footer {
         el.classList.add('shown');
       }
       if (el.classList.contains('achart')) {
+        el.classList.add('lit');
         el.querySelectorAll('.arow .ab i').forEach(i => { i.style.width = i.dataset.w; });
       }
       if (el.classList.contains('arow')) {
@@ -2815,6 +3230,7 @@ footer {
     }
 
     function clearFocus() {
+      chartsEl.querySelectorAll('.pk.on').forEach(x => x.classList.remove('on'));
       cardsEl.querySelectorAll('.focus').forEach(x => x.classList.remove('focus'));
       chartsEl.querySelectorAll('.focus').forEach(x => x.classList.remove('focus'));
     }
@@ -3262,6 +3678,7 @@ footer {
     const form   = document.getElementById('webForm');
     const veil   = document.getElementById('webVeil');
     const embedBt = document.getElementById('webInline');
+    const ytBadge = document.getElementById('webYt');
     const closeBt = document.getElementById('webClose');
     if (!body) return;
 
@@ -3296,6 +3713,11 @@ footer {
       empty.hidden = !!(curUrl || embedded);
       frame.hidden = !(mode === 'embed' && embedded);
       veil.hidden = !(mode === 'window' && !!curUrl);
+      const yt = embedded && !!ytId(curUrl);
+      body.classList.toggle('player', yt);
+      if (ytBadge) ytBadge.classList.toggle('on', yt);
+      if (ytBadge) ytBadge.title = yt
+        ? 'playing inside the stage' : '';
       if (embedBt) embedBt.setAttribute('aria-pressed', String(mode === 'embed'));
       if (closeBt) closeBt.disabled = !curUrl && !embedded;
       meta.textContent = !curUrl && !embedded
@@ -3312,18 +3734,49 @@ footer {
       return '';
     }
 
+    /* ── YouTube id extraction ──
+       Five URL shapes carry a video id and they all appear in the wild:
+         youtube.com/watch?v=ID      youtu.be/ID
+         youtube.com/shorts/ID       youtube.com/embed/ID
+         youtube.com/live/ID         m.youtube.com/watch?v=ID
+       Returns the id, or '' for anything else (a channel, a playlist,
+       the homepage) — those keep the child-window path, because there is
+       no player to embed. A playlist-only URL (?list=...) is deliberately
+       NOT treated as embeddable: the embed endpoint needs a video id. */
+    function ytId(url) {
+      const u = String(url || '');
+      let m = u.match(/[?&]v=([A-Za-z0-9_-]{6,20})/);
+      if (m) return m[1];
+      m = u.match(/youtu\.be\/([A-Za-z0-9_-]{6,20})/i);
+      if (m) return m[1];
+      m = u.match(/youtube(?:-nocookie)?\.com\/(?:embed|shorts|live|v)\/([A-Za-z0-9_-]{6,20})/i);
+      if (m) return m[1];
+      return '';
+    }
+    /* autoplay is allowed here because the click that opened the video is
+       the user gesture; rel=0 keeps the end-card to the same channel;
+       modestbranding trims the chrome. playsinline stops iOS Safari from
+       stealing the video into a native fullscreen player. */
+    function ytEmbed(id) {
+      return 'https://www.youtube.com/embed/' + id +
+             '?autoplay=1&rel=0&modestbranding=1&playsinline=1&color=white';
+    }
+
     async function go(raw) {
+      const direct = ytId(String(raw || '').trim());
+      if (direct) { playYt(direct); input.value = String(raw).trim(); return ''; }
       const u = normalise(raw);
       if (!u) {
         // not an address — treat it as a search, in the child window
         if (!raw.trim()) return;
         if (api && api.web_search) {
-          // false = jangan _emit url kembali: kita sudah tahu URL ini, dan
-          // _emit akan memanggil go() sekali lagi tanpa henti
+          // false = don't _emit the url back: we already know this URL, and
+          // _emit would call go() again, forever
           const r = await api.web_search(raw.trim(), false);
           if (r && r.ok) { curUrl = r.url || ''; embedded = false; input.value = curUrl; paint(); pushRect(); }
+          return r && r.ok ? (r.url || '') : '';
         }
-        return;
+        return '';
       }
       curUrl = u;
       input.value = u;
@@ -3334,11 +3787,32 @@ footer {
         embedded = true;
         frame.src = u;
         paint();
-        return;
+        return u;
       }
       paint();
       if (api && api.web_open) await api.web_open(u, false);
       pushRect();
+      return u;
+    }
+
+    /* Every YouTube id takes this path, no matter which mode the pane is
+       in. The child window is closed first because it would otherwise sit
+       over the iframe, and a video that plays behind an invisible window
+       is worse than one that does not play. */
+    function playYt(id) {
+      if (api && api.web_close) api.web_close();
+      curUrl = 'https://www.youtube.com/watch?v=' + id;
+      embedded = true;
+      mode = 'embed';
+      // The iframe ships with referrerpolicy="no-referrer" so that ordinary
+      // pages never learn where they were opened from. The player is the one
+      // exception: it validates the embedding origin from the Referer header
+      // and answers "Video player configuration error 153" when the header is
+      // missing entirely. Send the origin for the player, and only the origin.
+      frame.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+      frame.src = ytEmbed(id);
+      frame.classList.add('yt');
+      paint();
     }
 
     function setMode(next) {
@@ -3348,12 +3822,18 @@ footer {
         // leave embed, hand the URL to the child window
         embedded = false;
         frame.src = 'about:blank';
+        frame.classList.remove('yt');
         if (curUrl) go(curUrl);
         else paint();
       } else {
         // hide the child window first, otherwise it sits over the iframe
         if (api && api.web_close) api.web_close();
-        if (curUrl) { embedded = true; frame.src = curUrl; }
+        const id = ytId(curUrl);
+        if (id) { embedded = true; frame.src = ytEmbed(id); }
+        else if (curUrl) {
+          frame.setAttribute('referrerpolicy', 'no-referrer');
+          embedded = true; frame.src = curUrl;
+        }
         paint();
       }
     }
@@ -3493,15 +3973,19 @@ footer {
     function paint(r) {
       body.textContent = '';
       body.scrollTop = 0;
+      deck = []; follow = null;
       if (!r || !r.ok) {
         body.appendChild(el('div', 'doc-err', (r && r.msg) || 'Document could not be read.'));
         return;
       }
       cur = { path: r.path, name: r.name, ext: r.ext, page: r.page || 0, total: r.total || 0 };
       paintList();
-      pageTag.textContent = r.kind === 'pdf' ? (r.page + 1) + ' / ' + r.total : (r.kind || '');
-      btPrev.disabled = !(r.kind === 'pdf' && r.page > 0);
-      btNext.disabled = !(r.kind === 'pdf' && r.page + 1 < r.total);
+      pageTag.textContent = r.kind === 'pdf' ? (r.page + 1) + ' / ' + r.total
+                          : r.kind === 'pptx' ? (r.page || 1) + ' / ' + (r.total || 0)
+                          : (r.kind || '');
+      btPrev.disabled = !(r.kind === 'pdf' && r.page > 0 || r.kind === 'pptx' && r.page > 1);
+      btNext.disabled = !(r.kind === 'pdf' && r.page + 1 < r.total
+                          || r.kind === 'pptx' && r.page < (r.total || 0));
       btOpen.disabled = false;
 
       if (r.kind === 'pdf') {
@@ -3550,8 +4034,14 @@ footer {
       }
 
       if (r.kind === 'pptx') {
+        follow = el('div', 'doc-follow');
+        follow.append(el('span', 'dot'), document.createTextNode('Following the projector · slide '),
+                      el('b', '', String(r.page || 1)), document.createTextNode(' of ' + (r.total || 0)));
+        body.appendChild(follow);
+        deck = [];
         (r.slides || []).forEach(s => {
           const box = el('div', 'doc-slide');
+          box.dataset.n = s.n;
           const h = el('h4');
           h.append(el('i', '', 'S' + s.n), el('span', '', s.title));
           box.appendChild(h);
@@ -3561,12 +4051,52 @@ footer {
             box.appendChild(ul);
           }
           body.appendChild(box);
+          deck.push(box);
         });
+        mark(r.page || 1, false);
         return;
       }
 
       // text / md / json / log
       body.appendChild(el('pre', 'doc-text', r.text || ''));
+    }
+
+    // The slides currently painted, and which one the projector is on. Both
+    // live out here because paint() rebuilds the whole body each open, so the
+    // handles from the previous deck must not survive it.
+    let deck = [], follow = null;
+
+    function mark(n, scroll) {
+      if (!deck.length) return;
+      const hit = deck.find(b => Number(b.dataset.n) === Number(n)) || null;
+      deck.forEach(b => b.classList.remove('on', 'pending'));
+      if (!hit) return;
+      hit.classList.add('on');
+      if (scroll) {
+        hit.classList.remove('pending');
+        void hit.offsetWidth;   // force a reflow so the animation restarts
+        hit.classList.add('pending');
+        if (hit.scrollIntoView) hit.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+      if (follow) {
+        follow.classList.add('on');
+        const b = follow.querySelector('b');
+        if (b) b.textContent = String(n);
+      }
+    }
+
+    // Called from Python after every slide keystroke. The page never counts the
+    // keystrokes itself — it is told, because PowerPoint is the one that moved
+    // and Python is the only side that both sends the key and reads the deck.
+    function slide(n) {
+      if (!cur || cur.ext !== 'pptx') return false;
+      const total = cur.total || deck.length;
+      n = Math.max(1, Math.min(Number(n) || 1, total));
+      cur.page = n;
+      mark(n, true);
+      const pg = document.getElementById('docPage');
+      if (pg) pg.textContent = n + ' / ' + total;
+      return true;
     }
 
     async function open(path, page) {
@@ -3605,8 +4135,17 @@ footer {
       });
     });
 
-    btPrev.addEventListener('click', () => cur && cur.page > 0 && open(cur.path, cur.page - 1));
-    btNext.addEventListener('click', () => cur && cur.page + 1 < cur.total && open(cur.path, cur.page + 1));
+    // A deck steps in place — re-reading the file on every arrow would be a
+    // whole pptx parse for one slide. A PDF re-reads, because the page image
+    // has to be rasterised fresh.
+    const step = d => {
+      if (!cur) return;
+      if (cur.ext === 'pptx') { slide(cur.page + d); return; }
+      const p = cur.page + d;
+      if (p >= 0 && p + 1 <= cur.total) open(cur.path, p);
+    };
+    btPrev.addEventListener('click', () => step(-1));
+    btNext.addEventListener('click', () => step(1));
     btOpen.addEventListener('click', () => cur && api && api.fs_open && api.fs_open(cur.path));
 
     // Imbas sekali sahaja pada lawatan pertama, bukan setiap kali panel dibuka —
@@ -3618,14 +4157,20 @@ footer {
 
     // PDF: anak panah halaman semasa panel ini fokus
     addEventListener('keydown', e => {
-      if (document.getElementById('pane-docs').hidden || !cur || cur.ext !== 'pdf') return;
+      if (document.getElementById('pane-docs').hidden || !cur) return;
       if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+      if (cur.ext === 'pptx') {
+        if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); step(1); }
+        if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); step(-1); }
+        return;
+      }
+      if (cur.ext !== 'pdf') return;
       if (e.key === 'ArrowRight' || e.key === 'PageDown') btNext.click();
       if (e.key === 'ArrowLeft' || e.key === 'PageUp') btPrev.click();
     });
 
     return {
-      open, scan,
+      open, scan, slide,
       get file() { return cur; },
       get files() { return files.slice(); },
       setDir: p => { dir = p; return scan(); }
@@ -4325,9 +4870,11 @@ footer {
         if (window.stageWeb) window.stageWeb.setMode('window');
       } else if (d.url) {
         if (window.stageWeb) window.stageWeb.open(d.url);
+        // a video link is meant to be watched, so bring the pane forward
+        if (/youtu\.?be/.test(d.url) && window.stageShow) window.stageShow('browse');
       } else {
         const links = d.links || [];
-        sysNote('⌕ ' + (d.query || '') + ' — ' + links.length + ' sumber');
+        sysNote('⌕ ' + (d.query || '') + ' — ' + links.length + ' sources');
         orbTasks.upsert('WebSearch', 'connecting web', d.query || '');
         orbTasks.items(links.slice(0, 3).map(l => ({
           text: l.title || (l.url || '').replace(/^https?:\/\//, ''),

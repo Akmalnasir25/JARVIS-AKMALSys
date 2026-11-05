@@ -380,6 +380,44 @@ def _run():
     note(api._safe_path(M.known_folder("Pictures")) is not None, "shortcut folder dalam skop fail")
     js("document.querySelector('.dock-tabs [data-dock=\"desktop\"]').click()")
 
+    # ── YouTube: player embed, bukan tetingkap Chrome ──
+    pane("browse", settle=0.8)
+    ids = js("""(()=>{
+      const s=window.stageWeb; if(!s) return null;
+      s.open('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+      const a=document.getElementById('webFrame').getAttribute('src')||'';
+      s.open('https://youtu.be/abcdefghijk');
+      const b=document.getElementById('webFrame').getAttribute('src')||'';
+      s.open('https://www.youtube.com/shorts/ZZZZZZZZZZZ');
+      const c=document.getElementById('webFrame').getAttribute('src')||'';
+      s.open('https://www.youtube.com/@somechannel');
+      const d=document.getElementById('webFrame').getAttribute('src')||'';
+      return [a,b,c,d];
+    })()""")
+    note(bool(ids) and 'embed/dQw4w9WgXcQ' in (ids[0] or ''), "watch?v= jadi player embed", ids[0] if ids else None)
+    note(bool(ids) and 'embed/abcdefghijk' in (ids[1] or ''), "youtu.be jadi player embed", ids[1] if ids else None)
+    note(bool(ids) and 'embed/ZZZZZZZZZZZ' in (ids[2] or ''), "shorts jadi player embed", ids[2] if ids else None)
+    note(bool(ids) and 'embed/' not in (ids[3] or ''), "bukan video kekal iframe biasa", ids[3] if ids else None)
+    js("window.stageWeb.open('https://www.youtube.com/watch?v=jNQXAC9IVRw')")
+    time.sleep(0.4)
+    cls = js("document.getElementById('webBody').className")
+    badge = js("document.getElementById('webYt').className")
+    note("player" in str(cls), "body jadi mod player", cls)
+    note("on" in str(badge), "badge inline menyala", badge)
+    origin = js("location.origin + ' | ' + location.protocol")
+    note("http" in str(origin), "HUD dimuat dari origin http", origin)
+    js("""window.__yt='';
+      const f=document.getElementById('webFrame');
+      try{
+        const d=f.contentDocument;
+        window.__yt = d ? ('same-origin: '+(d.body?d.body.innerText.slice(0,60):'empty')) : 'cross-origin(ok)';
+      }catch(e){ window.__yt='cross-origin(ok)'; }
+    """)
+    time.sleep(9.0)          # player chrome + first frame need real seconds
+    shot("10-yt")
+    js("window.stageWeb.open('https://example.com')")
+    note("player" not in str(js("document.getElementById('webBody').className")), "laman biasa balik ke grid")
+
     shot("08-akhir")
 
 

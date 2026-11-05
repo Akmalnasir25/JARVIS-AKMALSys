@@ -137,7 +137,48 @@ class _Handler(BaseHTTPRequestHandler):
             pass  # the player seeked away mid-chunk; that is normal, not an error
 
     # ---------- verbs ----------
+    ui_root: Path | None = None
+    ui_entry: str = "stage.html"
+
+    def _send_file(self, target: Path, ctype: str | None = None):
+        data = target.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self._cors()
+        self.send_header("Content-Type", ctype or mimetypes.guess_type(target.name)[0]
+                         or "application/octet-stream")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(data)
+
     def do_GET(self):
+        # /stage and /stage/ are the HUD itself. It is served over http on
+        # purpose: a file:// document has a null origin, and a null origin
+        # is what makes the YouTube player refuse with "configuration error
+        # 153" — the embed checks its referrer and gets nothing. Serving the
+        # same file from 127.0.0.1 gives it a real origin without changing a
+        # byte of the page, and keeps it out of any other process's reach.
+        raw = unquote(urlparse(self.path).path)
+        if raw in ("/", "/stage", "/stage/"):
+            entry = (self.ui_root or Path(".")) / self.ui_entry
+            if entry.is_file():
+                self._send_file(entry, "text/html; charset=utf-8")
+                return
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        if raw.startswith("/ui/") and self.ui_root:
+            ui = (self.ui_root / raw[4:]).resolve()
+            try:
+                ui.relative_to(self.ui_root.resolve())
+            except ValueError:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            if ui.is_file():
+                self._send_file(ui)
+                return
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
         path = self._resolve()
         if path is None:
             self.send_error(HTTPStatus.NOT_FOUND)
@@ -172,6 +213,16 @@ class MediaServer:
     @property
     def base(self) -> str:
         return f"http://127.0.0.1:{self.port}"
+
+    def serve_ui(self, ui_dir: str | Path, entry: str = "stage.html") -> "MediaServer":
+        """Mount the HUD on the same socket so it loads from an http origin."""
+        self._httpd.RequestHandlerClass.ui_root = Path(ui_dir)
+        self._httpd.RequestHandlerClass.ui_entry = entry
+        return self
+
+    @property
+    def stage_url(self) -> str:
+        return f"{self.base}/stage"
 
     def start(self) -> "MediaServer":
         if self._thread is None:

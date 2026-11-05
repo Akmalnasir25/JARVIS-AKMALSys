@@ -542,3 +542,59 @@ git status               # mesti bersih
 `.gitignore` lindungi `secrets.json`, `cache.json`, `sessions.json`, `media/`, `tts_test/`,
 `__pycache__/`, dan semua `ui/_*` (harness + screenshot), `ui/stage-v1.html`,
 `ui/stage-cyan.html`, `ui/stage-pre-tdz-fix.html`, `ui/index-v09.html`.
+
+## Session 05 Nov — repo stats, motion graphics, projector follow
+
+### What shipped
+- `repo_stats` chat tool + `Api.repo_scan()` / `_repo_dashboard()`. Walks Home,
+  Desktop, Documents, Downloads, Projects, source, dev, depth 4, skipping
+  `REPO_SKIP`. Live count on this machine: 13 repos.
+- `carries_data()` — a reply full of figures now routes into the analysis pane
+  even when the question had no analysis keyword. Akmal's rule: data answer
+  means drawn answer.
+- `ana` pane: three drawing kinds (`bar`, `line`, `donut`). Line is a polyline
+  revealed by `stroke-dashoffset`, donut by `stroke-dasharray` per slice. Both
+  are CSS transitions, not rAF — see the trap below.
+- Cards and charts reveal on their own stagger, independent of narration.
+- Deck follow: `_deck` state, `_deck_step()`, `_deck_label()`, `stageDocs.slide()`.
+  "next slide" advances the projector *and* the doc pane, and the pane shows the
+  caption of the slide being presented.
+
+### Traps hit this session
+1. **`datetime` was never imported in `main.py`.** Every `_repo_shape` threw
+   `NameError`, `repo_scan` swallowed it into the per-repo `error` field, and the
+   dashboard rendered a confident wall of zeroes. A per-row try/except that
+   stores the exception turns a hard crash into a wrong answer — the picture
+   looked plausible, which is worse. Fixed with `from datetime import datetime`.
+2. **Hermes-style heredoc strips `\b`.** Writing a regex through
+   `python - <<'PY'` turns `\b` into a literal 0x08 byte before Python parses it.
+   The block landed with four backspace bytes and every word-boundary regex went
+   silently dead. Detect with `s.count("\x08")`; repair by replacing with `\b`.
+   Write generators to a file with the Write tool, not through a heredoc.
+3. **`el()` is scoped inside the docs IIFE.** The new `lineChart()` lives in the
+   analysis IIFE and cannot see it — `ReferenceError: el is not defined`, caught
+   only because the probe printed the stack. Use `document.createElement` in the
+   analysis pane.
+4. **`.aline .ax` never matched** — the axis div is appended to the chart box,
+   not inside `.aline`. Labels rendered as run-together "w1w26".
+5. **Charts stayed invisible when narration was interrupted.** Original reveal
+   depended on a point targeting each chart. Now every card and chart reveals on
+   a timer at render time; narration only adds the focus ring.
+6. **`evaluate_js` throws on a JS exception** rather than returning a value.
+   Wrap probes in `(()=>{try{...}catch(e){return e.message}})()`.
+7. **`win.screenshot()` does not exist on pywebview 6.2.1 `Window`.** Use
+   `PrintWindow(hwnd, hdc, 2)`; `ImageGrab` returns black for WebView2.
+8. **A window can be minimised and report `-32000` coordinates.** Guard the
+   `GetWindowRect` result before grabbing, or the PNG silently does not appear.
+
+### Live probe scripts kept
+- `ui/_deck_live.py` — 20 checks, builds its own 8-slide pptx and drives the
+  whole follow path. Green.
+- `ui/_live.py` — 63/63. `ui/_sys_e2e.py` — 46/46.
+
+### Still open
+- `_make_analysis`'s prompt still asks for "Bahasa Melayu Malaysia santai"
+  instead of following `reply_language`.
+- Deck follow is optimistic: clicking a thumbnail in PowerPoint desyncs the
+  pane until a spoken slide number corrects it. A real fix needs UI Automation
+  on the PowerPoint window, not a keystroke counter.

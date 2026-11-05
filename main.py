@@ -13,6 +13,7 @@ import threading
 import time
 import urllib.request
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote_plus
 
@@ -55,7 +56,7 @@ Kamu berjalan dalam HUD desktop Windows 11 dan boleh buat kerja dalam PC.
 - Bila kerja siap, lapor hasil dalam satu dua ayat.
 - Bila Akmal minta ANALISIS (data, fail Excel/CSV, disk, jualan, markah, dll.): lepas kumpul dan kira data, akhiri jawapan dengan satu blok kod ```jarvis-analysis berisi JSON:
   {"title": "...", "summary": "1 ayat", "cards": [{"label": "...", "value": "...", "note": "..."}],
-   "charts": [{"title": "...", "items": [{"label": "...", "value": 123, "display": "RM123"}]}],
+   "charts": [{"title": "...", "kind": "bar|line|donut", "items": [{"label": "...", "value": 123, "display": "RM123"}]}],
    "points": [{"text": "1-2 ayat gaya KL untuk dibaca dengan suara", "target": "card:0 | chart:0 | chart:0:2"}],
    "followups": ["soalan susulan pendek"]}
   2-4 kad, 0-2 graf, 3-6 poin. HUD akan paparkan dan bacakan poin satu-satu, jadi teks di luar blok cukup satu ayat.
@@ -119,6 +120,11 @@ CHAT_TOOLS = WEB_TOOLS + [
                     "items": {"type": "object", "properties": {"text": {"type": "string"}, "target": {"type": "string"}}, "required": ["text"]}},
          "followups": {"type": "array", "items": {"type": "string"}}},
         ["title", "points"]),
+    _fn("repo_stats", "Kira statistik sebenar setiap repo git dalam Desktop, Documents, Downloads dan home "
+                      "(commit, bahasa, saiz, fail, hari sejak commit terakhir), kemudian papar sebagai dashboard "
+                      "bergerak. Guna bila Akmal tanya tentang repo/projek/code dia, atau minta laporan atau "
+                      "statistik kerja dia. Tiada argumen diperlukan; `limit` hadkan bilangan repo.",
+        {"limit": {"type": "number", "description": "Bilangan repo maksimum (lalai 12)"}}),
     _fn("control_pc", "Kawal laptop: slide, volume, media, scroll, tukar tetingkap.",
         {"action": {"type": "string", "enum": ["next_slide", "prev_slide", "start_show", "end_show", "black_screen",
                                                "vol_up", "vol_down", "mute", "play_pause", "next_track", "prev_track",
@@ -169,6 +175,40 @@ TOOL_TRIGGERS = {
 
 
 ANALYSIS_RX = r"anali[sz]|laporan|report|banding|ranking|statistik|graf|carta|dashboard"
+
+# Akmal's rule: if the answer carries data, it gets drawn. So the gate is not
+# only the question's wording — the reply is measured too. Two or more distinct
+# numeric signals, or one number that is plainly a figure (a percentage, a
+# currency amount, a thousand-separated count), is enough. A single bare number
+# is not: "wait 5 minutes" or "I opened slide 3" must stay a sentence.
+# A percentage, a currency amount or a unit is a figure by itself — nobody
+# writes "84%" in passing. These fire on a single hit, with no word count.
+TOP_SIGNAL = [r"\d+\s?%", r"RM\s?\d", r"\$\s?\d+",
+              r"\b\d+\.?\d*\s?(?:kB|MB|GB|KB)\b"]
+NUM_SIGNAL = [
+    r"\d+\s?%",
+    r"[−-]?\d[\d,.]*\s?(?:k|m|j|ribu|juta)\b",
+    r"RM\s?\d", r"\$\s?\d+",
+    r"\d+\s?/\s?\d+",
+    r"\b\d{1,3}(?:,\d{3})+",
+    r"\b\d+(?:\.\d+)?\s?(?:line|commit|repo|fail|file|minggu|week|hari|day|jam|hour|min|kB|MB|GB|KB|s)\b",
+]
+DATA_STOP = re.compile(r"^(okay|ok|done|siap|baik|noted|faham|understood)[.,!]?$", re.I)
+
+
+def carries_data(text):
+    """True when a reply is worth drawing instead of only reading."""
+    t = str(text or "")
+    if len(t) < 12 or DATA_STOP.match(t.strip()):
+        return False
+    if any(re.search(p, t, re.I) for p in TOP_SIGNAL):
+        return True
+    nums = re.findall(r"\d+(?:[.,]\d+)*", t)
+    if len(nums) < 2:
+        return False
+    if len(nums) >= 3:
+        return True
+    return any(re.search(p, t, re.I) for p in NUM_SIGNAL)
 
 
 def strip_tool_markup(text):
@@ -369,6 +409,11 @@ class Api:
         self._listen_request = threading.Event()
         self._last_links = []
         self._analysis_shown = False
+        # Which deck is on screen and which slide it is showing. Kept here and
+        # not in the page because "next slide" arrives as a keystroke: PowerPoint
+        # advances the projector itself, and the only thing holding the slide
+        # text is the stage. Syncing from the keystroke keeps both in step.
+        self._deck = {"path": None, "slide": 0, "total": 0}
         self._wake_ready = False
         self._speaking = False
         self._prayer_done = set()  # (tarikh, solat) yang dah diingatkan
@@ -684,6 +729,12 @@ class Api:
         out.setdefault("ok", True)
         out.update({"name": p.name, "path": str(p), "ext": ext,
                     "size": p.stat().st_size, "kind": out.get("kind", ext)})
+        if out.get("kind") == "pptx":
+            # A deck is now the thing being presented. Later keystrokes move it.
+            self._deck = {"path": str(p), "slide": out.get("page") or 1,
+                          "total": out.get("total") or len(out.get("slides") or [])}
+        else:
+            self._deck["path"] = None
         return out
 
     def _doc_pdf(self, p, page=None):
@@ -757,7 +808,15 @@ class Api:
                 else:
                     body.append(txt)
             slides.append({"n": i + 1, "title": title or ("Slide %d" % (i + 1)), "body": body})
-        return {"kind": "pptx", "slides": slides, "total": total}
+        # `page` is the slide the deck is showing right now. The doc pane marks
+        # it and scrolls to it, so when Akmal says "next slide" the text pane
+        # and the projector agree instead of drifting apart.
+        cur = None
+        try:
+            cur = max(1, min(int(page), total)) if page else 1
+        except (TypeError, ValueError):
+            cur = 1
+        return {"kind": "pptx", "slides": slides, "total": total, "page": cur}
 
     def _doc_xlsx(self, p, page=None):
         """Setiap helaian jadi grid, tetapi hanya 200 baris pertama setiap satu."""
@@ -1610,7 +1669,7 @@ class Api:
                  "find_files": "Find", "read_file": "Read", "set_reminder": "Reminder", "weather": "Weather",
                  "prayer_times": "Prayer", "check_email": "Gmail", "search_drive": "Drive",
                  "look_at_screen": "Screen", "control_pc": "Control", "open_media": "Media",
-                 "system": "System"}.get(name, name)
+                 "system": "System", "repo_stats": "Repos"}.get(name, name)
         lat, lon, zone = self._cfg_place()
         if name == "open_media":
             want = str(args.get("name", "") or "").strip()
@@ -1644,6 +1703,20 @@ class Api:
                                           "Jawab dalam BM santai, ringkas dan tepat.", ["Read"], model="sonnet")
             finally:
                 shot.unlink(missing_ok=True)
+        if name == "repo_stats":
+            self._emit("tool", {"name": "Repos", "detail": "measuring every repo", "full": ""})
+            data = self.repo_scan(args.get("limit") or 12)
+            if not data.get("ok"):
+                return data.get("msg") or "Could not read any repositories."
+            dash = self._repo_dashboard(data)
+            if not dash:
+                return "No git repositories were found in Home, Desktop, Documents or Downloads."
+            self._chat_tool("present_analysis", dash)
+            lines = [f'{r["name"]}: {r["commits"]} commits, branch {r["branch"]}, '
+                     f'{r["dirty"]} uncommitted, last {r["last"][:10]}, '
+                     f'+{r["ins"]}/-{r["dels"]} lines in 6 months' for r in data["repos"]]
+            return ("Dashboard shown. Exact figures:" + chr(10).join(lines) +
+                    chr(10) + "Reply with ONE short closing sentence. Do not repeat the numbers.")
         if name == "present_analysis":
             self._analysis_shown = True
             self._emit("tool", {"name": "Analysis", "detail": args.get("title", ""), "full": ""})
@@ -1719,15 +1792,212 @@ class Api:
             return msg
         return f"Tool {name} does not exist."
 
+    # ---------- Repo statistics ----------
+    # Walked, not asked. The model can describe a repo; only git can count one.
+    # Everything below is exact: commit counts, lines changed, branches, dates.
+    # A repo whose git call fails is kept with zeros and flagged, never dropped —
+    # a partial row beats a missing one when the answer is "all my repos".
+    REPO_SKIP = {"node_modules", ".venv", "venv", "env", "site-packages", "__pycache__",
+                 "AppData", "Windows", "Program Files", "Program Files (x86)", "ProgramData",
+                 "$Recycle.Bin", ".cache", "dist", "build", "target", ".next", ".nuxt",
+                 "Library", "OneDrive", "Dropbox", "anaconda3", "miniconda3"}
+    REPO_DEPTH = 4
+
+    def _git(self, repo, *args, timeout=12):
+        import subprocess
+        try:
+            r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True,
+                               timeout=timeout, encoding="utf-8", errors="replace",
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            return r.stdout if r.returncode == 0 else ""
+        except Exception:
+            return ""
+
+    def _repos_found(self):
+        """Every directory holding a .git, four levels deep under the usual roots."""
+        roots, out, seen = [], [], set()
+        for name in ("", "Desktop", "Documents", "Downloads", "Projects", "source", "dev"):
+            d = (HOME / name) if name else HOME
+            try:
+                if d.is_dir():
+                    roots.append(d.resolve())
+            except OSError:
+                pass
+        for root in roots:
+            for cur, dirs, _files in os.walk(root):
+                cur_p = Path(cur)
+                try:
+                    depth = len(cur_p.relative_to(root).parts)
+                except ValueError:
+                    depth = 0
+                if depth >= self.REPO_DEPTH:
+                    dirs[:] = []
+                dirs[:] = [d for d in dirs
+                           if (not d.startswith(".") or d == ".git") and d not in self.REPO_SKIP]
+                if (cur_p / ".git").exists():
+                    rp = cur_p.resolve()
+                    if rp not in seen:
+                        seen.add(rp)
+                        out.append(rp)
+                    dirs[:] = []   # a repo does not contain a second repo worth walking
+        return out
+
+    def _repo_shape(self, repo):
+        """One repo, measured. Missing pieces come back as zero, never as a guess."""
+        head = self._git(repo, "rev-parse", "--abbrev-ref", "HEAD").strip() or "-"
+        raw = self._git(repo, "rev-list", "--count", "HEAD").strip()
+        commits = int(raw) if raw.isdigit() else 0
+        dirty = len([l for l in self._git(repo, "status", "--porcelain").splitlines() if l.strip()])
+        last = self._git(repo, "log", "-1", "--format=%cI").strip()
+        first = self._git(repo, "log", "--reverse", "--format=%cI", "-1").strip()
+        # 26 weeks of dates, one line per commit — cheapest route to an active-day count
+        hist = self._git(repo, "log", "--since=26 weeks ago", "--date=short", "--format=%ad")
+        days = [d for d in hist.splitlines() if d.strip()]
+        stat = self._git(repo, "log", "--since=26 weeks ago", "--shortstat", "--format=")
+        ins = dels = files = 0
+        for m in re.finditer(r"(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?", stat):
+            files += int(m.group(1))
+            ins += int(m.group(2) or 0)
+            dels += int(m.group(3) or 0)
+        authors = {}
+        for line in self._git(repo, "shortlog", "-sne", "HEAD").splitlines():
+            m = re.match(r"\s*(\d+)\s+(.+?)\s*<", line)
+            if m:
+                nm = m.group(2).strip()
+                authors[nm] = authors.get(nm, 0) + int(m.group(1))
+        # language mix by tracked-file extension, not by bytes on disk — a
+        # vendored bundle would otherwise call every project a JavaScript one
+        ext_count = {}
+        for f in self._git(repo, "ls-files").splitlines():
+            e = Path(f).suffix.lower().lstrip(".")
+            if e:
+                ext_count[e] = ext_count.get(e, 0) + 1
+        # 26 weekly buckets, oldest first. This is what lets the report draw a
+        # curve of when the work actually happened, not just a lifetime total.
+        weeks = [0] * 26
+        today = datetime.now().date()
+        for d in days:
+            try:
+                dd = datetime.strptime(d.strip(), "%Y-%m-%d").date()
+            except ValueError:
+                continue
+            k = (today - dd).days // 7
+            if 0 <= k < 26:
+                weeks[25 - k] += 1
+        return {
+            "name": repo.name, "path": str(repo), "branch": head, "commits": commits,
+            "weeks": weeks,
+            "dirty": dirty, "last": last, "first": first,
+            "active_days": len(set(days)), "window_commits": len(days),
+            "ins": ins, "dels": dels, "files": files,
+            "authors": sorted(authors.items(), key=lambda kv: -kv[1])[:5],
+            "ext": sorted(ext_count.items(), key=lambda kv: -kv[1])[:5],
+        }
+
+    def repo_scan(self, limit=12):
+        """Measure every repo on the machine and return the raw rows."""
+        if not self._git(HOME, "--version"):
+            return {"ok": False, "msg": "git is not installed, or not on PATH.", "repos": []}
+        rows = []
+        for rp in self._repos_found():
+            try:
+                rows.append(self._repo_shape(rp))
+            except Exception as e:
+                rows.append({"name": rp.name, "path": str(rp), "branch": "-", "commits": 0,
+                             "dirty": 0, "last": "", "first": "", "active_days": 0,
+                             "window_commits": 0, "ins": 0, "dels": 0, "files": 0,
+                             "authors": [], "ext": [], "error": str(e)})
+        rows.sort(key=lambda r: (-r["commits"], r["name"].lower()))
+        try:
+            limit = max(1, min(int(limit or 12), 40))
+        except (TypeError, ValueError):
+            limit = 12
+        return {"ok": True, "total": len(rows), "repos": rows[:limit], "all": rows}
+
+    def _repo_dashboard(self, data):
+        """Raw rows -> the shape present_analysis takes, so render() draws it as-is."""
+        rows = data.get("repos") or []
+        if not rows:
+            return None
+        n = len(rows)
+        commits = sum(r["commits"] for r in rows)
+        dirty = sum(1 for r in rows if r["dirty"])
+        ins = sum(r["ins"] for r in rows)
+        dels = sum(r["dels"] for r in rows)
+        windows = sum(r["window_commits"] for r in rows)
+        newest = max((r["last"] for r in rows if r["last"]), default="")
+        ago = ""
+        if newest:
+            try:
+                when = datetime.fromisoformat(newest.replace("Z", "+00:00"))
+                delta = datetime.now(when.tzinfo) - when
+                if delta.days < 0:
+                    raise ValueError("clock skew")
+                ago = ("today" if delta.days == 0 else
+                       "1 day ago" if delta.days == 1 else f"{delta.days} days ago")
+            except Exception:
+                ago = ""
+
+        def short(x):
+            return f"{x / 1000:.1f}k" if x >= 1000 else str(x)
+
+        cards = [
+            {"label": "Repos", "value": str(n), "note": f"{dirty} with uncommitted work" if dirty else "all clean"},
+            {"label": "Commits", "value": short(commits), "note": f"{windows} in the last 6 months"},
+            {"label": "Lines changed", "value": short(ins + dels), "note": f"+{short(ins)} / −{short(dels)}"},
+            {"label": "Last commit", "value": ago or "—", "note": newest[:10] if newest else "no history"},
+        ]
+        trend = [sum(r.get("weeks", [0] * 26)[k] for r in rows) for k in range(26)]
+        charts = [
+            {"title": "Commits per week · 26 weeks", "kind": "line", "items": [
+                {"label": f"w{k + 1}", "value": v, "display": str(v)} for k, v in enumerate(trend)]},
+            {"title": "Commits per repo", "kind": "bar", "items": [
+                {"label": r["name"], "value": r["commits"], "display": str(r["commits"])} for r in rows[:8]]},
+            {"title": "Lines changed · 6 months", "kind": "bar", "items": [
+                {"label": r["name"], "value": r["ins"] + r["dels"],
+                 "display": f"+{short(r['ins'])} / −{short(r['dels'])}"} for r in rows[:8]]},
+        ]
+        ext_tot = {}
+        for r in rows:
+            for e, c in r["ext"]:
+                ext_tot[e] = ext_tot.get(e, 0) + c
+        top_ext = sorted(ext_tot.items(), key=lambda kv: -kv[1])[:6]
+        if top_ext:
+            charts.append({"title": "What it is written in", "kind": "donut", "items": [
+                {"label": e, "value": c, "display": str(c)} for e, c in top_ext]})
+
+        busiest = max(rows, key=lambda r: r["commits"])
+        pts = [
+            {"text": f"I found {n} repositories, {commits} commits in total, and {dirty} with work not yet committed.",
+             "target": "card:0"},
+            {"text": f"The busiest is {busiest['name']} on branch {busiest['branch']}, with {busiest['commits']} commits.",
+             "target": "chart:1:0"},
+            {"text": f"Across all of them {short(ins)} lines went in and {short(dels)} came out over six months.",
+             "target": "card:2"},
+        ]
+        if top_ext:
+            pts.append({"text": f"Most of it is {top_ext[0][0]} — {top_ext[0][1]} files.", "target": "chart:3:0"})
+        if ago:
+            pts.append({"text": f"The most recent commit was {ago}.", "target": "card:3"})
+        return {
+            "title": "Repository report",
+            "summary": f"{n} repos · {commits} commits · {short(ins + dels)} lines changed over six months.",
+            "cards": cards, "charts": charts, "points": pts[:5],
+            "followups": ["Which repo needs attention?", "What did I work on this week?",
+                          "Which one has the most uncommitted work?"],
+        }
+
     def _make_analysis(self, s, question, answer, collected):
         """Tukar jawapan analisis jadi dashboard (JSON) dalam panggilan berasingan tanpa tool. Berfungsi untuk semua model."""
         prompt = (f"Soalan Akmal: {question}\n\nJawapan analisis:\n{answer}\n\nData mentah (rujukan):\n" + "\n\n".join(collected)[-8000:] +
                   "\n\nTukar analisis ini kepada SATU objek JSON sahaja (tiada teks lain) dengan format:\n"
                   '{"title": "...", "summary": "1 ayat", "cards": [{"label": "...", "value": "...", "note": "..."}], '
-                  '"charts": [{"title": "...", "items": [{"label": "...", "value": 123, "display": "123"}]}], '
+                  '"charts": [{"title": "...", "kind": "bar|line|donut", "items": '
+                  '[{"label": "...", "value": 123, "display": "123"}]}], '
                   '"points": [{"text": "1-2 ayat untuk dibaca dengan suara, guna saya dan panggil Akmal", "target": "card:0"}], '
                   '"followups": ["soalan susulan pendek"]}\n'
-                  "2-4 kad, 0-2 graf bar (value mesti nombor), 3-6 poin. target: card:N, chart:N atau chart:N:M (bar ke-M). "
+                  "2-4 kad, 0-3 graf (value mesti nombor; kind: bar untuk perbandingan, line untuk trend "
+                  "mengikut masa, donut untuk pecahan), 3-6 poin. target: card:N, chart:N atau chart:N:M (bar ke-M). "
                   "Bahasa Melayu Malaysia santai.")
         try:
             out = self._chat_call(s, [{"role": "system", "content": "Kamu menukar analisis kepada JSON dashboard. Balas JSON sahaja."},
@@ -1781,7 +2051,11 @@ class Api:
             reply = reply or "Okay Akmal, dah siap."
             self._chat_history.append({"role": "assistant", "content": reply})
             self._emit("text", {"text": reply})
-            if wants_analysis:  # jawapan teks dah keluar; dashboard menyusul
+            # The question can ask for a dashboard, or the answer can simply be
+            # full of figures — both routes end in the same pane. `_analysis_shown`
+            # guards a reply that already called present_analysis or repo_stats:
+            # dashboard on screen, nothing to add.
+            if not self._analysis_shown and (wants_analysis or carries_data(reply)):
                 self._emit("note", {"text": "Building analysis dashboard…"})
                 self._make_analysis(s, text, reply, collected)
             self._emit("done", {"ok": True, "secs": round(time.time() - t0, 1), "error": None})
@@ -1807,12 +2081,51 @@ class Api:
         except Exception:
             pass
 
+    def _deck_step(self, action):
+        """Slide keystroke went out — move the doc pane with it.
+
+        PowerPoint answers the keystroke itself, in its own window, and Jarvis
+        never sees that. So the step is counted here, optimistically, and the
+        pane re-renders at the new slide. Anything that would desync — pressing
+        Home, clicking the thumbnail strip, jumping to slide 12 by hand — is
+        corrected the moment Akmal says a slide number ("slide 12", "pergi
+        slide lapan"), because that path re-opens the deck at an explicit page
+        instead of stepping from a guess.
+        """
+        d = self._deck
+        if not d.get("path") or not d.get("total"):
+            return
+        if action == "next_slide":
+            d["slide"] = min(d["slide"] + 1, d["total"])
+        elif action == "prev_slide":
+            d["slide"] = max(d["slide"] - 1, 1)
+        elif action in ("start_show", "end_show"):
+            d["slide"] = 1
+        else:
+            return
+        self._push("window.stageDocs && window.stageDocs.slide(%d)" % d["slide"])
+
+    def _deck_label(self, action, base):
+        """Say which slide it landed on, not just "next" — the number is the point."""
+        d = self._deck
+        if not d.get("path") or not d.get("total"):
+            return base
+        if action in ("next_slide", "prev_slide"):
+            return "%s · slide %d/%d" % (base, d["slide"], d["total"])
+        return base
+
     def stage_pane(self, name):
         """Tukar panel stage dari Python (contoh: dari arahan suara)."""
         name = re.sub(r"[^a-z]", "", str(name or "").lower())
         if name not in ("comms", "media", "term", "files", "editor", "browse", "docs", "ana", "native"):
             return {"ok": False, "msg": "Unknown panel."}
         self._push(f"window.stageShow && window.stageShow({json.dumps(name)})")
+        if name == "docs" and self._deck.get("path"):
+            # Bring the deck back when the docs pane is opened during a talk.
+            # The page paints whatever was last loaded; if that was a different
+            # deck it must be re-read at the slide the projector is on.
+            self._push("window.stageDocs && window.stageDocs.open(%s, %d)"
+                       % (json.dumps(self._deck["path"]), self._deck.get("slide") or 1))
         return {"ok": True, "pane": name}
 
     def _run_claude(self, text):
@@ -2498,11 +2811,27 @@ class Api:
             if sysr.get("handled"):
                 sv.beep()
                 return sysr
+        # "pergi slide 8" — the deck pane jumps straight there. This path exists
+        # because stepping is a guess: eight keypresses desync the instant Akmal
+        # clicks a thumbnail or presses Home on the projector. A spoken number
+        # is ground truth, so it re-opens the deck at that page instead.
+        m_sl = re.match(r"^(?:(?:pergi|pig|gi|ke|to|jump|go)\s+)?slide\s*(\d{1,3})$|"
+                        r"^(?:pergi|ke|to|jump)\s+(?:slide\s+)?(\d{1,3})$",
+                        sv.clean_command(text))
+        if m_sl and self._deck.get("path"):
+            n = int(m_sl.group(1) or m_sl.group(2))
+            total = self._deck.get("total") or 0
+            if 1 <= n <= max(total, 1):
+                self._deck["slide"] = n
+                self._push("window.stageDocs && window.stageDocs.slide(%d)" % n)
+                sv.beep()
+                return {"handled": True, "label": "Slide %d/%d" % (n, total)}
         action = sv.match_control(text)
         if action:
             label = sv.do_control(action)
+            self._deck_step(action)
             sv.beep()
-            return {"handled": True, "label": label}
+            return {"handled": True, "label": self._deck_label(action, label)}
         # panel stage ikut suara: "panel media", "tukar fail", "buka terminal"
         m_pane = re.match(r"^(?:panel|tukar|pergi|buka)\s+(comms|media|terminal|term|fail|files|editor|edit|web|browse|dokumen|docs|analisis|ana|app|native)$",
                           sv.clean_command(text).lower())
@@ -2644,10 +2973,16 @@ def main():
     os.environ.setdefault("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--autoplay-policy=no-user-gesture-required")
     os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
     api = Api()
-    api._media = MediaServer(MEDIA).start()
+    api._media = MediaServer(MEDIA).serve_ui(ROOT / "ui").start()
+    # The HUD is loaded over http from the range server, not from file://.
+    # A file:// document has a null origin, and the YouTube embed rejects a
+    # null-origin referrer outright ("Video player configuration error 153"),
+    # so an inline player is impossible from the filesystem path. Same page,
+    # same bytes, real origin — served on loopback by a socket that already
+    # exists for the media panel.
     api._window = webview.create_window(
         "Jarvis",
-        str(ROOT / "ui" / "stage.html"),
+        api._media.stage_url,
         js_api=api,
         fullscreen=True,
         background_color="#05030f",
