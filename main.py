@@ -1289,7 +1289,7 @@ class Api:
                 "Jarvis · Web",
                 u,
                 width=rect[2], height=rect[3], x=rect[0], y=rect[1],
-                background_color="#05030f",
+                background_color="#140d26",
                 on_top=True,
             )
         except Exception as e:
@@ -3219,7 +3219,7 @@ def main():
         api._media.stage_url,
         js_api=api,
         fullscreen=True,
-        background_color="#05030f",
+        background_color="#140d26",
     )
     threading.Thread(target=api._stt_janitor, daemon=True).start()
     threading.Thread(target=api._mic_loop, daemon=True).start()       # "Hey Jarvis" + rakaman

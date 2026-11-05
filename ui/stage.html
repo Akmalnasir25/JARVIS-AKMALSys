@@ -28,15 +28,31 @@
 :root {
   color-scheme: dark;
 
-  --bg:        #05030f;
-  --bg-deep:   #020106;
-  --panel:     rgba(17, 8, 33, 0.70);
+  --bg:        #140d26;
+  --bg-deep:   #0a0616;
+
+  /* ── how bright the room is ──────────────────────────────────
+     Declared before the surface tokens, because a custom property that
+     references one declared later at the same scope resolves to nothing.
+     The black here was also never one decision — a near-black panel fill
+     sat under a 70% vignette and under scanlines, each picked as if it
+     were the only layer. Raise the panel fill first; it is what the eye
+     actually reads as "dark". */
+  --lift-top:   48 30 84;     /* panel gradient, top */
+  --lift-bot:   24 13 48;     /* panel gradient, bottom */
+  --lift-alpha: .93;
+  --lift-glow:  .20;          /* the hue bloom in the top-left corner */
+  --inset:      18 10 38;     /* recessed wells — tinted, never pure black */
+  --vig:        .22;          /* was .70 — it was crushing the whole screen */
+  --scan:       .09;          /* was .32 */
+
+  --panel:     rgb(var(--lift-top) / var(--lift-alpha));
   --panel-2:   rgba(11, 5, 22, 0.60);
   --raised:    rgba(28, 13, 50, 0.92);
 
-  --ink:       #d2ecf6;
-  --ink-dim:   #84a8b9;
-  --ink-faint: #43616f;
+  --ink:       #e2f4fb;
+  --ink-dim:   #a8c6d6;
+  --ink-faint: #85a3b1;
 
   /* shell hue — violet. Every panel-scoped token below resolves from it. */
   --hue:       272;
@@ -162,12 +178,12 @@ body {
 
 .vignette {
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
-  background: radial-gradient(ellipse 88% 76% at 50% 42%, transparent 36%, rgba(0,0,0,.70) 100%);
+  background: radial-gradient(ellipse 88% 76% at 50% 42%, transparent 36%, rgb(0 0 0 / var(--vig)) 100%);
 }
 .scanlines {
   position: fixed; inset: 0; z-index: 60; pointer-events: none;
-  background: repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.16) 2px 3px);
-  opacity: .32;
+  background: repeating-linear-gradient(transparent 0 2px, rgb(0 0 0 / .16) 2px 3px);
+  opacity: var(--scan);
 }
 
 /* ── shell grid ───────────────────────────────────────────── */
@@ -650,8 +666,7 @@ main.stage-wrap {
   padding: 3px 7px;
 }
 .ed-dirty[hidden] { display: none !important; }
-.btn[disabled] { opacity: .38; cursor: default; }
-.btn[disabled]:hover { background: transparent; border-color: var(--line); }
+.btn[disabled]:hover { background: rgb(var(--inset) / .40); border-color: var(--line-soft); }
 
 /* ── orb task list ───────────────────────────────────────────
    Baris tugas, bukan satu kad besar. Orb duduk di tengah .orb-box; senarai
@@ -781,7 +796,7 @@ main.stage-wrap {
 .set-row select, .set-row input[type="text"] {
   width: 100%; min-width: 0;
   padding: 5px 7px;
-  background: rgba(0,0,0,.42);
+  background: rgb(var(--inset) / .55);
   border: 1px solid var(--line-soft);
   color: var(--ink);
   font: 400 10.5px/1.3 var(--font-mono);
@@ -806,7 +821,7 @@ main.stage-wrap {
   display: flex; align-items: center; gap: 8px;
   padding: 9px 13px;
   border-top: 1px solid var(--line-soft);
-  background: rgba(0,0,0,.28);
+  background: rgb(var(--inset) / .40);
 }
 .sheet-foot .grow { flex: 1; }
 .sheet-saved {
@@ -851,7 +866,7 @@ main.stage-wrap {
   display: flex; align-items: center; gap: 14px;
   padding: 6px 13px;
   border-top: 1px solid var(--line-soft);
-  background: rgba(0,0,0,.28);
+  background: rgb(var(--inset) / .40);
   font-size: 7.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint);
 }
 .stage-rail .grow { flex: 1; }
@@ -1059,7 +1074,7 @@ main.stage-wrap {
   flex: 1; min-width: 0; margin: 0;
   display: flex; align-items: center;
   padding: 0 9px;
-  background: rgba(0,0,0,.34); border: 1px solid var(--line-soft);
+  background: rgb(var(--inset) / .46); border: 1px solid var(--line-soft);
 }
 .browse-bar form.url:focus-within { border-color: hsl(var(--hue) 90% 74% / .45); }
 .browse-bar form.url input {
@@ -1072,7 +1087,7 @@ main.stage-wrap {
 .browse-body { flex: 1 1 auto; min-height: 0; position: relative; display: grid; place-items: center; }
 .browse-body iframe {
   position: absolute; inset: 0; width: 100%; height: 100%;
-  border: 0; background: #05030f;
+  border: 0; background: var(--bg);
 }
 /* An iframe that X-Frame-Options refuses stays blank forever, and a blank
    iframe is indistinguishable from a slow one. The veil sits over the hole
@@ -1578,7 +1593,7 @@ footer {
 }
 .capsule .mode {
   display: flex; gap: 1px; padding: 1px;
-  background: rgba(0,0,0,.36); border: 1px solid var(--line-soft);
+  background: rgb(var(--inset) / .48); border: 1px solid var(--line-soft);
 }
 .capsule .mode button {
   padding: 4px 7px; background: transparent; border: 0;
@@ -1681,8 +1696,10 @@ footer {
 /* every glass surface gets the same two-light treatment at panel scale */
 .glass {
   background:
-    radial-gradient(120% 90% at 8% -20%, hsl(var(--hue) 100% 76% / .09), transparent 62%),
-    linear-gradient(168deg, rgba(20,10,40,.80), rgba(9,4,20,.72));
+    radial-gradient(120% 90% at 8% -20%, hsl(var(--hue) 100% 76% / var(--lift-glow)), transparent 62%),
+    linear-gradient(168deg,
+      rgb(var(--lift-top) / var(--lift-alpha)),
+      rgb(var(--lift-bot) / var(--lift-alpha)));
 }
 /* a lit top edge — one hairline that sells the bevel far more than a
    border does, because it only exists where light would actually land */
@@ -1730,6 +1747,24 @@ nav.rail {
 }
 .btn.solid {
   background: linear-gradient(170deg, hsl(var(--hue) 100% 80% / .95), hsl(var(--alt) 92% 66% / .88));
+  /* A filled button inherits the .btn cyan, which is a bright colour on a
+     bright gradient — the label vanished. Dark ink is the only value that
+     reads on both stops. */
+  color: hsl(258 60% 10%);
+  font-weight: 600;
+  border-color: transparent;
+}
+.btn.solid:hover {
+  background: linear-gradient(170deg, hsl(var(--hue) 100% 86%), hsl(var(--alt) 96% 74%));
+  color: hsl(258 60% 8%);
+}
+/* Disabled must still be legible: 0.38 on a light fill read as an empty box.
+   Drop the fill instead of fading the whole control. */
+.btn[disabled] {
+  opacity: 1; cursor: default;
+  background: rgb(var(--inset) / .40);
+  border-color: var(--line-soft);
+  color: var(--ink-faint);
 }
 
 /* the dock: a floor of light rather than a row of boxes */
@@ -1862,7 +1897,7 @@ nav.rail {
           <path d="M12 3v9"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/>
         </svg>
       </button>
-      <button type="button" title="Minimize">—</button>
+      <button type="button" class="min" title="Minimize" aria-label="Minimize">—</button>
       <button type="button" class="quit" title="Close Jarvis">✕</button>
     </div>
   </header>
@@ -5468,7 +5503,10 @@ nav.rail {
   // buttons that had no handler
   const on = (sel, fn) => { const el = document.querySelector(sel); if (el) el.addEventListener('click', fn); };
   on('.iconbar .power', () => { word('Jarvis', 'Shut down the laptop? Type "shutdown" to go ahead.', 'jarvis'); });
-  on('.iconbar button[title="Sembunyi"]', () => api && api.minimize());
+  // This hunted for title="Sembunyi" long after the button was renamed to
+  // "Minimize", so the binding silently attached to nothing. Bound to a class
+  // now — a title is user-facing copy and gets translated.
+  on('.iconbar button.min', () => api && api.minimize());
   on('.iconbar .quit', () => { if (api) api.quit(); });
   on('.comms-head .btn', () => newSession());
   const btnNew = $('btnNewSession');

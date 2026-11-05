@@ -677,3 +677,56 @@ changes stashed (`git stash push main.py ui/stage.html`, re-run, pop):
 - Drag-and-drop is wired but not proven end to end: a real `drop` through
   WebView2 needs a human hand on the mouse. The `File…` / `Folder…` buttons
   are the verified route.
+
+---
+
+## Session 05 Nov (c) — minimize button, and the room was too dark
+
+### Minimize
+`on('.iconbar button[title="Sembunyi"]', …)` had been hunting a title that no
+longer existed — the button was translated to `title="Minimize"` and the
+binding was never updated, so it attached to nothing and the click did
+nothing. Bound to a class now (`button.min`), because a title is user-facing
+copy and gets translated. Verified by clicking the real button and reading
+`document.visibilityState === 'hidden'`, then restoring.
+
+### Darkness — three layers, each chosen as if it were the only one
+Measured, not guessed. Screen mean luminance was **24.5/255**, median **16**.
+
+1. **`.glass` was redefined mid-stylesheet** with a hardcoded
+   `linear-gradient(168deg, rgba(20,10,40,.80), rgba(9,4,20,.72))` that
+   overrode the `--panel` token at line 33. This was the real culprit — the
+   panels computed to roughly rgb(15,8,29), barely above the ground.
+2. **`.vignette` was `rgba(0,0,0,.70)`** at the edges — a 70% black wash over
+   the entire screen, permanently.
+3. **`.scanlines` at `opacity: .32`** on top of both.
+
+Now: panel fill rgb(48,30,84) @ .93, vignette .22, scanlines .09, ground
+`#140d26` instead of `#05030f`, window `background_color` matched so the
+first paint is not a black flash. Screen mean **46.7/255**, median **30**.
+
+### Text was part of it
+`--ink-dim #84a8b9` and `--ink-faint #43616f` were too dark to read on a
+dark panel. Now `#a8c6d6` / `#85a3b1`. Contrast against the measured panel:
+body **9.8:1**, secondary **6.2:1**, faint **4.1:1**.
+
+### The lesson worth keeping
+**A custom property that references one declared later at the same scope
+resolves to nothing.** `--panel: rgb(var(--lift-top) …)` had to be moved
+*below* `--lift-top` in `:root`. If a token change appears to do nothing,
+check declaration order before checking anything else.
+
+### Other fixes found while measuring
+- `.btn.solid` inherited the bright `.btn` cyan on a bright gradient — the
+  label was invisible in every state. Dark ink now, plus a hover stop.
+- `.btn[disabled] { opacity: .38 }` made a filled button read as an empty
+  box. Disabled now drops the fill and keeps readable text instead.
+- Six `rgba(0,0,0,…)` wells migrated to a tinted `--inset` token, so recessed
+  surfaces are a dark violet, never pure black.
+
+### Probe kept
+`ui/_ui_fix_live.py` — 11 checks: real pixels (mean/median luminance), WCAG
+contrast on all three ink tokens, the minimize button clicked rather than its
+API called, restore, and two other panes still lit. Green.
+
+`ui/_upload_live.py` re-run after the theme change: 27/27, unchanged.
