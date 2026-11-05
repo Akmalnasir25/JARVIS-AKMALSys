@@ -149,44 +149,51 @@ posisi skrol sama. Butang **×** yang musnahkan.
 ### Lagu YouTube
 
 Cakap `cari lagu Hindia Secukupnya` atau `main lagu tu`. Jarvis cari di YouTube,
-pilih video yang boleh dimainkan, dan mula main **di dalam panel WEB** — tiada
-Chrome, tiada tab baru.
+muat turun failnya ke `media/`, dan mainkan **fail itu** dalam panel MEDIA —
+bunyi keluar dari speaker, tiada embed, tiada Chrome.
 
 | apa yang awak nampak | maksudnya |
 |---|---|
-| badge **YT** menyala | video itu dimainkan sebagai embed dalam stage |
-| baris hasil carian berwarna dan boleh diklik | klik terus untuk main; `Enter` pun boleh |
-| baris tanpa warna | halaman channel atau senarai main — tiada video id, jadi ia buka dalam tetingkap. Tooltip kata kenapa |
-| **Video unavailable** | embed ditolak. Tekan butang **Chrome** dalam bar WEB — Chrome sebenar dibuka dan diletakkan di dalam stage, dan ia main sepenuhnya |
-| tetingkap Chrome dalam stage | awak boleh tekan, skrol, tukar tab seperti biasa; `Release` mengeluarkannya semula jadi tetingkap biasa |
+| panel MEDIA terbuka sendiri | fail sudah dimuat turun dan sedang bermain |
+| bar pemain bergerak | fail tempatan, jadi ia bermain serta-merta |
+| "press one to play" | senarai `media/` sahaja, tiada lagu dipilih |
+| `Video unavailable` | awak minta `mode="embed"`; panggil semula tanpa mode |
 
-**Kenapa ada dua jalan.** Embed boleh gagal atas dua sebab yang kelihatan sama
-pada skrin: pemilik video tak benarkan embed, atau WebView2 menolak permintaan
-itu. Kedua-duanya keluar sebagai "Video unavailable" yang sama, dan tiada apa
-yang boleh dibaiki dari dalam kod kita — jadi butang Chrome menyelesaikannya
-tanpa perlu tahu sebabnya. Ia bukan jalan utama; ia jalan keluar.
+**Kenapa tidak guna embed sahaja.** Diukur, bukan diandaikan: setiap video
+muzik yang diuji memulangkan **ralat 150** dalam WebView2 — "pemilik tidak
+membenarkan embed" — pada kedua-dua `youtube.com` dan `youtube-nocookie.com`.
+Video bukan muzik (Me at the zoo) bermain dengan baik di nocookie. Jadi 150 itu
+polisi kandungan YouTube, bukan pepijat kita, dan tiada apa yang boleh dibaiki
+dari dalam kod. Fail tempatan tidak tertakluk kepada polisi itu langsung.
 
-Satu perkara yang diukur: video itu sendiri **boleh** di-embed. Endpoint oEmbed
-YouTube (`/oembed?url=...&format=json`) pulangkan HTTP 200 untuk setiap calon
-id, jadi penolakan itu berlaku di sebelah WebView2, bukan pada video.
+Tiga perkara lain yang diukur dan menentukan bentuk jalan ini:
 
-Tool yang mengendalikannya ialah `play_youtube`, bukan `open_media`. `open_media`
-hanya untuk fail dalam folder `media/` pada PC ini. Sebelum ini tiada tool untuk
-YouTube langsung, jadi `main lagu tu` jatuh ke `open_media` dan menyenaraikan
-folder kosong — itulah sebabnya tiada apa yang bermain.
+* WebView2 **tidak boleh** main VP9/Opus (`.webm`) — `error 4`, codec tiada.
+  m4a/AAC dan mp4/H.264 main. Jadi format muxed `18` diutamakan: satu fail,
+  gambar dan bunyi, tiada ffmpeg diperlukan.
+* Autoplay disekat secara lalai. `main.py` menetapkan
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--autoplay-policy=no-user-gesture-required`
+  sebelum `webview.start()`. Tanpa itu fail dimuatkan tetapi duduk di `t=0`.
+* Muat turun perlukan runtime JS. YouTube kini minta penyelesaian cabaran;
+  `node` ada pada PC ini dan `_fetch_local()` menetapkannya.
+
+**Jalan Chrome tidak berfungsi.** Tetingkap Chromium yang di-`SetParent` ke
+dalam stage menjadi **kosong putih** — Chromium tidak melukis semula selepas
+ditukar ibu bapa. Disahkan dengan tangkapan skrin. Jadi `mode="browser"` masih
+ada sebagai jalan terakhir, tetapi jangan harap ia memaparkan apa-apa.
 
 Satu perkara yang diukur, sebab ia mudah disalah sangka: satu tetingkap pywebview
 menghasilkan **puluhan** HWND dengan tajuk yang sama, semuanya tanpa ibu dan
-semuanya `IsWindowVisible = True`. Jadi jangan sesekali percaya gelintar tajuk
-apabila menyemak "tetingkap ini hidup ke tidak". Python menyimpan pemegang
-`Window` itu sendiri; itulah satu-satunya sumber yang tepat.
+semuanya `IsWindowVisible = True`. Jangan sesekali percaya gelintar tajuk apabila
+menyemak "tetingkap ini hidup ke tidak". Python menyimpan pemegang `Window` itu
+sendiri.
 
-Dan satu lagi, khusus Chrome: Chrome berkongsi **satu** proses pelayar. Bila
-Chrome sudah berjalan, `chrome.exe --new-window` hanya menyuruh proses sedia ada
-membuka tab, dan proses yang baru dilancarkan itu **terus keluar tanpa tetingkap**.
-Jadi mencari tetingkap ikut pid yang kita lancarkan tidak pernah berjaya pada
-kes itu. Yang dipakai ialah beza-set: ambil senarai tetingkap sebelum, lancar,
-kemudian ambil sekali lagi — yang baru muncul itulah tetingkapnya.
+Satu lagi, yang lebih besar: **IPv6 mati pada rangkaian ini.** IPv4 TCP+TLS ke
+`youtube.com` siap dalam 0.21 s, IPv6 timeout pada 10 s. Python mencuba IPv6
+dahulu, jadi halaman yang `curl` ambil 1.3 s mengambil 96 s melalui `urllib`.
+`main.py` sekarang menyusun `getaddrinfo` supaya IPv4 dahulu — ia mempercepatkan
+**setiap** panggilan rangkaian dalam Jarvis (carian YouTube, waktu solat, cuaca,
+IP), bukan hanya lagu.
 
 ### Mic dan "Hey Jarvis"
 
@@ -316,6 +323,7 @@ sebelum sempat jalan.
 | gejala | punca biasa |
 |---|---|
 | video tak boleh seek | bukan salah server — semak `media_server.py` masih hidup |
+| lagu muat turun tapi tak berbunyi | `_fetch_local` perlukan `node` untuk cabaran YouTube; semak `node --version` |
 | app terapung atas panel lain | `stage:change` listener hilang dari `stageApp` |
 | suara keluar English | `reply_language: "en"` dalam `config.json` |
 | TTS guna edge, bukan Google | kunci `google_tts_api_key` — semak `secrets.json` |
@@ -323,7 +331,7 @@ sebelum sempat jalan.
 | klik ikon, tiada apa berlaku | baca `runtime\startup.log` — baris terakhir beritahu di mana ia berhenti |
 | "another Jarvis is starting up" | pelancaran kedua semasa yang pertama masih naik; tunggu sekejap |
 | seret-lepas tak buat apa-apa | WebView2 tidak menghantar laluan; guna **File…** / **Folder…** |
-| Web / YouTube kata "Video unavailable" | tekan butang **Chrome** dalam bar WEB; embed ditolak, Chrome tidak |
+| Web / YouTube kata "Video unavailable" | itu ralat 150 (polisi embed). Panggil semula tanpa `mode` — Jarvis muat turun failnya dan main sebagai fail tempatan |
 | "Hey Jarvis" menyambar suara orang lain | klik chip **HEY JARVIS** jadi **MIC OFF**, atau `wake_word: false` |
 | chip kata MIC OFF tapi mic masih terbuka | bukan chip itu — semak aplikasi lain dalam Settings › Privacy › Microphone |
 | "outside the workspace" | laluan di luar workdir/Desktop/Documents/Downloads — tambah dalam `shortcuts.json` |

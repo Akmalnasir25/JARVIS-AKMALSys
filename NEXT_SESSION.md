@@ -968,3 +968,75 @@ physical pixels (the HUD reports `dpi_scale() == 1.5` but the window is 1280×72
 because 1280 = 1920/1.5), so multiply by the scale exactly once or not at all.
 When a click probe fails, click a control that already works before suspecting
 the new one.
+
+---
+
+## Session 05 Nov (g) — "sama juga tak boleh play" — the embed was never going to work
+
+### The answer came from YouTube, not from us
+
+Instead of guessing again, a probe page built its own `YT.Player` and read
+`onError`. Four ids, two hosts:
+
+| video | youtube.com | youtube-nocookie.com |
+|---|---|---|
+| kcc9Kfip2uw (Hindia) | **150** | **150** |
+| dQw4w9WgXcQ | **150** | **150** |
+| jNQXAC9IVRw (Me at the zoo) | timeout | **PLAYING ok** |
+| 9bZkp7q19f0 (Gangnam) | **150** | **150** |
+
+Every music video refused; a non-music video plays on nocookie. **150 = the
+owner does not allow embedding.** That is a content policy, so no amount of
+player code fixes it. The earlier oEmbed 200 was a red herring: `playableInEmbed`
+describes something other than what WebView2 is permitted to do.
+
+### What each route actually does
+
+| route | result |
+|---|---|
+| embed (iframe) | error 150 for all music |
+| Chrome re-parented into the stage | **blank white window** — Chromium does not repaint after `SetParent`. Verified by screenshot |
+| load the watch page in an iframe | blocked page |
+| **download + play the local file** | **works** — `paused=false`, clock advancing |
+
+So `play_youtube` defaults to `local`. The embed is kept for non-music, and the
+Chrome route stays as a documented last resort that does not really work.
+
+### Three measured details
+
+* **WebView2 cannot decode VP9/Opus.** `.webm` gave `error 4`; m4a/AAC and
+  mp4/H.264 both gave `CANPLAY`. Format `18` (muxed mp4) is preferred so no
+  ffmpeg is needed to join streams.
+* **Autoplay is blocked by default.** `--autoplay-policy=no-user-gesture-
+  required` via `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`, set before
+  `webview.start()`. Same file: `paused=true, t=0` → `paused=false, t=3.81`.
+* **yt-dlp needs a JS runtime** for YouTube's current challenge. `node` is on
+  this machine; `js_runtimes={"node": {}}`.
+
+### The bigger find: IPv6 is dead on this network
+
+While timing the download: an IPv4 TCP+TLS handshake to youtube.com completes
+in **0.21 s**, IPv6 **times out at 10 s**. Python resolves both and tries IPv6
+first, so an oEmbed page `curl` fetched in 1.3 s took `urllib` **96 s**.
+`main.py` now sorts `getaddrinfo` IPv4-first at import. That one change speeds
+up every network call in the app — YouTube search, prayer times, weather, IP
+lookup — and oEmbed went 96 s → 0.26 s.
+
+This also explains a pile of earlier "the probe seemed to hang" results. They
+were not YouTube. They were IPv6.
+
+### Verified
+`ui/_pane_live.py` 10/10 against the real stage: bridge up, `play_youtube` ok,
+local route, pane switched to MEDIA, title shown, element mounted, clock
+advanced past zero, not paused, no codec error, sane duration.
+`ui/_yt_local_live.py` 13/13: download lands, container accepted, >500 KB,
+media event emitted, title cleaned, range server serves it with a media
+content-type, WebView2 decodes and advances.
+Regression: `_launch_test` 27/27, `_wake_test` 15/15, `_ip_test` 34/34.
+
+### Trap for next time
+`media_server`'s root **is** `media/`, so the URL is `/file.mp4`, not
+`/media/file.mp4`. A wrong path there returns a 404 body which the media
+element reports as **error 4** — identical to a missing codec. Two hours went
+into "WebView2 cannot play AAC" when the file was simply never served. When a
+media element errors, fetch the URL with curl before suspecting the codec.
