@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -26,6 +27,22 @@ import services as sv
 import system as sysctl
 import inspect_path as ip
 from media_server import MediaServer
+
+# IPv6 is dead on this network: measured, an IPv4 TCP+TLS handshake to
+# www.youtube.com completes in 0.21 s while the IPv6 address times out at 10 s.
+# Python's resolver returns both and tries them in order, so every request
+# stalled on a family that cannot work — an oEmbed page that curl fetched in
+# 1.3 s took urllib 96 s. Sorting IPv4 first costs one line and turns every
+# network call in this app back into a fast one.
+_orig_getaddrinfo = socket.getaddrinfo
+
+
+def _ipv4_first(host, port, family=0, type=0, proto=0, flags=0):
+    infos = _orig_getaddrinfo(host, port, family, type, proto, flags)
+    return sorted(infos, key=lambda i: 0 if i[0] == socket.AF_INET else 1)
+
+
+socket.getaddrinfo = _ipv4_first
 
 ROOT = Path(__file__).resolve().parent
 SHORTCUTS = ROOT / "shortcuts.json"
@@ -168,15 +185,17 @@ CHAT_TOOLS = WEB_TOOLS + [
                       "untuk lagu atau video di YouTube guna play_youtube. Untuk senarai fail tempatan sahaja, "
                       "panggil tanpa nama.",
         {"name": {"type": "string", "description": "Nama fail atau sebahagian nama, contoh: lecture 3, lagu.mp3"}}),
-    _fn("play_youtube", "Cari satu lagu atau video di YouTube dan mainkannya TERUS di dalam panel WEB stage. "
+    _fn("play_youtube", "Cari satu lagu atau video di YouTube dan mainkannya TERUS di dalam stage. "
                         "Guna ini untuk \"cari lagu X\", \"main lagu tu\", \"pasang video Y\" — apa-apa yang "
-                        "berkaitan YouTube. Ia cari video yang boleh dimainkan, pilih yang paling tepat, dan "
-                        "mula main dengan sendirinya. Jangan guna open_media untuk YouTube.",
+                        "berkaitan YouTube. Ia muat turun video itu dan memainkannya sebagai fail dalam "
+                        "panel MEDIA, jadi ia bermain pada klik pertama tanpa 'Video unavailable'. "
+                        "Jangan guna open_media untuk YouTube.",
         {"query": {"type": "string",
                    "description": "Nama lagu dan artis, contoh: Hindia Secukupnya, atau judul video"},
          "mode": {"type": "string",
-                  "description": "Biarkan kosong untuk main dalam panel WEB. Guna \"browser\" bila embed "
-                                 "kata 'Video unavailable' — ia buka Chrome sebenar di dalam stage."}},
+                  "description": "Biarkan kosong. \"embed\" untuk benamkan terus tanpa muat turun. "
+                                 "\"browser\" hanya jika muat turun gagal dan embed ditolak — ia buka "
+                                 "Chrome dalam stage, tetapi tetingkap itu kosong putih."}},
         ["query"]),
 ]
 
@@ -1658,27 +1677,47 @@ class Api:
             return []
         return out
 
-    def play_youtube(self, query, force_browser=False):
-        """Main satu video YouTube di dalam stage. Pulangkan {ok, id, url, title}.
+    def play_youtube(self, query, mode="auto"):
+        """Main satu video YouTube di dalam stage. Pulangkan {ok, id, title, mode}.
 
-        Ada dua jalan, dan yang kedua wujud kerana yang pertama tidak selalu
-        berfungsi. Embed YouTube di dalam iframe bergantung pada pemilik video
-        membenarkan embed DAN pada WebView2 menerima cookie serta pengesahan
-        YouTube. Bila ia gagal, yang keluar cuma "Video unavailable" — satu
-        mesej yang tidak membezakan sebab, dan tiada apa yang boleh dibaiki
-        dari dalam kod kita.
+        Tiga jalan, dan yang pertama hampir selalu betul.
 
-        Jadi: embed dahulu (ringan, tiada Chrome). Kalau pemanggil sudah tahu
-        ia gagal — `force_browser=True`, dipakai selepas Akmal nampak mesej itu
-        — terus buka Chrome sebenar dan masukkan tetingkapnya ke dalam stage.
-        Chrome memainkan YouTube sepenuhnya, jadi jalan ini tidak boleh gagal
-        atas sebab embed.
+        1. "local" (lalai) — muat turun audio/video ke media/ dengan yt-dlp dan
+           mainkan sebagai fail tempatan. Ini satu-satunya jalan yang berfungsi
+           untuk muzik, dan sebabnya diukur, bukan diandaikan: embed YouTube
+           memulangkan **ralat 150** ("pemilik tidak membenarkan embed") untuk
+           setiap video muzik yang diuji dalam WebView2 — Hindia, Rick Astley,
+           Gangnam Style — pada kedua-dua youtube.com dan youtube-nocookie.com.
+           Video bukan muzik (Me at the zoo) pula main dengan baik di nocookie.
+           Jadi 150 itu bukan pepijat kita dan bukan salah video; ia polisi
+           content ID, dan tiada pembaikan dari dalam kod kita. Fail tempatan
+           tidak tertakluk kepada polisi itu langsung.
+
+        2. "embed" — iframe sahaja. Berguna untuk video bukan muzik yang memang
+           dibenarkan embed, dan tiada muat turun.
+
+        3. "browser" — buka Chrome sebenar dan masukkan tetingkapnya ke stage.
+           Ini jalan terakhir. Ia berfungsi, tetapi tetingkap Chromium yang
+           di-reparent menjadi **kosong putih**: Chromium tidak melukis semula
+           selepas SetParent. Disahkan dengan tangkapan skrin, bukan diandaikan.
+
+        Dua perkara lain yang diukur dan menentukan bentuk kod ini:
+
+        * WebView2 tidak boleh main VP9/Opus (webm) — `error 4`, codec tiada.
+          m4a/AAC dan mp4/H.264 main. Jadi format muxed `18` (mp4) diutamakan:
+          satu fail, gambar dan bunyi, tiada ffmpeg diperlukan.
+        * Autoplay disekat secara lalai. `--autoplay-policy=
+          no-user-gesture-required` dalam WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+          membukanya — tanpa itu fail dimuatkan tetapi tidak bermain.
         """
         q = str(query or "").strip()
         if not q:
             return {"ok": False, "msg": "YouTube: no song or video named."}
+        mode = str(mode or "auto").strip().lower()
+        if mode in ("", "auto", "true", "yes"):
+            mode = "local"
         prev = getattr(self, "_last_yt", None)
-        if not force_browser and prev and prev.get("title"):
+        if mode != "browser" and prev and prev.get("title"):
             # "main lagu tu" — the follow-up usually names nothing, because the
             # song is already in the conversation. Reuse the last resolved song
             # rather than searching for the literal words "lagu tu".
@@ -1693,16 +1732,66 @@ class Api:
             -cands.index(c),
         ))
         self._last_yt = best
-        if force_browser:
+        title = best.get("title") or q
+
+        if mode == "local":
+            r = self._fetch_local(best)
+            if r.get("ok"):
+                self._emit("media", {"items": self.media_index(), "play": r["name"]})
+                return {"ok": True, "id": best["id"], "url": best["url"], "title": title,
+                        "mode": "local", "name": r["name"], "size": r.get("size", 0)}
+            # A download that fails should not swallow the request: fall back to
+            # the embed, which still works for non-music videos.
+            self._emit("web", {"query": q, "links": [], "url": best["url"]})
+            return {"ok": True, "id": best["id"], "url": best["url"], "title": title,
+                    "mode": "embed", "fell_back": r.get("msg", "")}
+
+        if mode == "browser":
             r = self._play_in_browser(best["url"])
             return {"ok": r.get("ok", False), "id": best["id"], "url": best["url"],
-                    "title": best.get("title") or q, "mode": "browser",
-                    "msg": r.get("msg", "")}
-        # `url` on this channel is what the WEB pane turns into an embed; the
-        # pane's own handler decides between the iframe and the child window.
+                    "title": title, "mode": "browser", "msg": r.get("msg", "")}
+
         self._emit("web", {"query": q, "links": [], "url": best["url"]})
         return {"ok": True, "id": best["id"], "url": best["url"],
-                "title": best.get("title") or q, "mode": "embed", "candidates": len(cands)}
+                "title": title, "mode": "embed", "candidates": len(cands)}
+
+    def _fetch_local(self, cand):
+        """Muat turun satu video ke media/ dan pulangkan failnya.
+
+        Format `18` didahulukan: mp4 muxed (H.264 + AAC). Satu fail bermakna
+        tiada ffmpeg diperlukan untuk mencantumkan gambar dan bunyi, dan
+        gabungan codec itu yang paling pasti dimainkan WebView2.
+        """
+        try:
+            import yt_dlp
+        except Exception as e:
+            return {"ok": False, "msg": "yt-dlp is not installed: %s" % e}
+        MEDIA.mkdir(parents=True, exist_ok=True)
+        opts = {
+            "format": "18/best[ext=mp4][vcodec!=none][acodec!=none]/bestaudio[ext=m4a]/bestaudio",
+            "outtmpl": str(MEDIA / "%(id)s.%(ext)s"),
+            "quiet": True, "no_warnings": True, "noprogress": True, "noplaylist": True,
+            # YouTube now needs a JS runtime to solve its player challenge; node
+            # is present on this machine. Without it extraction stalls and then
+            # reports missing formats.
+            "js_runtimes": {"node": {}},
+            "remote_components": ["ejs:github"],
+        }
+        try:
+            with yt_dlp.YoutubeDL(opts) as y:
+                info = y.extract_info(cand["url"], download=True)
+                path = Path(y.prepare_filename(info))
+            if not path.is_file():
+                # yt-dlp may pick a different container than the template implies.
+                hits = sorted(MEDIA.glob(path.stem + ".*"), key=lambda p: -p.stat().st_size)
+                if not hits:
+                    return {"ok": False, "msg": "Downloaded but the file is missing."}
+                path = hits[0]
+            if path.suffix.lower() not in self.MEDIA_EXT:
+                return {"ok": False, "msg": "Downloaded %s, which the stage cannot play." % path.suffix}
+            return {"ok": True, "name": path.name, "size": path.stat().st_size}
+        except Exception as e:
+            return {"ok": False, "msg": "Download failed: %s" % str(e)[:200]}
 
     def _browser_exe(self):
         """Chrome dahulu, Edge sebagai sandaran. '' kalau tiada."""
@@ -2116,17 +2205,21 @@ class Api:
             q = str(args.get("query", "") or "").strip()
             mode = str(args.get("mode", "") or "").strip().lower()
             self._emit("tool", {"name": "YouTube", "detail": q, "full": mode})
-            res = self.play_youtube(q, force_browser=(mode in ("browser", "chrome", "native")))
+            res = self.play_youtube(q, mode=mode or "local")
             if not res.get("ok"):
                 return res.get("msg") or "YouTube search failed."
+            if res.get("mode") == "local":
+                mb = (res.get("size") or 0) / (1024 * 1024)
+                return ("Playing %r in the MEDIA panel now as a local file (%.1f MB). "
+                        "It has already started and the sound comes out of the speakers — "
+                        "do not call this again." % (res.get("title"), mb))
             if res.get("mode") == "browser":
-                return ("Playing %r in a real %s window inside the stage now. "
-                        "The embed was skipped because it showed 'Video unavailable'."
-                        % (res.get("title"), "Chrome" if "chrome" in self._browser_exe().lower() else "browser"))
-            return ("Playing %r on YouTube inside the WEB panel now (id %s). "
-                    "It has already started; do not call this again. If it shows "
-                    "'Video unavailable', call again with mode='browser'."
-                    % (res.get("title"), res.get("id")))
+                return ("Opened %r in a real browser window inside the stage. Note that this "
+                        "route often shows a blank window, because Chromium does not repaint "
+                        "after being re-parented." % res.get("title"))
+            return ("Embedding %r in the WEB panel (id %s). If it says 'Video unavailable', "
+                    "that is YouTube error 150 — call again without a mode to play it as a "
+                    "downloaded file instead." % (res.get("title"), res.get("id")))
         if name == "weather":
             self._emit("tool", {"name": label, "detail": load_json(CONFIG, {}).get("location", ""), "full": ""})
             return sv.weather_text(sv.weather(lat, lon))
@@ -3769,6 +3862,14 @@ def _run():
     # so an inline player is impossible from the filesystem path. Same page,
     # same bytes, real origin — served on loopback by a socket that already
     # exists for the media panel.
+    # Autoplay: WebView2 blocks media that starts without a click, so a local
+    # file loads but sits at t=0 with a NotAllowedError. Measured: with this
+    # flag the same file plays (`paused=false`, currentTime advancing). It has
+    # to be set before webview.start(); WebView2 reads the env var once, when it
+    # creates its browser process.
+    os.environ.setdefault(
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+        "--autoplay-policy=no-user-gesture-required")
     api._window = webview.create_window(
         "Jarvis",
         api._media.stage_url,

@@ -3030,6 +3030,7 @@ nav.rail {
         if (head) head.style.left = p + '%';
       });
       media.addEventListener('play', () => { screen.classList.add('playing'); });
+      media.addEventListener('pause', () => screen.classList.remove('playing'));
       media.addEventListener('ended', () => {
         screen.classList.remove('playing');
         if (index + 1 < items.length) playAt(index + 1);
@@ -3046,6 +3047,21 @@ nav.rail {
       const sub = document.getElementById('mediaHint');
       if (sub) sub.textContent = item.kind + ' · ' + (item.size_text || '') + ' · tekan ▶';
     }
+
+    /* One-time autoplay unlock. A downloaded song is mounted by Python, so its
+       play() call has no user gesture behind it and WebView2 rejects it with
+       NotAllowedError — the track sits at t=0 and looks broken. The browser
+       flag in main.py handles most of this, but the flag is not always enough
+       after a page reload, so the first real click anywhere in the window also
+       resumes whatever is mounted. Capture phase, once, so it never competes
+       with the control that was actually clicked. */
+    let autoplayArmed = false;
+    addEventListener('pointerdown', function unlock() {
+      autoplayArmed = true;
+      removeEventListener('pointerdown', unlock, true);
+      if (media && media.paused) media.play().catch(() => {});
+    }, true);
+    window.stageMediaUnlock = () => { autoplayArmed = true; };
 
     function playAt(i) {
       if (!items.length) return;
