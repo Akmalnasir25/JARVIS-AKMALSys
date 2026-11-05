@@ -1650,8 +1650,27 @@ footer {
   color: var(--cyan); cursor: pointer;
 }
 .capsule .round:hover { background: hsl(var(--hue) 100% 74% / .14); }
+.capsule .round:focus-visible { outline: none; border-color: hsl(var(--hue) 90% 70% / .6); background: hsl(var(--hue) 100% 74% / .14); }
 .capsule .round svg { width: 13px; height: 13px; }
 .capsule .round.send { background: hsl(var(--hue) 100% 74% / .16); border-color: var(--line-hard); }
+/* The two switches beside the box ship their own state. Both used to be dead
+   paint: no id, no listener, so a press did nothing and looked broken. */
+.capsule .round .mute { display: none; }
+.capsule .round[aria-pressed="false"] { color: var(--amber); border-color: rgba(255,179,64,.5); }
+.capsule .round[aria-pressed="false"] .wave { display: none; }
+.capsule .round[aria-pressed="false"] .slash { display: inline; }
+.capsule .round .slash { display: none; }
+/* the mic that is genuinely open right now: red, breathing. */
+.capsule .round.live {
+  color: var(--bad); border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 18%, transparent);
+  animation: micPulse 1.1s ease-in-out infinite;
+}
+@keyframes micPulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--bad) 55%, transparent); }
+  50%      { box-shadow: 0 0 0 5px color-mix(in srgb, var(--bad) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) { .capsule .round.live { animation: none; } }
 .hint {
   margin-top: 4px; text-align: right;
   font-size: 7.5px; letter-spacing: .06em; color: var(--ink-faint);
@@ -2359,11 +2378,13 @@ nav.rail {
           <button type="button" aria-pressed="false">CHAT</button>
         </div>
         <input id="cmd" type="text" placeholder="What can I do for you, Akmal?" aria-label="Command for Jarvis">
-        <button type="button" class="round" aria-label="Speak">
+        <button type="button" class="round" id="btnMic" aria-label="Speak to Jarvis"
+                title="Talk to Jarvis (Ctrl+Space). Hold the mic open, release to send.">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>
         </button>
-        <button type="button" class="round" aria-label="Speak every reply">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
+        <button type="button" class="round" id="btnSpeak" aria-label="Speak every reply"
+                aria-pressed="true" title="Read replies aloud. Click to mute — no audio is generated at all while it is off.">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H2v6h4l5 4z"/><path class="wave" d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/><path class="slash" d="M16 9l5 6M21 9l-5 6"/></svg>
         </button>
         <button type="submit" class="round send" aria-label="Send">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
@@ -2692,10 +2713,14 @@ nav.rail {
   }
 
   /* ── orb: layered dot sphere, four distinct pulses ──
-     idle     slow drift, soft core, dots breathe with sin(t)
+     idle      slow drift, soft core, dots breathe with sin(t)
      listening dots fly outward with mic amplitude, ring flares
-     thinking scan sweep climbs the sphere + core tightens, no drift
-     speaking core beats at a speech-ish rate, dots jitter on the beat
+     thinking  scan sweep climbs the sphere + core tightens, no drift
+     speaking  the sphere gives way to the voice itself: a radial spectrum
+               ring whose bars are the real formant energy of the sentence
+               being read, a scope line that carries the waveform through
+               the core, and a core that breathes on the measured RMS.
+               None of it is a timer — every number comes from the analyser.
      ───────────────────────────────────────────────────────────── */
   const orb = document.getElementById('orb');
   if (orb) {
@@ -2709,10 +2734,23 @@ nav.rail {
       level: 0,          // 0..1, mic or speech amplitude
       target: 0,         // smoothed
       hot: 0,            // 0..1 scan intensity, for thinking
-      seed: Math.random() * 100
+      seed: Math.random() * 100,
+      /* The voice itself. `bars` is the live spectrum of the sentence being
+         spoken, `wave` is its waveform. Filled by the analyser in speak(); if
+         the analyser is unavailable every bar stays at the floor and the orb
+         still moves on RMS alone, so it never looks frozen. */
+      bars: new Float32Array(56),
+      wave: new Float32Array(512),
+      voiced: 0,         // 0..1 — how much of the frame is actual speech
+      rms: 0
     };
     window.orbState = (s) => { SP.state = s; };
     window.orbLevel = (v) => { SP.level = Math.max(0, Math.min(1, v)); };
+    window.orbVoice = (bars, wave, rms) => {
+      if (bars && bars.length) SP.bars.set(bars.subarray(0, SP.bars.length));
+      if (wave && wave.length) SP.wave.set(wave.subarray(0, SP.wave.length));
+      SP.rms = rms || 0;
+    };
 
     const N = 300, pts = [];
     const GA = Math.PI * (3 - Math.sqrt(5));
@@ -2811,8 +2849,7 @@ nav.rail {
       const wobbleAmt = thinking ? 0.055 + SP.hot * 0.05
                        : listening ? 0.02 + lvl * 0.16
                        : speaking  ? 0.06 + lvl * 0.10
-                       : 0.012;
-      const pulseOut = listening ? 1 + lvl * 0.10
+                       : 0.012;      const pulseOut = listening ? 1 + lvl * 0.10
                      : speaking  ? 1 + lvl * 0.045
                      : 1;
 
@@ -2860,20 +2897,21 @@ nav.rail {
         g.fill();
       }
 
-      /* core — tightens on thinking, beats on speaking */
-      const beat = speaking
-        ? 1 + Math.sin(t * 13) * 0.10 * (0.35 + lvl)
-        : 1;
-      const coreR = R * (thinking ? 0.30 : speaking ? 0.44 : listening ? 0.44 + lvl * 0.07 : 0.44) * beat;
+      /* core — tightens on thinking; when speaking it is driven by the measured
+         RMS of the voice, so it swells on a stressed syllable and falls away in
+         the gap between words. The old version beat on sin(t*13), a metronome
+         that had nothing to do with what was being said. */
+      const coreR = R * (thinking ? 0.30 : speaking ? 0.40 + SP.rms * 0.16
+                    : listening ? 0.44 + lvl * 0.07 : 0.44);
       const coreIn = thinking
         ? ac2(1)
         : ac2(.94);
-      const core = g.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+      const core = g.createRadialGradient(cx, cy, 0, cx, cy, Math.max(1, coreR));
       core.addColorStop(0, coreIn);
       core.addColorStop(0.4, ac(thinking ? 0.62 : 0.44));
       core.addColorStop(1, ac(0));
       g.fillStyle = core;
-      g.beginPath(); g.arc(cx, cy, coreR, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.arc(cx, cy, Math.max(1, coreR), 0, Math.PI * 2); g.fill();
 
       /* listening: breathing ring at the mic's rhythm */
       if (listening) {
@@ -2885,18 +2923,67 @@ nav.rail {
         g.stroke();
       }
 
-      /* speaking: rings pushed outward on the beat, one every 0.55 s */
+      /* ── speaking: the voice drawn as the orb ──
+         Three layers, all of them the actual signal:
+           a. radial spectrum — 56 bars of the live FFT, mirrored around the
+              sphere so it reads as a sun rather than a one-sided graph;
+           b. a scope line carried through the core, so the waveform of the
+              sentence passes right through the middle of the sphere;
+           c. rings that are born on a rising edge of the voice and drift out,
+              which is what makes it look like the sphere is pushing the words
+              into the room instead of blinking on a clock. */
       if (speaking) {
-        const BEAT = 34;                 // frames per ring
-        const phase = (t * 60) % BEAT;   // t advances ~1 per frame
+        const bars = SP.bars, n = bars.length;
+        const r0 = R * 0.56;
+        for (let i = 0; i < n; i++) {
+          const v = bars[i];
+          if (v <= 0.004) continue;
+          const a0 = (i / n) * Math.PI * 2 - Math.PI / 2;
+          const len = R * (0.10 + v * 0.72);
+          // two mirrored bars: the spectrum is symmetric about the vertical
+          for (const dir of [1, -1]) {
+            const aa = a0 * dir;
+            const x1 = cx + Math.cos(aa) * r0, y1 = cy + Math.sin(aa) * r0;
+            const x2 = cx + Math.cos(aa) * (r0 + len), y2 = cy + Math.sin(aa) * (r0 + len);
+            const grad = g.createLinearGradient(x1, y1, x2, y2);
+            grad.addColorStop(0, ac2(0.16 + v * 0.55));
+            grad.addColorStop(1, ac2(0.85 + v * 0.15));
+            g.strokeStyle = grad;
+            g.lineWidth = Math.max(0.9, (R / 150) * (0.7 + v * 1.3));
+            g.lineCap = 'round';
+            g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+          }
+        }
+
+        /* scope line: the waveform itself, through the core, fading at the edges */
+        const wave = SP.wave;
+        if (wave.length > 8) {
+          const half = Math.min(wave.length, 256);
+          const span = R * 2.35;
+          g.beginPath();
+          for (let i = 0; i < half; i++) {
+            const x = cx - span / 2 + (i / (half - 1)) * span;
+            const edge = 1 - Math.abs((i / (half - 1)) - 0.5) * 2;   // 0 at ends, 1 mid
+            const y = cy + (wave[i] - 0.5) * 2 * R * 0.55 * edge;
+            i ? g.lineTo(x, y) : g.moveTo(x, y);
+          }
+          g.strokeStyle = ac2(0.30 + SP.rms * 0.55);
+          g.lineWidth = 1.15;
+          g.lineJoin = 'round';
+          g.stroke();
+        }
+
+        /* rings born on a rising edge — accumulate while the voice is loud */
+        SP.voiced += 0.0025 + SP.rms * 0.016;
         for (let i = 0; i < 3; i++) {
-          const p = ((phase / BEAT) + i / 3) % 1;
+          const p = ((SP.voiced * 0.9) + i / 3) % 1;
           const rr = R * (0.5 + p * 1.15);
-          const a = (1 - p) * (0.10 + lvl * 0.55);
+          const a = (1 - p) * (0.06 + SP.rms * 0.85);
+          if (a <= 0.002) continue;
           g.beginPath();
           g.arc(cx, cy, rr, 0, Math.PI * 2);
           g.strokeStyle = ac2(a);
-          g.lineWidth = (1 - p) * (1 + lvl * 2);
+          g.lineWidth = (1 - p) * (0.6 + SP.rms * 2.4);
           g.stroke();
         }
       }
@@ -3440,8 +3527,13 @@ nav.rail {
       const pts = (a.points || []).slice(0, 8);
       if (!pts.length) { revealAll(); return; }
 
-      // fetch every line up front so there is no gap between points
-      const voice = pts.map(p => (api && api.tts ? api.tts(p.text || '') : Promise.resolve({ ok: false })));
+      // fetch every line up front so there is no gap between points — but only
+      // when the switch is on. Off used to synthesise all eight lines anyway and
+      // play them as they arrived, which is why a finished report still spoke
+      // minutes later: eight Google requests were queued behind each other.
+      const voice = shouldSpeak()
+        ? pts.map(p => (api && api.tts ? api.tts(p.text || '') : Promise.resolve({ ok: false })))
+        : pts.map(() => Promise.resolve({ ok: false }));
 
       for (let i = 0; i < pts.length; i++) {
         if (my !== token) return;
@@ -5019,6 +5111,15 @@ nav.rail {
     if (b) b.textContent = ORB_LABEL[known][0];
     if (a && !a.dataset.fixed) a.textContent = ORB_LABEL[known][1];
     document.body.dataset.orb = known;
+    /* The mic has to show whether it is actually capturing. `listening` is the
+       backend saying the stream is open — not a guess from the UI, which is what
+       made the old button feel dead: it never changed state after a press. */
+    const mb = document.getElementById('btnMic');
+    if (mb) {
+      const live = known === 'listening';
+      mb.classList.toggle('live', live);
+      mb.setAttribute('aria-pressed', live ? 'true' : 'false');
+    }
   };
   window.jarvisLevel = function (v) { if (window.orbLevel) window.orbLevel(v); };
 
@@ -5029,7 +5130,23 @@ nav.rail {
 
   // ---------- audio: TTS through the media server, analyser feeds the orb ----------
   let audioEl = null, actx = null, analyser = null, speakSeq = 0;
-  const shouldSpeak = () => !('speakOff' in window) || window.speakOff !== true;
+  /* The switch, held where every speaking path can see it. `speakOff` was a
+     window flag that nothing ever set, so shouldSpeak() was always true and the
+     checkbox only wrote config.json — the UI kept talking. This is seeded from
+     the settings the moment they load and kept in step when the box is ticked. */
+  let speakReplies = true;
+  const shouldSpeak = () => speakReplies;
+  function setSpeakReplies(on) {
+    speakReplies = !!on;
+    const b = document.getElementById('btnSpeak');
+    if (b) {
+      b.setAttribute('aria-pressed', speakReplies ? 'true' : 'false');
+      b.title = speakReplies
+        ? 'Replies are read aloud. Click to mute — nothing is generated while it is off.'
+        : 'Replies are silent. Click to read them aloud again.';
+    }
+    if (!speakReplies) stopSpeaking();   // off means off now, not after this clip
+  }
 
   function stopSpeaking() {
     speakSeq++;
@@ -5043,22 +5160,69 @@ nav.rail {
       if (actx.state === 'suspended') actx.resume();
       const src = actx.createMediaElementSource(a);
       const an = actx.createAnalyser();
-      an.fftSize = 512;
+      an.fftSize = 1024;          // 512 bins + a 1024-sample window for the scope
       src.connect(an); an.connect(actx.destination);
       return an;
     } catch (e) { return null; }
   }
 
+  /* The orb used to be fed one number — the average of every FFT bin — which
+     is why it only ever breathed. A single mean throws away the shape of the
+     voice: the vowel formants, the hiss of an s, the silence between words.
+     Here the spectrum is folded into 56 logarithmically-spaced bars, which is
+     how the ear hears it: even coverage across the range speech lives in
+     (about 80 Hz to 8 kHz) rather than a wall of bass at one end. `rms` is the
+     true level of the frame, used for the core and the rings. */
+  const ORB_BARS = 56;
+  const orbBars = new Float32Array(ORB_BARS);
+  const orbWave = new Float32Array(1024);   // raw time-domain, 0..1, centred on .5
+  let lastSpectrum = 0;
+
   function pumpLevel() {
     if (!analyser) return;
-    const buf = new Uint8Array(analyser.frequencyBinCount);
+    const bins = new Uint8Array(analyser.frequencyBinCount);
+    const waveRaw = new Uint8Array(analyser.fftSize);
+    const nyquist = (actx && actx.sampleRate ? actx.sampleRate : 48000) / 2;
+    /* bin edges spaced logarithmically over 80 Hz .. 8 kHz */
+    const edges = [];
+    for (let i = 0; i <= ORB_BARS; i++) {
+      const f = 80 * Math.pow(8000 / 80, i / ORB_BARS);
+      edges.push(Math.min(bins.length - 1, Math.round(f / nyquist * bins.length)));
+    }
     const tick = () => {
-      if (!analyser) return;
-      analyser.getByteFrequencyData(buf);
-      let sum = 0;
-      for (let i = 0; i < buf.length; i++) sum += buf[i];
-      const lvl = Math.min(1, sum / buf.length / 90);
+      if (!analyser) { lastSpectrum = 0; return; }
+      analyser.getByteFrequencyData(bins);
+      analyser.getByteTimeDomainData(waveRaw);
+
+      let peak = 0, sum = 0;
+      for (let b = 0; b < ORB_BARS; b++) {
+        const lo = edges[b], hi = Math.max(lo + 1, edges[b + 1]);
+        let acc = 0;
+        for (let k = lo; k < hi; k++) acc += bins[k];
+        const v = Math.min(1, (acc / (hi - lo)) / 168);   // 168 ≈ -12 dBFS on this scale
+        // per-bar smoothing: rise fast, fall slow — the eye reads that as speech
+        orbBars[b] = v > orbBars[b] ? orbBars[b] + (v - orbBars[b]) * 0.55
+                                    : orbBars[b] + (v - orbBars[b]) * 0.16;
+        if (orbBars[b] > peak) peak = orbBars[b];
+        sum += v;
+      }
+
+      let rms = 0;
+      for (let i = 0; i < waveRaw.length; i++) {
+        const s = (waveRaw[i] - 128) / 128;
+        rms += s * s;
+      }
+      rms = Math.sqrt(rms / waveRaw.length);
+      /* the waveform window the scope draws — downsample to 256 points */
+      const step = Math.max(1, Math.floor(waveRaw.length / orbWave.length));
+      for (let i = 0, j = 0; i < orbWave.length && j < waveRaw.length; i++, j += step) {
+        orbWave[i] = waveRaw[j] / 255;
+      }
+
+      const lvl = Math.min(1, (sum / ORB_BARS) * 1.6 + rms * 0.8);
       window.jarvisLevel(lvl);
+      if (window.orbVoice) window.orbVoice(orbBars, orbWave, Math.min(1, rms * 3.2));
+      lastSpectrum = performance.now();
       requestAnimationFrame(tick);
     };
     tick();
@@ -5068,6 +5232,16 @@ nav.rail {
     stopSpeaking();
     const my = speakSeq;
     if (!api || !text) return false;
+    /* Off means no request leaves the page. The backend also refuses, but
+       refusing here is what stops a queue of pending calls from draining late —
+       the old bug where a reply was read out long after it had been printed. */
+    if (!shouldSpeak()) return false;
+    /* Synthesis is not instant — measured 4.5 s on Google, up to 9 s when
+       Google refuses and edge-tts takes over. The orb used to sit idle through
+       that whole wait and then snap into speech, which is the "dah lama baru
+       baca" feeling from the other side of the glass. It now says it is working
+       on the voice, so the silence is legible instead of looking broken. */
+    window.jarvisState('thinking');
     try {
       const r = await api.tts(text);
       if (my !== speakSeq) return true;
@@ -5207,13 +5381,45 @@ nav.rail {
     window.jarvisState('idle');
   }
 
+  /* A test surface, and the only reason it exists: the speak switch has to be
+     provable without a human hand on the mouse. Everything it exposes is state
+     the page already owns — no behaviour changes whether or not it is called. */
+  window.stageTtsProbe = {
+    speak: (t) => speak(t),
+    shouldSpeak,
+    set: (on) => setSpeakReplies(on),
+    seq: () => speakSeq,
+    hasAudio: () => !!audioEl,
+    // fire the same path a finished Claude turn takes, with a known string
+    reply: (t) => { lastReply = t || 'probe reply'; window.onClaude('done', { ok: true, secs: 0 }); return lastReply; }
+  };
+
+  /* A dashboard is a result, and a result should be in front of him. But only
+     while the turn that produced it is still the turn he is waiting on: the old
+     code left the stage parked on ANALYSIS forever, so the next question was
+     answered on a pane that was still showing the previous report. These two
+     lines are the whole rule —
+       · a question arrives  -> back to COMMS, where the answer will appear
+       · a dashboard arrives -> forward to ANALYSIS, and stay there
+     because that dashboard is what he asked for. */
+  let turnMadeDashboard = false;
+  const sawPane = (name) => { if (name === 'ana') turnMadeDashboard = true; };
+
   /* ── Python → JS event surface ── */
   window.onClaude = function (kind, d) {
     d = d || {};
     if (kind === 'start') {
       busy = true;
+      turnMadeDashboard = false;
       window.jarvisState('thinking');
       act(engine === 'chat' ? chatModel + ' berfikir…' : 'Claude Code bekerja…');
+      // A new question starts a new exchange, so the room goes back to where
+      // the answer will appear. Left on ANALYSIS, the reply landed on a pane
+      // showing the previous report and read as if nothing had happened.
+      // The dashboard is remembered, not thrown away — if this turn produces
+      // another one, `analysis` brings it forward again by itself.
+      if (document.body.dataset.pane && document.body.dataset.pane !== 'comms'
+          && window.stageShow && !d.stay) window.stageShow('comms');
     } else if (kind === 'init') {
       sessionTag = (d.model || '').replace(/^claude-/, '') || 'claude';
       if (term) {
@@ -5263,6 +5469,7 @@ nav.rail {
     } else if (kind === 'analysis') {
       window.stageAnalysis && window.stageAnalysis(d);
       window.stageShow('ana');
+      sawPane('ana');
     } else if (kind === 'media') {
       // Python found media or opened one by name
       window.stageMediaLoad && window.stageMediaLoad(d.items || [], true);
@@ -5302,6 +5509,13 @@ nav.rail {
         orbTasks.done(false);
       } else {
         act('Done · ' + d.secs + 's');
+        /* The answer is text and it lives in COMMS, so that is where he must be
+           when it lands — unless this same turn also produced a dashboard, in
+           which case ANALYSIS is the answer and he is already looking at it. */
+        if (!turnMadeDashboard && window.stageShow
+            && document.body.dataset.pane && document.body.dataset.pane !== 'comms') {
+          window.stageShow('comms');
+        }
         if (lastReply && shouldSpeak()) speak(lastReply);
         else window.jarvisState('idle');
       }
@@ -5322,6 +5536,10 @@ nav.rail {
     else if (kind === 'none') { listenMode = false; window.jarvisState('idle'); act('Heard nothing. Press the mic and try again.'); }
     else if (kind === 'error') { listenMode = false; window.jarvisState('idle'); sysNote('Mic: ' + d, true); }
     else if (kind === 'wake') { listenMode = true; window.jarvisState('listening'); act('◆ Hey Akmal, just talk…'); }
+    /* The stream opened because the wake word is on — nobody pressed anything.
+       Shown in the trace so a wake triggered by room noise is not a mystery:
+       it names the moment the mic went live, and the capture that follows. */
+    else if (kind === 'listening') { listenMode = true; window.jarvisState('listening'); act('◆ Mic open — listening for "Hey Jarvis"'); }
     else if (kind === 'wake_only') { listenMode = false; speak('Ya Akmal?'); }
     else if (kind === 'control') {
       listenMode = false; window.jarvisState('idle');
@@ -5549,6 +5767,7 @@ nav.rail {
       F.rate.value = s.voice_rate || '+8%';
       F.pitch.value = s.voice_pitch || '+0Hz';
       F.speak.checked = s.speak_replies !== false;
+      setSpeakReplies(F.speak.checked);   // the page has to agree with the file
       F.lang.value = s.reply_language || 'ms';
 
       chatModel = s.chat_model || chatModel;
@@ -5582,7 +5801,10 @@ nav.rail {
     if (F.voice) F.voice.addEventListener('change', () => put('voice', F.voice.value));
     if (F.voiceEn) F.voiceEn.addEventListener('change', () => put('voice_en', F.voiceEn.value));
     if (F.lang) F.lang.addEventListener('change', () => put('reply_language', F.lang.value));
-    if (F.speak) F.speak.addEventListener('change', () => put('speak_replies', F.speak.checked));
+    if (F.speak) F.speak.addEventListener('change', () => {
+      setSpeakReplies(F.speak.checked);       // take effect on this clip, not the next restart
+      put('speak_replies', F.speak.checked);
+    });
     // rate/pitch: tulis bila medan kehilangan fokus atau Enter, bukan setiap ketukan
     const onText = (el, key, re, fallback, hint) => {
       if (!el) return;
@@ -5614,6 +5836,11 @@ nav.rail {
     const close = () => { wrap.hidden = true; };
     window.stageOpenSettings = open;
     window.stageSettings = fill;      // dipanggil semasa boot dengan versi ringkas
+    /* The speaker button lives outside this closure, and `put` is local to it.
+       Exposing the one writer rather than re-implementing api.set_setting in a
+       second place is what keeps the button and the sheet from ever disagreeing. */
+    window.stageSetSetting = put;
+    window.stageSpeakBox = (on) => { if (F.speak) F.speak.checked = !!on; };
 
     const gear = $('btnSettings');
     if (gear) gear.addEventListener('click', open);
@@ -5664,6 +5891,33 @@ nav.rail {
   // now — a title is user-facing copy and gets translated.
   on('.iconbar button.min', () => api && api.minimize());
   on('.iconbar .quit', () => { if (api) api.quit(); });
+
+  /* ── the two switches beside the box ──
+     Both were painted buttons with no id and no listener: a press did nothing,
+     which is exactly what "macam tak berfungsi" means. The mic asks the backend
+     to capture; the speaker flips the same setting the sheet writes, so the
+     button and the checkbox can never disagree. */
+  const btnMic = $('btnMic');
+  if (btnMic) btnMic.addEventListener('click', async () => {
+    if (!api || !api.listen) return;
+    if (busy) { sysNote('Wait for the current answer to finish.'); return; }
+    try {
+      const r = await api.listen();
+      if (!r || !r.ok) sysNote('Mic: ' + ((r && r.msg) || 'could not start'), true);
+      else act('◆ Listening… say it now');
+    } catch (e) { sysNote('Mic failed: ' + e.message, true); }
+  });
+
+  const btnSpeak = $('btnSpeak');
+  if (btnSpeak) {
+    btnSpeak.addEventListener('click', () => {
+      const want = !speakReplies;
+      setSpeakReplies(want);
+      if (window.stageSetSetting) window.stageSetSetting('speak_replies', want);
+      if (window.stageSpeakBox) window.stageSpeakBox(want);
+      sysNote(want ? 'Replies will be read aloud.' : 'Replies are silent.');
+    });
+  }
   on('.comms-head .btn', () => newSession());
   const btnNew = $('btnNewSession');
   if (btnNew) btnNew.addEventListener('click', () => newSession());

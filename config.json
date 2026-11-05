@@ -7,7 +7,7 @@
   "prayer_reminder_minutes": 5,
   "morning_brief": true,
   "brief_email": true,
-  "wake_word": true,
+  "wake_word": false,
   "wake_threshold": 0.35,
   "workdir": "~",
   "allowed_tools": [
@@ -36,7 +36,7 @@
     "Bash(format *)"
   ],
   "voice": "ms-MY-Wavenet-D",
-  "voice_rate": "+0%",
+  "voice_rate": "+8%",
   "whisper_model": "small",
   "whisper_language": "ms",
   "voice_pitch": "+0Hz",
@@ -46,7 +46,7 @@
   "whisper_beam": 5,
   "stt_engine": "hybrid",
   "stt_min_confidence": 0.85,
-  "reply_language": "en",
+  "reply_language": "ms",
   "voice_en": "en-GB-ThomasNeural",
   "voice_provider": "google",
   "voice_english_words": true

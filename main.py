@@ -2764,8 +2764,19 @@ class Api:
             self._proc = None
 
     # ---------- Suara ----------
-    def tts(self, text, voice=None, rate=None, pitch=None):
-        """Tukar teks jadi suara neural. Lalai Google Cloud BM; fallback edge-tts bila kunci tiada/gagal."""
+    def tts(self, text, voice=None, rate=None, pitch=None, force=False):
+        """Tukar teks jadi suara neural. Lalai Google Cloud BM; fallback edge-tts bila kunci tiada/gagal.
+
+        Penapis `speak_replies` hidup DI SINI, bukan di pemanggil. Sebelum ini ia
+        hanya diperiksa oleh satu laluan di UI, jadi setiap laluan lain — narasi
+        analisis, brief pagi, peringatan solat — terus bersuara walaupun suis itu
+        dimatikan, dan sintesis Google mengambil beberapa saat setiap baris
+        sehingga suara kedengaran lama selepas jawapan sudah dipaparkan. Menapis
+        di pintu masuk bermakna tiada audio yang dijana langsung, jadi tiada
+        baris lama yang boleh berbunyi kemudian.
+        """
+        if not force and not load_json(CONFIG, {}).get("speak_replies", True):
+            return {"ok": False, "muted": True, "note": "speak_replies is off"}
         import asyncio
         import base64
         import edge_tts
@@ -2932,6 +2943,13 @@ class Api:
         import numpy as np
         import sounddevice as sd
         thr = float(load_json(CONFIG, {}).get("wake_threshold", 0.35))
+        # The mic opening is an event worth showing. "Dia dengar sendiri" is what
+        # a silent stream looks like from the outside: the room hears something
+        # and Jarvis answers without anyone having pressed anything. Emitting it
+        # means the orb goes to 'listening' at the exact frame the device opens,
+        # so a wake that fires on background noise is visible as it happens
+        # instead of arriving as an unexplained answer.
+        announced = False
 
         def build():
             """Muat model wake HANYA bila ia dihidupkan dalam config.
@@ -2972,6 +2990,9 @@ class Api:
                 with sd.InputStream(samplerate=16000, channels=1, dtype="int16", blocksize=1280) as st:
                     self._wake_ready = ww is not None
                     self._voice_emit("wake_ready", self._wake_ready)
+                    if ww is not None and not announced:
+                        announced = True
+                        self._voice_emit("listening")
                     while True:
                         if self._listen_request.is_set():
                             self._listen_request.clear()
@@ -3009,6 +3030,9 @@ class Api:
                 with sd.InputStream(samplerate=16000, channels=1, dtype="int16", blocksize=1280) as st:
                     self._wake_ready = ww is not None
                     self._voice_emit("wake_ready", self._wake_ready)
+                    if ww is not None and not announced:
+                        announced = True
+                        self._voice_emit("listening")
                     while True:
                         if self._listen_request.is_set():
                             self._listen_request.clear()
