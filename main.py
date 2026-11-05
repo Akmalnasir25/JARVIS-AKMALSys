@@ -173,7 +173,10 @@ CHAT_TOOLS = WEB_TOOLS + [
                         "berkaitan YouTube. Ia cari video yang boleh dimainkan, pilih yang paling tepat, dan "
                         "mula main dengan sendirinya. Jangan guna open_media untuk YouTube.",
         {"query": {"type": "string",
-                   "description": "Nama lagu dan artis, contoh: Hindia Secukupnya, atau judul video"}},
+                   "description": "Nama lagu dan artis, contoh: Hindia Secukupnya, atau judul video"},
+         "mode": {"type": "string",
+                  "description": "Biarkan kosong untuk main dalam panel WEB. Guna \"browser\" bila embed "
+                                 "kata 'Video unavailable' — ia buka Chrome sebenar di dalam stage."}},
         ["query"]),
 ]
 
@@ -1655,11 +1658,32 @@ class Api:
             return []
         return out
 
-    def play_youtube(self, query):
-        """Main satu video YouTube di dalam stage. Pulangkan {ok, id, url, title}."""
+    def play_youtube(self, query, force_browser=False):
+        """Main satu video YouTube di dalam stage. Pulangkan {ok, id, url, title}.
+
+        Ada dua jalan, dan yang kedua wujud kerana yang pertama tidak selalu
+        berfungsi. Embed YouTube di dalam iframe bergantung pada pemilik video
+        membenarkan embed DAN pada WebView2 menerima cookie serta pengesahan
+        YouTube. Bila ia gagal, yang keluar cuma "Video unavailable" — satu
+        mesej yang tidak membezakan sebab, dan tiada apa yang boleh dibaiki
+        dari dalam kod kita.
+
+        Jadi: embed dahulu (ringan, tiada Chrome). Kalau pemanggil sudah tahu
+        ia gagal — `force_browser=True`, dipakai selepas Akmal nampak mesej itu
+        — terus buka Chrome sebenar dan masukkan tetingkapnya ke dalam stage.
+        Chrome memainkan YouTube sepenuhnya, jadi jalan ini tidak boleh gagal
+        atas sebab embed.
+        """
         q = str(query or "").strip()
         if not q:
             return {"ok": False, "msg": "YouTube: no song or video named."}
+        prev = getattr(self, "_last_yt", None)
+        if not force_browser and prev and prev.get("title"):
+            # "main lagu tu" — the follow-up usually names nothing, because the
+            # song is already in the conversation. Reuse the last resolved song
+            # rather than searching for the literal words "lagu tu".
+            if re.fullmatch(r"(main|play|putar|pasang|lagu tu|video tu|yang tadi|itu)[\s\W]*", q, re.I):
+                q = prev["title"]
         cands = self._yt_find(q)
         if not cands:
             return {"ok": False, "msg": f'YouTube: nothing playable found for "{q}".'}
@@ -1669,11 +1693,75 @@ class Api:
             -cands.index(c),
         ))
         self._last_yt = best
+        if force_browser:
+            r = self._play_in_browser(best["url"])
+            return {"ok": r.get("ok", False), "id": best["id"], "url": best["url"],
+                    "title": best.get("title") or q, "mode": "browser",
+                    "msg": r.get("msg", "")}
         # `url` on this channel is what the WEB pane turns into an embed; the
         # pane's own handler decides between the iframe and the child window.
         self._emit("web", {"query": q, "links": [], "url": best["url"]})
         return {"ok": True, "id": best["id"], "url": best["url"],
-                "title": best.get("title") or q, "candidates": len(cands)}
+                "title": best.get("title") or q, "mode": "embed", "candidates": len(cands)}
+
+    def _browser_exe(self):
+        """Chrome dahulu, Edge sebagai sandaran. '' kalau tiada."""
+        local = os.environ.get("LOCALAPPDATA", "")
+        for p in (r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                  r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+                  os.path.join(local, r"Google\Chrome\Application\chrome.exe"),
+                  r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+                  r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"):
+            if p and os.path.isfile(p):
+                return p
+        return ""
+
+    def _play_in_browser(self, url):
+        """Buka url dalam Chrome sebenar dan masukkan tetingkapnya ke stage.
+
+        Tetingkap dicari dengan membeza set tetingkap sebelum dan selepas,
+        bukan dengan pid pelancaran. Sebabnya diukur: bila Chrome sudah
+        berjalan, `chrome.exe --new-window` hanya menyuruh proses sedia ada
+        membuka tab, dan proses yang kita lancarkan keluar serta-merta —
+        `window_for_pid(proc.pid)` memulangkan 0 walaupun tab itu jelas ada
+        atas skrin. Beza-set menangkap tab itu juga, sama ada Chrome baru
+        dimulakan atau tidak.
+        """
+        exe = self._browser_exe()
+        if not exe:
+            return {"ok": False, "msg": "No Chrome or Edge on this PC."}
+        hud = self.hud_hwnd()
+        if not hud:
+            return {"ok": False, "msg": "Jarvis window not found."}
+        before = sysctl.visible_hwnds()
+        try:
+            proc = subprocess.Popen(
+                [exe, "--new-window", "--start-maximized", url],
+                creationflags=NO_WINDOW)
+        except Exception as e:
+            return {"ok": False, "msg": "Could not start the browser: %s" % e}
+        hwnd = 0
+        # Chrome ialah satu proses induk: anak-anaknya yang memiliki tetingkap,
+        # jadi cari ikut pid dahulu, kemudian beza-set.
+        for _ in range(80):  # Chrome cold start on a spinning disk can take 8 s
+            time.sleep(0.2)
+            hwnd = sysctl.window_for_pid(proc.pid) or sysctl.new_window_since(before)
+            if hwnd:
+                break
+        if not hwnd:
+            return {"ok": False, "msg": "The browser opened but no window appeared."}
+        ok, msg = self._sys.embed.attach_hwnd(hud, hwnd, "YouTube")
+        if not ok:
+            return {"ok": False, "msg": msg}
+        scale = sysctl.dpi_scale(hud)
+        rect = getattr(self, "_app_rect", None)
+        if not rect or float(rect[2] or 0) < 240:
+            rect = (0.17 * 1920, 0.16 * 1080, 0.66 * 1920, 0.68 * 1080, scale)
+        self._app_rect = rect
+        self._app_place()
+        self._emit("app", {"attached": "YouTube", "browser": True})
+        self._push("window.stageShow && window.stageShow('native')")
+        return {"ok": True}
 
     def _serper_raw(self, key, query, num=8):
         """Hasil Serper mentah, untuk pemanggil yang perlukan link bukan teks."""
@@ -2026,12 +2114,18 @@ class Api:
             return f"Playing {res.get('name', want)} in the MEDIA panel."
         if name == "play_youtube":
             q = str(args.get("query", "") or "").strip()
-            self._emit("tool", {"name": "YouTube", "detail": q, "full": ""})
-            res = self.play_youtube(q)
+            mode = str(args.get("mode", "") or "").strip().lower()
+            self._emit("tool", {"name": "YouTube", "detail": q, "full": mode})
+            res = self.play_youtube(q, force_browser=(mode in ("browser", "chrome", "native")))
             if not res.get("ok"):
                 return res.get("msg") or "YouTube search failed."
+            if res.get("mode") == "browser":
+                return ("Playing %r in a real %s window inside the stage now. "
+                        "The embed was skipped because it showed 'Video unavailable'."
+                        % (res.get("title"), "Chrome" if "chrome" in self._browser_exe().lower() else "browser"))
             return ("Playing %r on YouTube inside the WEB panel now (id %s). "
-                    "It has already started; do not call this again."
+                    "It has already started; do not call this again. If it shows "
+                    "'Video unavailable', call again with mode='browser'."
                     % (res.get("title"), res.get("id")))
         if name == "weather":
             self._emit("tool", {"name": label, "detail": load_json(CONFIG, {}).get("location", ""), "full": ""})
@@ -2712,7 +2806,31 @@ class Api:
         return {"ok": True}
 
     def wake_status(self):
-        return {"on": self._wake_ready}
+        # "on" bermaksud mic sedang mendengar "Hey Jarvis" SEKARANG, bukan
+        # sekadar tetapan dalam config. Bila dimatikan, aliran mic langsung
+        # tidak dibuka, jadi ini satu-satunya kebenaran yang berguna pada UI.
+        return {"on": self._wake_ready,
+                "enabled": bool(load_json(CONFIG, {}).get("wake_word", True))}
+
+    def set_wake(self, on):
+        """Hidup/matikan pendengar "Hey Jarvis" tanpa memulakan semula Jarvis.
+
+        Bila dimatikan, gelung mic tidak membuka aliran langsung, jadi Jarvis
+        tidak mendengar apa-apa sehingga butang mic ditekan. Ini yang Akmal
+        minta: bunyi latar yang menyerupai suara tidak lagi menangkap arahan.
+        """
+        on = bool(on)
+        cfg = load_json(CONFIG, {})
+        cfg["wake_word"] = on
+        try:
+            CONFIG.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+        except Exception as e:
+            return {"ok": False, "msg": "Could not save wake_word: %s" % e}
+        # Bila menghidupkan semula, `wake_status()` hanya akan berkata true
+        # selepas gelung benar-benar membuka aliran. Jangan berbohong di sini.
+        if not on:
+            self._wake_ready = False
+        return {"ok": True, "enabled": on}
 
     def _mic_loop(self):
         """Satu-satunya pemilik mic. Dengar "Hey Jarvis" (jika dihidupkan) dan rakam arahan
@@ -2720,19 +2838,80 @@ class Api:
         import collections
         import numpy as np
         import sounddevice as sd
-        cfg = load_json(CONFIG, {})
-        ww, thr = None, float(cfg.get("wake_threshold", 0.35))
-        if cfg.get("wake_word", True):
+        thr = float(load_json(CONFIG, {}).get("wake_threshold", 0.35))
+
+        def build():
+            """Muat model wake HANYA bila ia dihidupkan dalam config.
+
+            Dibaca semula setiap kali, bukan sekali: menghidupkan semula "Hey
+            Jarvis" mesti berkesan serta-merta tanpa memulakan semula Jarvis.
+            Model ONNX mengambil masa ~1 s untuk dimuatkan, jadi ia dibina di
+            dalam gelung ini dan bukan dalam set_wake().
+            """
+            if not load_json(CONFIG, {}).get("wake_word", True):
+                return None
             try:
                 from openwakeword.model import Model
-                ww = Model(wakeword_models=["hey_jarvis"], inference_framework="onnx")
+                return Model(wakeword_models=["hey_jarvis"], inference_framework="onnx")
             except Exception as e:
                 self._voice_emit("status", f"Hey Jarvis unavailable: {e}")
+                return None
+
+        ww = build()
         ring = collections.deque(maxlen=15)  # ~1.2 s audio terakhir
         noise = None
         while True:
             if ww is None:  # tanpa wake word: buka mic hanya bila butang ditekan
-                self._listen_request.wait()
+                # Mic mesti benar-benar berhenti, bukan sekadar berhenti bertindak
+                # atas apa yang didengar. Menutup aliran adalah satu-satunya cara
+                # Windows berhenti menunjukkan mic sedang digunakan, dan satu-satunya
+                # cara bunyi bilik tidak lagi diproses langsung.
+                self._wake_ready = False
+                self._voice_emit("wake_ready", False)
+                # Tunggu butang mic ATAU suis wake dihidupkan. poll(0.5) dan bukan
+                # wait() kerana suis itu bukan Event — ia tulisan config dari
+                # thread lain, dan inilah satu-satunya tempat yang boleh membina
+                # semula model tanpa memulakan semula proses.
+                if not self._listen_request.wait(0.5):
+                    ww = build()
+                    continue
+            try:
+                with sd.InputStream(samplerate=16000, channels=1, dtype="int16", blocksize=1280) as st:
+                    self._wake_ready = ww is not None
+                    self._voice_emit("wake_ready", self._wake_ready)
+                    while True:
+                        if self._listen_request.is_set():
+                            self._listen_request.clear()
+                            self._capture(st, list(ring)[-3:], noise, from_wake=False)
+                            ring.clear()
+                            if ww is None:
+                                break
+                            ww.reset()
+                            continue
+                        if ww is None:
+                            break
+                        # Suis dimatikan semasa aliran terbuka: keluar serta-merta
+                        # supaya mikrofon benar-benar tertutup, bukan sekadar
+                        # berhenti bertindak atas apa yang didengar.
+                        if not load_json(CONFIG, {}).get("wake_word", True):
+                            ww = None
+                            break
+                        data, _ = st.read(1280)
+                        x = data[:, 0].copy()
+                        ring.append(x)
+                        rms = float(np.sqrt(np.mean((x / 32768.0) ** 2)))
+                        noise = rms if noise is None else noise * 0.97 + rms * 0.03
+                        if not self._speaking and ww.predict(x).get("hey_jarvis", 0) >= thr:
+                            sv.beep("wake")
+                            self._voice_emit("wake")
+                            self._capture(st, list(ring)[-8:], noise, from_wake=True)
+                            ring.clear()
+                            ww.reset()
+            except Exception as e:
+                self._wake_ready = False
+                self._listening = False
+                self._voice_emit("error", str(e))
+                time.sleep(5)
             try:
                 with sd.InputStream(samplerate=16000, channels=1, dtype="int16", blocksize=1280) as st:
                     self._wake_ready = ww is not None

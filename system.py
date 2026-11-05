@@ -230,6 +230,72 @@ def find_window(needle):
     return None
 
 
+def window_for_pid(pid):
+    """Tetingkap peringkat atas yang kelihatan, milik pid ini. 0 jika tiada.
+
+    Jauh lebih tepat daripada gelintar tajuk: tajuk berubah (tab YouTube
+    bergelar nama lagu), tetapi pid tidak. Dipakai untuk menangkap tetingkap
+    Chrome yang baru dilancarkan supaya ia boleh dimasukkan ke dalam stage.
+
+    Hadnya: Chrome hanya ada satu proses induk. Bila Chrome sudah berjalan,
+    `chrome.exe --new-window` menyuruh proses sedia ada membuka tab dan proses
+    baru itu terus keluar — jadi pid yang kita lancarkan tidak memiliki
+    tetingkap apa-apa. Untuk kes itu guna `new_window_for_pids()`.
+    """
+    if not pid:
+        return 0
+    hits = []
+
+    def _cb(hwnd, _):
+        holder = wt.DWORD()
+        _u32.GetWindowThreadProcessId(hwnd, ctypes.byref(holder))
+        if holder.value != int(pid):
+            return True
+        if not _u32.IsWindowVisible(hwnd):
+            return True
+        if _u32.GetWindowTextLengthW(hwnd) == 0:
+            return True
+        hits.append(int(hwnd))
+        return False  # yang pertama sudah cukup
+
+    _u32.EnumWindows(_EnumProc(_cb), 0)
+    return hits[0] if hits else 0
+
+
+def visible_hwnds(pids=None):
+    """Set HWND peringkat atas yang kelihatan dan bertajuk, untuk pid tertentu.
+
+    Tanpa `pids`, semua tetingkap. Dipakai untuk menangkap tetingkap yang BARU
+    muncul: ambil set sebelum, lancarkan browser, kemudian beza set itu. Ini
+    satu-satunya cara yang tahan hakikat Chrome berkongsi satu proses.
+    """
+    want = None if pids is None else set(int(p) for p in pids if p)
+    out = set()
+
+    def _cb(hwnd, _):
+        if not _u32.IsWindowVisible(hwnd):
+            return True
+        if _u32.GetWindowTextLengthW(hwnd) == 0:
+            return True
+        if want is not None:
+            holder = wt.DWORD()
+            _u32.GetWindowThreadProcessId(hwnd, ctypes.byref(holder))
+            if holder.value not in want:
+                return True
+        out.add(int(hwnd))
+        return len(out) < 600
+
+    _u32.EnumWindows(_EnumProc(_cb), 0)
+    return out
+
+
+def new_window_since(before, pids=None):
+    """HWND yang muncul sejak set `before` diambil. 0 jika tiada."""
+    now = visible_hwnds(pids)
+    fresh = now - set(before or ())
+    return next(iter(fresh)) if fresh else 0
+
+
 def focus_window(hwnd):
     if not hwnd or not _u32.IsWindow(hwnd):
         return False
@@ -332,6 +398,32 @@ class Embed:
         self.origin = (_u32.GetParent(hwnd), style, (rect.left, rect.top,
                                                      rect.right - rect.left, rect.bottom - rect.top))
         self.hwnd, self.title, self.visible = hwnd, title, True
+        _u32.SetWindowLongPtrW(hwnd, _GWL_STYLE, (style & ~_WS_POPUP) | _WS_CHILD)
+        _u32.SetParent(hwnd, parent_hwnd)
+        return True, "Dah masuk stage."
+
+    def attach_hwnd(self, parent_hwnd, hwnd, label=""):
+        """Sama seperti attach(), tetapi dengan HWND yang sudah diketahui.
+
+        Diperlukan kerana `find_window(title)` membaca senarai tetingkap dan
+        memilih yang tajuknya padan — dan tajuk tab YouTube ialah nama lagu,
+        yang berubah setiap kali. Pid tidak berubah, jadi pemanggil yang baru
+        melancarkan browser itu sendiri boleh menangkap HWND dengan tepat.
+        """
+        if not hwnd:
+            return False, "Tiada tetingkap untuk dimasukkan."
+        if int(hwnd) == int(parent_hwnd):
+            return False, "Itu tetingkap Jarvis sendiri."
+        if self.hwnd == hwnd and self.origin:
+            return True, "Dah terlepas."
+        if self.hwnd:
+            self.detach()
+        rect = wt.RECT()
+        _u32.GetWindowRect(hwnd, ctypes.byref(rect))
+        style = _u32.GetWindowLongPtrW(hwnd, _GWL_STYLE)
+        self.origin = (_u32.GetParent(hwnd), style, (rect.left, rect.top,
+                                                    rect.right - rect.left, rect.bottom - rect.top))
+        self.hwnd, self.title, self.visible = hwnd, label, True
         _u32.SetWindowLongPtrW(hwnd, _GWL_STYLE, (style & ~_WS_POPUP) | _WS_CHILD)
         _u32.SetParent(hwnd, parent_hwnd)
         return True, "Dah masuk stage."

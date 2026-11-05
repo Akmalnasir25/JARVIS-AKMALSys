@@ -243,6 +243,16 @@ header::after {
 .chip .dot.on  { background: var(--ok);  box-shadow: 0 0 8px var(--ok); }
 .chip .dot.off { background: var(--bad); box-shadow: 0 0 8px var(--bad); }
 .chip.warn { border-color: rgba(255,179,64,.4); color: var(--amber); }
+/* The wake chip is the mic switch, so it has to look like something you can
+   press. Amber when closed reads as "standing by", not as a fault. */
+.chip.switch { cursor: pointer; transition: background .14s ease-out, border-color .14s ease-out, color .14s ease-out; }
+.chip.switch:hover, .chip.switch:focus-visible {
+  background: hsl(var(--hue) 100% 74% / .10);
+  border-color: hsl(var(--hue) 90% 70% / .5); color: var(--ink);
+  outline: none;
+}
+.chip .dot.armed { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+.chip.switch[aria-checked="false"] { border-color: rgba(255,179,64,.45); }
 
 .clock { text-align: right; font-variant-numeric: tabular-nums; }
 .clock b {
@@ -423,6 +433,20 @@ aside.left::-webkit-scrollbar { display: none; }
 }
 .led.on  { background: var(--ok); box-shadow: 0 0 7px var(--ok); }
 .led off  { background: var(--ink-faint); }
+/* Mic sentiasa terbuka bermakna Jarvis mendengar bilik sepanjang masa. Baris
+   "wake" ialah suisnya: merah bermaksud aliran mic tertutup dan hanya butang
+   mic yang boleh membukanya. */
+.dim { flex-direction: row !important; }
+.led.off-wake { background: var(--bad); box-shadow: 0 0 7px var(--bad); }
+#wakeRow {
+  cursor: pointer; border-radius: 3px; padding: 2px 4px; margin: -2px -4px;
+  transition: background .14s ease-out, color .14s ease-out;
+}
+#wakeRow:hover, #wakeRow:focus-visible {
+  background: hsl(var(--hue) 100% 70% / .14); color: var(--ink);
+  outline: none;
+}
+#wakeRow b { font-weight: 600; letter-spacing: .14em; }
 
 /* ── rail: vertical panel selector ────────────────────────── */
 nav.rail {
@@ -1886,8 +1910,9 @@ nav.rail {
     <div class="chip" title="Chat model — rootsys">
       <span class="dot on"></span><span>DeepSeek</span>
     </div>
-    <div class="chip" title="Wake word">
-      <span class="dot on"></span><span>Hey Jarvis</span>
+    <div class="chip switch" id="wakeChip" role="switch" aria-checked="false" tabindex="0"
+         title="Click to turn the wake word off. Off means the microphone is closed — nothing is heard until you press the mic button.">
+      <span class="dot" id="wakeDot"></span><span id="wakeChipLbl">Hey Jarvis</span>
     </div>
     <div class="chip warn" title="Prayer times">
       <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 3a9 9 0 1 0 0 18a11 11 0 0 1 0-18z"/></svg>
@@ -1959,7 +1984,10 @@ nav.rail {
         <div><i class="led on"></i>tts · google</div>
         <div><i class="led on"></i>claude</div>
         <div><i class="led on"></i>deepseek</div>
-        <div><i class="led"></i>wake</div>
+        <div id="wakeRow" class="dim" role="switch" aria-checked="false" tabindex="0"
+             title="Click to turn &quot;Hey Jarvis&quot; off. With it off the mic stays closed until you press the mic button.">
+          <i class="led" id="ledWake"></i><b id="wakeLbl">wake</b>
+        </div>
       </div>
     </section>
   </aside>
@@ -2143,6 +2171,7 @@ nav.rail {
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2C2 8.8 2 12 2 12s0 3.2.4 4.8a2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8C22 15.2 22 12 22 12s0-3.2-.4-4.8zM10 15.2V8.8L15.5 12 10 15.2z"/></svg>
               inline
             </span>
+            <button type="button" class="btn" id="webChrome" title="Open this video in a real browser window inside the stage — use this when the embed says Video unavailable">Chrome</button>
             <button type="button" class="btn" id="webGo">Open</button>
           </div>
           <div class="browse-body" id="webBody">
@@ -4008,6 +4037,25 @@ nav.rail {
     const goBt = document.getElementById('webGo');
     if (goBt) goBt.addEventListener('click', () => go(input.value));
     if (embedBt) embedBt.addEventListener('click', () => setMode(mode === 'embed' ? 'window' : 'embed'));
+    /* The embed cannot tell us whether the owner allows it or whether WebView2
+       is being refused — both surface as "Video unavailable". So the escape
+       hatch is a button rather than a guess: hand the same URL to Python, which
+       opens a real Chrome and parks its window on the stage rect. */
+    const chromeBt = document.getElementById('webChrome');
+    if (chromeBt) chromeBt.addEventListener('click', async () => {
+      const id = ytId(curUrl);
+      if (!api || !api.play_youtube) return;
+      chromeBt.disabled = true;
+      try {
+        const r = await api.play_youtube(id ? id : curUrl, 'browser');
+        if (r && r.ok) sysNote('Player moved to a real browser window in the stage.');
+        else sysNote('Could not open the browser player: ' + ((r && r.msg) || 'unknown reason'));
+      } catch (e) {
+        sysNote('Could not open the browser player: ' + e.message);
+      } finally {
+        chromeBt.disabled = false;
+      }
+    });
     if (closeBt) closeBt.addEventListener('click', () => {
       if (api && api.web_close) api.web_close();
       frame.src = 'about:blank';
@@ -5262,8 +5310,59 @@ nav.rail {
     else if (kind === 'control') {
       listenMode = false; window.jarvisState('idle');
       word('Akmal', d.text, 'me'); sysNote('⌨ ' + d.label);
-    }    else if (kind === 'wake_ready') { setLed('ledMic', d); }
+    }    else if (kind === 'wake_ready') { paintWake(!!d); }
   };
+
+  /* The mic is a switch in two places — the header chip and the Channels row —
+     because both are where a hand goes. `on` is the backend's own answer: the
+     audio stream is genuinely open. Off closes the stream, so nothing in the
+     room is captured at all until the mic button is pressed. */
+  let wakeOn = false;
+  function paintWake(on) {
+    wakeOn = !!on;
+    const led = document.getElementById('ledWake');
+    const row = document.getElementById('wakeRow');
+    const lbl = document.getElementById('wakeLbl');
+    const dot = document.getElementById('wakeDot');
+    const chip = document.getElementById('wakeChip');
+    const chipLbl = document.getElementById('wakeChipLbl');
+    if (led) led.className = 'led' + (on ? ' on' : ' off-wake');
+    if (dot) dot.className = 'dot' + (on ? ' on' : ' armed');
+    if (row) row.setAttribute('aria-checked', on ? 'true' : 'false');
+    if (chip) chip.setAttribute('aria-checked', on ? 'true' : 'false');
+    if (lbl) lbl.textContent = on ? 'wake' : 'mic off';
+    if (chipLbl) chipLbl.textContent = on ? 'Hey Jarvis' : 'Mic off';
+    if (row) row.title = on
+      ? 'Listening for "Hey Jarvis". Click to stop the mic entirely.'
+      : 'Mic closed. Click to listen for "Hey Jarvis" again, or press the mic button to talk.';
+    if (chip) chip.title = row ? row.title : '';
+  }
+  async function toggleWake() {
+    if (!api) return;
+    const want = !wakeOn;
+    paintWake(false);
+    try {
+      const r = await api.set_wake(want);
+      if (!r || !r.ok) { paintWake(!want); sysNote('Could not change the mic: ' + ((r && r.msg) || 'unknown'), true); return; }
+      if (!want) sysNote('Mic closed. Press the mic button when you want to talk.');
+      else sysNote('Listening for "Hey Jarvis" again…');
+      const w = await api.wake_status();
+      paintWake(!!(w && w.on));
+    } catch (e) {
+      paintWake(!want);
+      sysNote('Could not change the mic: ' + e.message, true);
+    }
+  }
+  (function () {
+    for (const id of ['wakeRow', 'wakeChip']) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.addEventListener('click', toggleWake);
+      el.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleWake(); }
+      });
+    }
+  })();
 
   window.onPrayer = function (d) {
     const txt = d.name + ' in ' + d.mins + ' min (' + d.time + ')';
@@ -5571,6 +5670,13 @@ nav.rail {
 
   async function boot() {
     bridgeUp();
+    // The LED has to show the truth on first paint. `on` is false while the
+    // wake loop has not opened the stream yet, so a plain "on" default would
+    // read as listening when nothing is.
+    try {
+      const w = await api.wake_status();
+      paintWake(!!(w && w.on));
+    } catch (e) { paintWake(false); }
     try { window.stageSettings(await api.get_settings_core()); } catch (e) {}
     try { await stageDock.load(); } catch (e) {}
     tickStats();
