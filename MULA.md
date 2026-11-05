@@ -1,7 +1,41 @@
 # MULA — panduan uji penuh
 
-Jalankan `python main.py` dari `C:\Users\akmal\jarvis-desktop`, atau klik ikon
-**Jarvis** atas Desktop. HUD akan buka skrin penuh.
+Klik ikon **Jarvis** atas Desktop. HUD buka skrin penuh, tiada tetingkap konsol.
+
+---
+
+## Melancarkan Jarvis
+
+| cara | bila guna |
+|---|---|
+| ikon **Jarvis** atas Desktop | kegunaan harian |
+| `python main.py` dari folder projek | bila HUD tak naik dan kau nak baca error |
+| `cscript //nologo launch.vbs --check` | tanya Python mana yang akan dipakai, tanpa mula HUD |
+
+Desktop shortcut menunjuk ke `launch.vbs`, bukan ke path Python. `launch.vbs`
+cari Python setiap kali ia dijalankan, ikut urutan: `pyw.exe` pada PATH →
+`pythonw.exe` pada PATH → `%LOCALAPPDATA%\Python\pythoncore-*\pythonw.exe`
+→ `%LOCALAPPDATA%\Programs\Python\Python*\pythonw.exe`. Jadi upgrade Python
+tak mematikan shortcut, dan projek boleh dipindah ke folder lain tanpa edit apa-apa.
+Kalau tiada Python langsung, ia berhenti dengan dialog yang menyebut apa yang dicari.
+
+`pythonw` telan semua traceback. Bila HUD tak naik dan tak ada apa berlaku,
+jalan `python main.py` — di situ kau nampak sebab sebenar.
+
+Klik kedua tak buka tetingkap baru: mutex `Local\JarvisDesktopHUD` mengesan
+Jarvis yang dah berjalan dan restore tetingkap sedia ada.
+
+### Autostart
+
+```
+cscript //nologo autostart.vbs --install     letak dalam Startup folder
+cscript //nologo autostart.vbs --status      semak
+cscript //nologo autostart.vbs --remove      buang
+```
+
+Per-user, tiada admin, tiada registry. Ia tulis satu `.lnk` dalam
+`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\` yang menunjuk ke
+`launch.vbs` — jadi autostart tahan upgrade Python sama seperti ikon Desktop.
 
 Sembilan panel. Tekan nombor **1–9** atau klik rail kiri. `Esc` tak menutup apa-apa;
 tutup dengan butang tetingkap.
