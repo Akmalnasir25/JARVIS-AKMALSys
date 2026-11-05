@@ -164,8 +164,17 @@ CHAT_TOOLS = WEB_TOOLS + [
          "cmd": {"type": "string", "description": "Arahan shell dari senarai putih sahaja"},
          "paths": {"type": "array", "items": {"type": "string"}, "description": "Fail untuk dibuang ke Recycle Bin"}},
         ["action"]),
-    _fn("open_media", "Main video atau audio dari folder media/ di dalam panel MEDIA stage. Untuk senarai sahaja, panggil tanpa nama.",
+    _fn("open_media", "Main video atau audio dari fail dalam folder media/ pada PC ini. BUKAN untuk YouTube — "
+                      "untuk lagu atau video di YouTube guna play_youtube. Untuk senarai fail tempatan sahaja, "
+                      "panggil tanpa nama.",
         {"name": {"type": "string", "description": "Nama fail atau sebahagian nama, contoh: lecture 3, lagu.mp3"}}),
+    _fn("play_youtube", "Cari satu lagu atau video di YouTube dan mainkannya TERUS di dalam panel WEB stage. "
+                        "Guna ini untuk \"cari lagu X\", \"main lagu tu\", \"pasang video Y\" — apa-apa yang "
+                        "berkaitan YouTube. Ia cari video yang boleh dimainkan, pilih yang paling tepat, dan "
+                        "mula main dengan sendirinya. Jangan guna open_media untuk YouTube.",
+        {"query": {"type": "string",
+                   "description": "Nama lagu dan artis, contoh: Hindia Secukupnya, atau judul video"}},
+        ["query"]),
 ]
 
 # Setiap tool tambahan melambatkan API rootsys (18 tool ≈ 19 s walaupun soalan mudah),
@@ -183,11 +192,33 @@ TOOL_TRIGGERS = {
     "system": r"volume|bunyi|kecerahan|cerah|brightness|clipboard|salin|tutup|close|kill|fokus|focus|"
               r"kunci|lock|sleep|tidur|restart|shutdown|tutup laptop|proses|process|tetingkap|window|senarai|taip|type|shell",
     "open_media": r"video|filem|movie|lagu|muzik|audio|media|main|play|tengok wayang",
+    # YouTube is a different destination from media/ on disk, and the model
+    # picked open_media for "cari lagu X dalam youtube" because nothing else
+    # claimed the words. This trigger fires on the words that actually mean
+    # YouTube, including the bare follow-up "main lagu tu" after a search.
+    "play_youtube": r"youtube|yt\b|lagu|muzik|music|playlist|video klip|\bmain\b|\bplay\b|putar|pasang|"
+                    r"cari lagu|cari video|lagu tu|video tu",
     "set_reminder": r"ingat|remind|peringatan|minit lagi|jam lagi|alarm",
 }
 
 
 ANALYSIS_RX = r"anali[sz]|laporan|report|banding|ranking|statistik|graf|carta|dashboard"
+
+# A YouTube result title arrives as
+#   "Hindia - Secukupnya (Official Lyric Video) - YouTube"
+# Both halves are noise: the site suffix is implied by the pane, and the
+# parenthesised credits make a 90-character row that ellipsises before the
+# part that identifies the song. Strip them, keep the artist–title spine.
+YT_JUNK = re.compile(
+    r"\s*[-–|]\s*YouTube( Music)?\s*$", re.I)
+
+
+def clean_yt_title(raw, wanted=""):
+    t = YT_JUNK.sub("", str(raw or "")).strip()
+    t = re.sub(r"\s*[\(\[]\s*(official\s*)?(music\s*)?(lyric|lyrics|video|audio|mv|m/v|visualizer|"
+               r"hd|hq|4k|live)\s*(video|clip)?\s*[\)\]]", "", t, flags=re.I)
+    t = re.sub(r"\s{2,}", " ", t).strip(" -–|")
+    return t
 
 # Akmal's rule: if the answer carries data, it gets drawn. So the gate is not
 # only the question's wording — the reply is measured too. Two or more distinct
@@ -1590,6 +1621,75 @@ class Api:
                     continue
                 raise
 
+    def _yt_find(self, query):
+        """Cari YouTube dan pulangkan calon video yang BOLEH dimainkan.
+
+        Carian web biasa memulangkan homepage channel dan senarai main, yang
+        tiada video id — jadi ia tidak boleh di-embed. Menapis dengan
+        `site:youtube.com/watch` memaksa hasil kepada halaman tonton sahaja.
+        """
+        q = str(query or "").strip()
+        q = re.sub(r"\b(dalam|di|on|in|dekat)\s+youtube\b", "", q, flags=re.I).strip() or q
+        s = load_json(SECRETS, {})
+        raw, tried = [], 0
+        if s.get("serper_api_key"):
+            for term in (f"site:youtube.com/watch {q}", f"site:youtube.com/watch {q} official video"):
+                tried += 1
+                try:
+                    raw += self._serper_raw(s["serper_api_key"], term, num=10)
+                except Exception:
+                    pass
+                if len([x for x in raw if "watch?v=" in (x.get("link") or "")]) >= 4:
+                    break
+        seen, out = set(), []
+        for x in raw:
+            u = x.get("link") or ""
+            m = re.search(r"[?&]v=([A-Za-z0-9_-]{6,20})", u)
+            if not m or m.group(1) in seen:
+                continue
+            seen.add(m.group(1))
+            title = clean_yt_title(x.get("title", ""), q)
+            out.append({"id": m.group(1), "url": "https://www.youtube.com/watch?v=" + m.group(1),
+                        "raw": x.get("title", ""), "title": title or q})
+        if not out and not tried:
+            return []
+        return out
+
+    def play_youtube(self, query):
+        """Main satu video YouTube di dalam stage. Pulangkan {ok, id, url, title}."""
+        q = str(query or "").strip()
+        if not q:
+            return {"ok": False, "msg": "YouTube: no song or video named."}
+        cands = self._yt_find(q)
+        if not cands:
+            return {"ok": False, "msg": f'YouTube: nothing playable found for "{q}".'}
+        tokens = [t for t in re.split(r"\W+", q.lower()) if len(t) > 2]
+        best = max(cands, key=lambda c: (
+            sum(1 for t in tokens if t in (c["title"] or "").lower()),
+            -cands.index(c),
+        ))
+        self._last_yt = best
+        # `url` on this channel is what the WEB pane turns into an embed; the
+        # pane's own handler decides between the iframe and the child window.
+        self._emit("web", {"query": q, "links": [], "url": best["url"]})
+        return {"ok": True, "id": best["id"], "url": best["url"],
+                "title": best.get("title") or q, "candidates": len(cands)}
+
+    def _serper_raw(self, key, query, num=8):
+        """Hasil Serper mentah, untuk pemanggil yang perlukan link bukan teks."""
+        req = urllib.request.Request(
+            "https://google.serper.dev/search", method="POST",
+            data=json.dumps({"q": query, "gl": "my", "hl": "ms", "num": num}).encode("utf-8"),
+            headers={"X-API-KEY": key, "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=20) as r:
+            d = json.load(r)
+        out = []
+        for x in (d.get("organic") or []):
+            out.append({"title": x.get("title", ""), "link": x.get("link", ""),
+                        "snippet": x.get("snippet", "")})
+        return out
+
     def _serper(self, key, query):
         """Hasil carian Google melalui API rasmi Serper.dev (~1-2 saat)."""
         req = urllib.request.Request(
@@ -1903,6 +2003,7 @@ class Api:
                  "find_files": "Find", "read_file": "Read", "set_reminder": "Reminder", "weather": "Weather",
                  "prayer_times": "Prayer", "check_email": "Gmail", "search_drive": "Drive",
                  "look_at_screen": "Screen", "control_pc": "Control", "open_media": "Media",
+                 "play_youtube": "YouTube",
                  "system": "System", "repo_stats": "Repos"}.get(name, name)
         lat, lon, zone = self._cfg_place()
         if name == "open_media":
@@ -1912,7 +2013,26 @@ class Api:
             if not res.get("ok"):
                 return res.get("msg", "No media found.") + " List: " + ", ".join(
                     i["name"] for i in res.get("items", [])[:20])
-            return f"Playing {res['name']} in the MEDIA panel."
+            # media_list() returns {"ok": True, "items": [...]} with no "name".
+            # Indexing res["name"] on that path raised KeyError: 'name', so a
+            # bare `open_media {}` crashed the tool loop instead of answering.
+            if not want:
+                items = res.get("items") or []
+                if not items:
+                    return "media/ is empty. For YouTube, use play_youtube."
+                return ("media/ holds %d file(s): %s. Call again with a name to play one. "
+                        "For YouTube, use play_youtube instead."
+                        % (len(items), ", ".join(i["name"] for i in items[:20])))
+            return f"Playing {res.get('name', want)} in the MEDIA panel."
+        if name == "play_youtube":
+            q = str(args.get("query", "") or "").strip()
+            self._emit("tool", {"name": "YouTube", "detail": q, "full": ""})
+            res = self.play_youtube(q)
+            if not res.get("ok"):
+                return res.get("msg") or "YouTube search failed."
+            return ("Playing %r on YouTube inside the WEB panel now (id %s). "
+                    "It has already started; do not call this again."
+                    % (res.get("title"), res.get("id")))
         if name == "weather":
             self._emit("tool", {"name": label, "detail": load_json(CONFIG, {}).get("location", ""), "full": ""})
             return sv.weather_text(sv.weather(lat, lon))
@@ -3423,7 +3543,20 @@ def main():
 
     ok, old = _take_lock()
     if not ok:
-        _note("still blocked by pid %s" % old)
+        # Dua klik laju: instance pertama sudah menulis lock tetapi tetingkapnya
+        # belum sempat wujud, jadi `already_running()` di atas belum nampak apa
+        # apa. Tunggu sebentar dan periksa semula — lebih baik daripada dialog
+        # yang menyuruh Manuel cuba lagi untuk sesuatu yang sedang naik.
+        for _ in range(24):  # ~7 saat
+            time.sleep(0.3)
+            if already_running():
+                _note("second instance waited, hud came up")
+                return
+            if _lock_owner() == 0:
+                break  # pemilik lock sudah mati — cuba rampas semula
+        ok, old = _take_lock()
+    if not ok:
+        _note("still blocked by pid %s after waiting" % old)
         _say("Jarvis",
              "Another Jarvis (pid %s) is starting up and holds the lock.\n"
              "Give it a moment, then try again." % old, 0x00000030)

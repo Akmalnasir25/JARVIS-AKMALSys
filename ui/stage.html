@@ -744,6 +744,18 @@ main.stage-wrap {
 }
 .orbt-items .it::before { content: "· "; opacity: .6; }
 .orbt-items .it.dir::before { content: "▸ "; color: hsl(var(--alt) 80% 72% / .85); }
+/* a result with somewhere to go reads as a link, not a label */
+.orbt-items .it.link {
+  cursor: pointer; color: hsl(var(--hue) 90% 82%);
+  border-radius: 3px; padding: 0 3px; margin: 0 -3px;
+  transition: background .14s ease-out, color .14s ease-out;
+}
+.orbt-items .it.link:hover,
+.orbt-items .it.link:focus-visible {
+  background: hsl(var(--hue) 100% 70% / .16);
+  color: hsl(var(--hue) 100% 92%); outline: none;
+}
+.orbt-items .it.link::before { content: "▾ "; color: hsl(var(--alt) 90% 74% / .9); }
 
 /* satu orb sahaja pada satu masa — bila senarai wujud, orb bergeser kiri
    supaya dua-dua dapat ruang, bukan bertindih */
@@ -3896,6 +3908,17 @@ nav.rail {
       if (m) return m[1];
       return '';
     }
+    /* A channel page or a playlist has no video id, so it cannot be embedded —
+       it goes to the child window instead. Say so in the tooltip, because the
+       difference between "playing in the stage" and "opened in a window" is
+       otherwise invisible until nothing appears to happen. */
+    function notPlayable(url) {
+      const u = String(url || '');
+      if (!/youtu\.?be/i.test(u) || ytId(u)) return '';
+      if (/[?&]list=/.test(u)) return 'playlist — opens in a window, pick a video inside it';
+      if (/\/channel\/|\/c\/|\/@|\/user\//.test(u)) return 'channel page — opens in a window';
+      return 'opens in a window';
+    }
     /* autoplay is allowed here because the click that opened the video is
        the user gesture; rel=0 keeps the end-card to the same channel;
        modestbranding trims the chrome. playsinline stops iOS Safari from
@@ -4855,6 +4878,24 @@ nav.rail {
             row.appendChild(im);
           }
           row.appendChild(document.createTextNode(o.text));
+          if (o.url) {
+            // A search result is a destination, so it has to behave like one.
+            // These rows were plain text sitting under the orb: a video link
+            // could be found and read but never opened, which is exactly what
+            // "cari lagu, lepas tu main" runs into.
+            row.classList.add('link');
+            row.dataset.url = o.url;
+            row.setAttribute('role', 'link');
+            row.tabIndex = 0;
+            const play = e => {
+              e.preventDefault();
+              if (window.stageWeb) { window.stageShow && window.stageShow('browse'); window.stageWeb.open(o.url); }
+            };
+            row.addEventListener('click', play);
+            row.addEventListener('keydown', e => {
+              if (e.key === 'Enter' || e.key === ' ') play(e);
+            });
+          }
           box2.appendChild(row);
         });
         if (list.length > (opts.max || 4)) {

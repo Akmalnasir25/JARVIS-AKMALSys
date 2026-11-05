@@ -823,3 +823,74 @@ non-hermetic, not the code being wrong.
   hung with no window was never reproduced. `os._exit(0)` and the crash dialog
   close the silent shape of it; if it recurs, `runtime/startup.log` will now say
   whether it died in `webview.start` or after `gui loop returned`.
+
+---
+
+## Session 05 Nov (e) — "cari lagu, lepas tu main" played nothing
+
+### What he saw
+Asked Jarvis to find a song on YouTube, then told it to play. Nothing played.
+
+### Three separate breaks, measured not guessed
+Probed the real model (`ui/_yt_route.py`) with his two exact messages:
+
+```
+USER: cari lagu hindia secukupnya dalam youtube
+  tools offered: web_search,…,control_pc,open_media    <- no YouTube tool existed
+  CALLED: web_search  (then, in the first run) open_media {}
+  RESULT: Tool gagal: 'name'
+```
+
+1. **No tool could play YouTube.** `open_media` is "play a file in media/ on this
+   disk". The model reached for it because nothing else claimed the words *lagu,
+   main, play* — and it then listed an empty folder. The WEB pane's embed code was
+   correct all along (`ui/_yt_live.py` proves a watch URL becomes a playing embed
+   with the right referrer); nothing could reach it from chat.
+2. **`open_media {}` crashed.** `chk_tool` built its reply with `res['name']`, but
+   `media_list()` returns `{"ok":True,"items":[…]}` — no `name`. With a non-empty
+   `media/` this raised `KeyError: 'name'`, so the tool loop died instead of
+   answering. This is why "main lagu tu" produced no visible failure at all.
+3. **Search rows under the orb were inert.** `orbTasks.items()` built a `DIV` per
+   result, attached a favicon, appended the text, and stopped. No click handler,
+   no `data-url`, no role. A video link could be found and read but never opened
+   — the visible half of the same dead end.
+
+### The fix
+- **`play_youtube`** — resolves a song to a real watch id via Serper with
+  `site:youtube.com/watch` (plain web search returns channel homepages and
+  playlists, which carry no video id and cannot embed), de-duplicates by id,
+  ranks by token overlap with the query, then `_emit("web", {url})` so the pane's
+  existing embed path plays it. Verified: `Hindia Secukupnya` → `kcc9Kfip2uw`,
+  and the live page title confirms it is the actual song.
+- **Trigger tuned** to the words that mean YouTube — `youtube`, `lagu`, `muzik`,
+  `main`, `play`, `putar`, `pasang`, `lagu tu`. Proven by re-running the route
+  probe: turn 1 now calls `play_youtube` and reports it is playing; turn 2
+  ("main lagu tu") correctly calls nothing because it already is.
+- **`open_media` crash fixed** — a bare listing returns the file names and points
+  at `play_youtube`; only a named hit reads `res['name']`.
+- **Rows are links** — `.it.link` gets `data-url`, `role=link`, `tabIndex`, and a
+  click/Enter handler that switches to the WEB pane and opens the url. Styled as
+  a link so it reads as one instead of being a coincidence of the cursor.
+- **`notPlayable()`** gives a tooltip explaining that a channel page or playlist
+  has no video id and will open in a window — the difference between "playing in
+  the stage" and "silently opened elsewhere" is otherwise invisible.
+- **`clean_yt_title()`** strips ` - YouTube` and credit parens like
+  `(Official Lyric Video)` while keeping real subtitles such as
+  `[Remastered In 4K]`, so a row shows the song rather than 90 characters of
+  credits that ellipsise before the identifying part.
+
+### Verified
+`ui/_yt_live.py` — 15/15: title cleaning, `play_youtube` resolves and the pane
+embeds that exact id, badge on, stage switches to `data-pane=browse`, rows carry
+`data-url` and `role=link`, a real click loads the video, a channel row is
+present and clickable.
+`ui/_yt_route.py` — the real model, real tools, real history.
+Regression: `_launch_test.py` 27/27, `_ip_test.py` 34/34.
+
+### Trap for next time
+The model's tool choice is decided by the *descriptions and the trigger regex*,
+not by what the code can do. "lagu" appeared in both `open_media` and
+`play_youtube` triggers; the model picked the wrong one because `open_media` was
+the only tool whose description mentioned playing. When a spoken follow-up does
+the wrong thing, log `tool_calls` before touching anything else — the routing is
+in the prompt, not in the handler.

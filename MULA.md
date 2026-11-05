@@ -146,6 +146,24 @@ Taip `example.com` dan Enter.
 Tukar panel: tetingkap **diparkir**, bukan dimusnahkan. Balik ke WEB — laman sama,
 posisi skrol sama. Butang **×** yang musnahkan.
 
+### Lagu YouTube
+
+Cakap `cari lagu Hindia Secukupnya` atau `main lagu tu`. Jarvis cari di YouTube,
+pilih video yang boleh dimainkan, dan mula main **di dalam panel WEB** — tiada
+Chrome, tiada tab baru.
+
+| apa yang awak nampak | maksudnya |
+|---|---|
+| badge **YT** menyala | video itu dimainkan sebagai embed dalam stage |
+| baris hasil carian berwarna dan boleh diklik | klik terus untuk main; `Enter` pun boleh |
+| baris tanpa warna | halaman channel atau senarai main — tiada video id, jadi ia buka dalam tetingkap. Tooltip kata kenapa |
+| pemain kosong, teks kecil | video itu pemiliknya tak benarkan embed; cuba hasil lain |
+
+Tool yang mengendalikannya ialah `play_youtube`, bukan `open_media`. `open_media`
+hanya untuk fail dalam folder `media/` pada PC ini. Sebelum ini tiada tool untuk
+YouTube langsung, jadi `main lagu tu` jatuh ke `open_media` dan menyenaraikan
+folder kosong — itulah sebabnya tiada apa yang bermain.
+
 Satu perkara yang diukur, sebab ia mudah disalah sangka: satu tetingkap pywebview
 menghasilkan **puluhan** HWND dengan tajuk yang sama, semuanya tanpa ibu dan
 semuanya `IsWindowVisible = True`. Jadi jangan sesekali percaya gelintar tajuk
