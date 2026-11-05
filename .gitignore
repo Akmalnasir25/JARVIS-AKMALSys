@@ -6,6 +6,7 @@ secrets.json
 # ── state & cache (dijana semula, bukan sumber) ────────────
 cache.json
 sessions.json
+runtime/
 __pycache__/
 *.pyc
 *.pyo

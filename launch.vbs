@@ -18,7 +18,7 @@
 Option Explicit
 
 Dim fso, sh, here, app, checkOnly
-Dim py, cmd
+Dim py, cmd, q
 
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set sh  = CreateObject("WScript.Shell")
@@ -57,7 +57,11 @@ If py = "" Then
     WScript.Quit 2
 End If
 
-cmd = """" & py & """ """ & """" & app & """"
+' Build the command line with an explicit quote character. Counting runs of
+' """" in VBScript is how you end up passing ""app.py" to CreateProcess, and a
+' stray quote on a path with no spaces turns into a literal filename quote.
+q   = Chr(34)
+cmd = q & py & q & " " & q & app & q
 
 If checkOnly Then
     WScript.Echo "python : " & py

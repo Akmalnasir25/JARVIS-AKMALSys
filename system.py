@@ -390,6 +390,20 @@ def is_window(hwnd):
 
 
 def hud_hwnd(title="Jarvis"):
+    """HWND mengikut tajuk — sandaran terakhir sahaja.
+
+    Diukur pada pywebview 6.2.1 di mesin ini, tetingkap HUD kekal bergelar
+    "Jarvis" walaupun `stage.html` menetapkan document.title kepada
+    "J.A.R.V.I.S — STAGE v1.1" — jadi gelintar ini masih memulangkan HWND yang
+    betul. Ia tetap sandaran, bukan jalan utama: satu tetingkap pywebview
+    menghasilkan puluhan HWND peringkat atas (lihat amaran pada `app_hwnd`),
+    dan tajuk ialah teks yang boleh diterjemah atau dinamakan semula.
+
+    Jalan yang betul ialah pemegang Python, `win.native.Handle`, dibalut oleh
+    `Api.hud_hwnd()`. Pemanggil yang membina semula HUD dari proses lain
+    (`main._hud_hwnd`) menyiasat semua proses Jarvis dan menerima tajuk yang
+    mengandungi "JARVIS" atau "STAGE".
+    """
     return _u32.FindWindowW(None, title)
 
 

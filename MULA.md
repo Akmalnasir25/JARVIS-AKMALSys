@@ -20,10 +20,16 @@ tak mematikan shortcut, dan projek boleh dipindah ke folder lain tanpa edit apa-
 Kalau tiada Python langsung, ia berhenti dengan dialog yang menyebut apa yang dicari.
 
 `pythonw` telan semua traceback. Bila HUD tak naik dan tak ada apa berlaku,
-jalan `python main.py` — di situ kau nampak sebab sebenar.
+jalan `python main.py` — di situ kau nampak sebab sebenar. Setiap pelancaran
+juga menulis satu baris ke `runtime\startup.log`; kalau log itu berhenti pada
+`start`, masalahnya sebelum tetingkap; kalau berhenti pada `webview.start`,
+masalahnya dalam WebView2. Kalau `main()` sendiri meletup, dialog muncul dengan
+baris terakhir traceback — bukan senyap lagi.
 
-Klik kedua tak buka tetingkap baru: mutex `Local\JarvisDesktopHUD` mengesan
-Jarvis yang dah berjalan dan restore tetingkap sedia ada.
+Klik kedua tak buka tetingkap baru. Ia cari tetingkap HUD yang betul-betul ada
+dan bawa ke depan. Kalau ada Jarvis yang masih bernyawa tetapi tetingkapnya
+sudah hilang, ia tanya sama ada nak tamatkan proses itu dan mula semula —
+tidak lagi keluar senyap.
 
 ### Autostart
 
@@ -258,6 +264,8 @@ sebelum sempat jalan.
 | suara keluar English | `reply_language: "en"` dalam `config.json` |
 | TTS guna edge, bukan Google | kunci `google_tts_api_key` — semak `secrets.json` |
 | `create_window` gagal | pywebview mesti 6.x; semak `python -c "import webview"` |
+| klik ikon, tiada apa berlaku | baca `runtime\startup.log` — baris terakhir beritahu di mana ia berhenti |
+| "another Jarvis is starting up" | pelancaran kedua semasa yang pertama masih naik; tunggu sekejap |
 | seret-lepas tak buat apa-apa | WebView2 tidak menghantar laluan; guna **File…** / **Folder…** |
 | "outside the workspace" | laluan di luar workdir/Desktop/Documents/Downloads — tambah dalam `shortcuts.json` |
 | laporan kata "stopped after 120,000 files" | folder itu memang sebesar itu; had dalam `inspect_path.MAX_ENTRIES` |

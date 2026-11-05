@@ -730,3 +730,96 @@ contrast on all three ink tokens, the minimize button clicked rather than its
 API called, restore, and two other panes still lit. Green.
 
 `ui/_upload_live.py` re-run after the theme change: 27/27, unchanged.
+
+---
+
+## Session 05 Nov (d) — the shortcut stopped opening Jarvis
+
+### What he saw
+"aku dah klik nk open jarvis, dia tak buka pun." Nothing. No window, no error,
+no flash. Every click, forever.
+
+### The cause — a mutex that outlived its window
+`already_running()` created the named mutex `Local\JarvisDesktopHUD` and treated
+`ERROR_ALREADY_EXISTS` as proof that someone else was serving a HUD. That is not
+what a mutex means. It means *someone who created it is still alive* — whether or
+not they still have a window.
+
+At 13:22:31 a `pythonw` started. At 14:26 Manuel clicked the shortcut and
+nothing happened. The process in between:
+
+```
+pythonw  pid=35040  hwnd=0  title=[]  cpu=1467.9s  started 5/11 13:22:31
+```
+
+No window at all. Two invisible helper windows (`class=G`, `class=I`) that
+`EnumWindows` reports but no human can see, no title, nothing to restore. It held
+the mutex anyway. So every new launch created the mutex, saw `183`, called
+`FindWindowW(None, "Jarvis")`, found nothing — because the corpse had no window
+to find — and returned `True`. A silent no-op at the first line of `main()`.
+
+### Three faults stacked
+1. **The mutex proved too much.** Existence ≠ a window. This is the bug.
+2. **`_hud_hwnd()` only searched its own pid.** After the rewrite this showed up
+   live: a second click was *blocked* by the lock instead of restoring the first
+   window, because the lookup could never see another process's window. Blocked
+   is the same silent no-op wearing a new coat. Caused by this session's first
+   fix, not pre-existing — found only by clicking twice and reading the log:
+   `blocked by pid 38156 (no window) — that process is stale` while pid 38156 had
+   a perfectly good window.
+3. **`launch.vbs` quoting.** `""""` emitted `command: "pyw.exe" ""main.py"` —
+   doubled quote before a path with no spaces.
+
+**Correction, measured not assumed.** I first claimed WebView2 renames the window
+when `stage.html` sets `document.title = 'J.A.R.V.I.S — STAGE v1.1'`, and that
+this is why `FindWindowW(None, "Jarvis")` found nothing. That is wrong.
+`system.hud_hwnd("Jarvis")` returns a valid HWND, and `Get-Process` reports
+`MainWindowTitle = Jarvis` on a healthy HUD. The title is stable. The soft
+matching in `_hud_hwnd` is defence against a hardcoded string, not a fix for a
+rename that never happened. The mutex was the whole cause.
+
+Discovered only by clicking twice and reading `runtime/startup.log`:
+`blocked by pid 38156 (no window) — that process is stale` while pid 38156 had
+a perfectly good window.
+
+### The fix
+- **Lock is a pid, not a mutex.** `runtime/jarvis.lock` holds `{"pid", "started"}`.
+  `_lock_owner()` validates the pid is alive *and* is running `main.py`, so a dead
+  pid and a reused pid both read as "no owner". A stale lock can therefore never
+  veto a launch.
+- **A window is the proof.** `already_running()` enumerates windows across every
+  pid running `main.py` and accepts any title containing `JARVIS` or `STAGE`.
+  Restores if iconic, shows if hidden, foregrounds either way.
+- **No more silent exits.** A live Jarvis with no window now asks one question:
+  end it and start fresh? Yes reaps it, No exits. A crash inside `main()` puts the
+  last traceback line in a `MessageBoxW` — the one channel `pythonw` cannot swallow.
+- **`runtime/startup.log`** gets one line per launch: `start`, media URL,
+  `webview.start`, `gui loop returned`, `exit`, or `CRASH` + traceback. This is
+  the whole diagnosis path for next time.
+- **The process cannot outlive its window.** After `webview.start()` returns,
+  `_drop_lock()` then `os._exit(0)` — a non-daemon recorder thread can no longer
+  pin a windowless process holding the lock.
+- **`launch.vbs` quoting made explicit** via `q = Chr(34)`. The `""""` form emitted
+  `command: "pyw.exe" ""main.py"` — doubled quote before the path, and a path
+  with no spaces turns a stray quote into a literal filename character.
+
+### Verified
+- `ui/_launch_test.py` — 27 checks, hermetic (no HUD needed, works with one open).
+  Stale-by-death, stale-by-pid-reuse, corruption, live block, self-reap refusal.
+- `ui/_launch_live.py` — 18 checks against a real running HUD: restore, minimize
+  → restore, reap an orphan, crash log.
+- End to end through `C:\Users\akmal\Desktop\Jarvis.lnk`: launch 1 writes three
+  log lines and paints (screenshot `ui/_launch-proof.png`); launch 2 writes
+  `hud already up: hwnd=6690256` and spawns nothing.
+
+### Trap for next time
+A probe that asserts "no HUD exists" fails the moment Manuel has the HUD open.
+Scope window assertions to a pid you control (`_hud_hwnd([some_pid])`) or branch
+on the result. Two "regressions" in `_launch_test.py` were the suite being
+non-hermetic, not the code being wrong.
+
+### Still open
+- The corpse is gone and the gate is fixed, but the *original* reason pid 35040
+  hung with no window was never reproduced. `os._exit(0)` and the crash dialog
+  close the silent shape of it; if it recurs, `runtime/startup.log` will now say
+  whether it died in `webview.start` or after `gui loop returned`.

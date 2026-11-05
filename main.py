@@ -9,8 +9,10 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
+import traceback
 import urllib.request
 import webbrowser
 from datetime import datetime
@@ -33,6 +35,11 @@ SECRETS = ROOT / "secrets.json"  # API key (DeepSeek via rootsys); jangan kongsi
 HOME = Path.home()
 MEDIA = ROOT / "media"  # semua fail media yang dipaparkan dalam stage
 NO_WINDOW = 0x08000000  # CREATE_NO_WINDOW: jangan kelip tetingkap konsol
+# pythonw tiada konsol, jadi traceback hilang sepenuhnya. Setiap kali cubaan
+# buka Jarvis, satu baris ringkas ditulis ke sini — cukup untuk tahu sama ada
+# ia langsung bermula, atau berhenti di pintu masuk.
+LOCK = ROOT / "runtime" / "jarvis.lock"
+STARTUP_LOG = ROOT / "runtime" / "startup.log"
 START_MENUS = [
     Path(os.environ.get("APPDATA", "")) / "Microsoft/Windows/Start Menu/Programs",
     Path(os.environ.get("PROGRAMDATA", "")) / "Microsoft/Windows/Start Menu/Programs",
@@ -3184,23 +3191,258 @@ class Api:
         self._window.destroy()
 
 
-def already_running():
-    """Jika Jarvis dah berjalan, paparkan tetingkapnya dan pulangkan True."""
-    import ctypes
-    k32, u32 = ctypes.windll.kernel32, ctypes.windll.user32
-    main._mutex = k32.CreateMutexW(None, False, "Local\\JarvisDesktopHUD")
-    if k32.GetLastError() != 183:  # ERROR_ALREADY_EXISTS
+def _note(msg):
+    """Tulis satu baris ke runtime/startup.log. Tidak pernah membaling."""
+    try:
+        STARTUP_LOG.parent.mkdir(parents=True, exist_ok=True)
+        if STARTUP_LOG.exists() and STARTUP_LOG.stat().st_size > 256 * 1024:
+            STARTUP_LOG.write_text("", encoding="utf-8")
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(STARTUP_LOG, "a", encoding="utf-8") as f:
+            f.write("%s  pid=%d  %s\n" % (stamp, os.getpid(), msg))
+    except Exception:
+        pass
+
+
+def _alive(pid):
+    """Adakah pid ini proses Jarvis yang masih bernyawa? Bukan sekadar wujud."""
+    if not pid:
         return False
-    hwnd = u32.FindWindowW(None, "Jarvis")
-    if hwnd:
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    # Diri sendiri sentiasa hidup. Ini perlu kerana cmdline sebuah proses
+    # yang dimulakan dengan `python -c ...` tidak mengandungi "main.py" —
+    # dahulu semakan ini menyebabkan proses tidak mengenali dirinya, jadi
+    # ia sendiri dianggap lock basi dan boleh dirampas.
+    if pid == os.getpid():
+        return True
+    try:
+        p = psutil.Process(pid)
+        if p.status() == psutil.STATUS_ZOMBIE:
+            return False
+        # Padankan nama fail, bukan substring: sesiapa yang membuka
+        # "main.py.bak" dalam editor bukan Jarvis.
+        for part in p.cmdline():
+            if os.path.basename(part).lower() in ("main.py", "launch.vbs"):
+                return True
+        return False
+    except Exception:
+        return False
+
+
+def _jarvis_pids():
+    """Semua pid yang menjalankan main.py — termasuk yang bukan kita."""
+    out = []
+    try:
+        for p in psutil.process_iter(["pid", "cmdline"]):
+            try:
+                for part in p.info["cmdline"] or []:
+                    if os.path.basename(part).lower() == "main.py":
+                        out.append(p.info["pid"])
+                        break
+            except Exception:
+                continue
+    except Exception:
+        pass
+    owner = _lock_owner()
+    if owner:
+        out.append(owner)
+    if os.getpid() not in out:
+        out.append(os.getpid())
+    return out
+
+
+def _hud_hwnd(pids=None):
+    """Cari tetingkap HUD yang sebenar, milik mana-mana proses Jarvis.
+
+    Dua perkara perlu betul di sini.
+
+    Pertama, ia mesti menyiasat semua proses Jarvis, bukan hanya pid dirinya.
+    Versi pertama fungsi ini menyemak `pid.value != os.getpid()` dan melangkau
+    yang lain — jadi pelancaran kedua tidak pernah nampak tetingkap pelancaran
+    pertama, menyangka tiada HUD, dan tersekat pada lock. Itu pepijat yang sama
+    seperti asal, cuma berpakaian baru.
+
+    Kedua, padanan tajuk dibuat longgar ("JARVIS" atau "STAGE"). Diukur pada
+    binaan pywebview 6.2.1 ini, tetingkap kekal bergelar "Jarvis" walaupun
+    stage.html menukar document.title — jadi padanan ketat sebenarnya berfungsi
+    di sini. Longgar itu pertahanan, bukan pembaikan: satu tajuk yang dikodkan
+    keras akan patah bila ia diterjemah atau dinamakan semula, dan gelintar
+    tajuk sudah pun menjadi punca kegagalan senyap sebelum ini.
+    """
+    import ctypes
+    u32 = ctypes.windll.user32
+    want = set(int(p) for p in (pids or _jarvis_pids()))
+    hits = []
+
+    def visit(hwnd, _lparam):
+        pid = ctypes.c_ulong()
+        u32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value not in want:
+            return True
+        n = u32.GetWindowTextLengthW(hwnd)
+        if not n:
+            # Tetingkap tanpa tajuk bukan HUD — HUD selalu ada tajuk selepas
+            # stage.html selesai dimuatkan.
+            return True
+        buf = ctypes.create_unicode_buffer(n + 1)
+        u32.GetWindowTextW(hwnd, buf, n + 1)
+        title = buf.value.upper()
+        if "JARVIS" in title or "STAGE" in title:
+            hits.append(hwnd)
+        return True
+
+    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+    u32.EnumWindows(WNDENUMPROC(visit), 0)
+    return hits[0] if hits else 0
+
+
+def _say(title, text, style=0x00000004):
+    """MsgBox melalui user32 — satu-satunya saluran yang kelihatan di bawah
+    pythonw, yang menelan setiap print dan traceback. Pulangkan id butang."""
+    try:
+        import ctypes
+        return ctypes.windll.user32.MessageBoxW(None, str(text), str(title), style)
+    except Exception:
+        return 0
+
+
+def _lock_owner():
+    """Baca runtime/jarvis.lock. Pulangkan pid jika pemiliknya masih hidup.
+
+    Lock basi — proses yang dah mati, atau pid yang dah diguna proses lain —
+    dianggap tiada, jadi ia tidak boleh menyekat pelancaran seterusnya.
+    """
+    try:
+        raw = json.loads(LOCK.read_text(encoding="utf-8"))
+    except Exception:
+        return 0
+    pid = int(raw.get("pid") or 0)
+    return pid if _alive(pid) else 0
+
+
+def _take_lock():
+    """Ambil lock. Pulangkan (ok, pid_lama)."""
+    old = _lock_owner()
+    if old and old != os.getpid():
+        return False, old
+    try:
+        LOCK.parent.mkdir(parents=True, exist_ok=True)
+        LOCK.write_text(json.dumps({"pid": os.getpid(),
+                                    "started": time.strftime("%Y-%m-%d %H:%M:%S")}),
+                        encoding="utf-8")
+    except Exception:
+        pass  # tiada lock pun HUD masih boleh dibuka; jangan matikan ia sebab ini
+    return True, 0
+
+
+def _drop_lock():
+    try:
+        if LOCK.exists() and _lock_owner() == os.getpid():
+            LOCK.unlink()
+    except Exception:
+        pass
+
+
+def already_running():
+    """Jika HUD memang ada di skrin, bawa ia ke depan dan pulangkan True.
+
+    Ini pernah salah teruk: mutex bernama kekal wujud selagi *sesiapa* yang
+    menciptanya masih bernyawa, walaupun tetingkapnya sudah tiada. Satu proses
+    pythonw yang tergantung sejak 1:22 tengah hari memegang mutex itu, jadi
+    setiap klik pada shortcut selepas itu nampak seperti tiada apa-apa
+    berlaku — main.py terus keluar di baris ini. Kehadiran mutex bukan bukti
+    ada HUD; tetingkap yang boleh ditunjuk itu buktinya.
+    """
+    import ctypes
+    u32 = ctypes.windll.user32
+
+    hwnd = _hud_hwnd()
+    if not hwnd:
+        return False
+
+    _note("hud already up: hwnd=%s" % hwnd)
+    if u32.IsIconic(hwnd):
         u32.ShowWindow(hwnd, 9)  # SW_RESTORE
+    else:
+        u32.ShowWindow(hwnd, 5)  # SW_SHOW — no-op if already visible
+    try:
         u32.SetForegroundWindow(hwnd)
+    except Exception:
+        pass
     return True
 
 
+def _reap(pids):
+    """Tamatkan proses Jarvis yang tersangkut. Pulangkan yang berjaya dibunuh."""
+    gone = []
+    for pid in pids:
+        if int(pid) == os.getpid():
+            continue
+        try:
+            p = psutil.Process(int(pid))
+            p.terminate()
+            try:
+                p.wait(timeout=6)
+            except psutil.TimeoutExpired:
+                p.kill()
+                p.wait(timeout=6)
+            gone.append(int(pid))
+        except Exception:
+            continue
+    return gone
+
+
 def main():
+    _note("start")
     if already_running():
         return
+
+    owner = _lock_owner()
+    if owner and owner != os.getpid():
+        # Hidup, memegang lock, tetapi tiada tetingkap yang boleh ditunjuk.
+        # Dahulu ini keluar senyap. Sekarang ia bertanya — satu dialog,
+        # bukan satu-satunya jalan buntu.
+        _note("stale instance pid=%s, asking" % owner)
+        answer = _say("Jarvis",
+                      "An earlier Jarvis (pid %s) is still running but its window is gone.\n\n"
+                      "End it and start a fresh HUD?" % owner,
+                      0x00000004 | 0x00000001)  # MB_YESNO | MB_ICONWARNING
+        if answer != 6:  # IDYES
+            _note("user declined to end pid %s" % owner)
+            return
+        gone = _reap([owner])
+        _note("reaped %s" % gone)
+        if owner in gone:
+            try:
+                LOCK.unlink()
+            except Exception:
+                pass
+
+    ok, old = _take_lock()
+    if not ok:
+        _note("still blocked by pid %s" % old)
+        _say("Jarvis",
+             "Another Jarvis (pid %s) is starting up and holds the lock.\n"
+             "Give it a moment, then try again." % old, 0x00000030)
+        return
+    try:
+        _run()
+    except BaseException:
+        err = traceback.format_exc()
+        _note("CRASH\n" + err)
+        _say("Jarvis - crashed on startup",
+             err.strip().splitlines()[-1] + "\n\nFull traceback:\n" + str(STARTUP_LOG),
+             0x00000010)  # MB_ICONERROR
+        raise
+    finally:
+        _drop_lock()
+        _note("exit")
+
+
+def _run():
     global CURRENT_LANG
     CURRENT_LANG = load_json(CONFIG, {}).get("reply_language", "ms")
     # benarkan suara Jarvis dimainkan tanpa perlu klik dulu
@@ -3208,6 +3450,7 @@ def main():
     os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
     api = Api()
     api._media = MediaServer(MEDIA).serve_ui(ROOT / "ui").start()
+    _note("media server on %s" % api._media.stage_url)
     # The HUD is loaded over http from the range server, not from file://.
     # A file:// document has a null origin, and the YouTube embed rejects a
     # null-origin referrer outright ("Video player configuration error 153"),
@@ -3225,7 +3468,21 @@ def main():
     threading.Thread(target=api._mic_loop, daemon=True).start()       # "Hey Jarvis" + rakaman
     threading.Thread(target=api._prayer_watch, daemon=True).start()   # peringatan waktu solat
     sv.prayer_today(api._cfg_place()[2])                               # ambil waktu solat sebulan jika belum ada
+    _note("webview.start")
     webview.start(api._wire_drop, api._window)
+    # Pulangkan di sini bermakna GUI loop sudah berhenti. Tanpa baris
+    # seterusnya, benang bukan-daemon yang masih hidup (rakaman mikrofon,
+    # penjaga STT) akan menahan proses ini bernyawa tanpa tetingkap — dan
+    # itulah rupa sebenar pepijat pelancaran ini: satu pythonw tergantung
+    # sejak 1:22 tengah hari, 1468 saat CPU, sifar tetingkap.
+    _note("gui loop returned")
+    _drop_lock()
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.flush()
+        except Exception:
+            pass
+    os._exit(0)
 
 
 if __name__ == "__main__":
