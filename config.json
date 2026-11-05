@@ -6,6 +6,7 @@
   "prayer_zone": "PRK02",
   "prayer_reminder_minutes": 5,
   "morning_brief": true,
+  "brief_hour": 6,
   "brief_email": true,
   "wake_word": false,
   "wake_threshold": 0.35,

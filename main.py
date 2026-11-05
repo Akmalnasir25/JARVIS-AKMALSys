@@ -2042,43 +2042,261 @@ class Api:
         threading.Thread(target=self._brief_worker, daemon=True).start()
         return {"ok": True}
 
-    def _brief_worker(self):
+    def brief_last(self):
+        """The brief that was already produced today.
+
+        `morning_brief` returns ok=False the second time it is called on the
+        same day, and the date is stamped in cache.json *before* the worker
+        runs. So a reload after the first brief — or a second window — asked,
+        was told no, and the right column sat on its placeholder all day while
+        the answer existed in memory. This hands that answer back.
+        """
+        return {"ok": True,
+                "date": sv.cache_get("brief_date"),
+                "today": time.strftime("%Y-%m-%d"),
+                "at": sv.cache_get("brief_at"),
+                "text": sv.cache_get("brief_text") or "",
+                "failed": bool(sv.cache_get("brief_fail"))}
+
+    def _brief_facts(self):
+        """Everything the daily report is built from, gathered in parallel.
+
+        Each source is timed independently so a dead one cannot hold the whole
+        report: the email job talks to Claude over the network, the prayer
+        source talks to a JAKIM server that is frequently slow, and the brief
+        used to wait on whichever was worst.
+        """
         lat, lon, zone = self._cfg_place()
-        facts, results = [], {}
+        out, took = {}, {}
 
         def grab(key, fn):
+            t0 = time.time()
             try:
-                results[key] = fn()
+                out[key] = fn()
             except Exception as e:
-                results[key] = f"(tak dapat: {e})"
-        jobs = [("cuaca", lambda: sv.weather_text(sv.weather(lat, lon))),
-                ("solat", lambda: sv.prayer_text(sv.prayer_today(zone), zone)),
-                ("ipu", lambda: self._web_search(f"bacaan IPU {load_json(CONFIG, {}).get('location', 'Ipoh')} hari ini")[:900])]
+                out[key] = None
+                took[key] = -1
+                self._brief_err = "%s: %s: %s" % (key, type(e).__name__, e)
+            finally:
+                took.setdefault(key, round(time.time() - t0, 2))
+
+        jobs = [
+            ("cuaca", lambda: sv.weather_text(sv.weather(lat, lon))),
+            ("solat", lambda: sv.prayer_text(sv.prayer_today(zone), zone)),
+        ]
+        # The unread count comes from the socket that is already open, not from
+        # Claude Code reading Gmail. One network round trip instead of a model
+        # turn, and it answers the question Sir actually asks at login: what is
+        # waiting for me.
+        acc = self._tg_account()
+
+        def telegram_facts():
+            if not acc:
+                return None
+            ds = acc.dialogs(limit=60)
+            waiting = [d for d in ds if d.get("unread")]
+            waiting.sort(key=lambda d: (-d["unread"], -d.get("at", 0)))
+            return {"chats": len(waiting),
+                    "unread": sum(d["unread"] for d in waiting),
+                    "top": [{"name": d["name"], "unread": d["unread"],
+                             "type": d.get("type", "")} for d in waiting[:5]]}
+        jobs.append(("telegram", telegram_facts))
         if self._claude and load_json(CONFIG, {}).get("brief_email", True):
-            jobs.append(("email", lambda: self._claude_quick(
-                "Guna Gmail (baca sahaja): berapa email belum dibaca dalam inbox sejak semalam? Sebut subjek "
-                "maksimum 3 yang nampak penting (abaikan promosi/iklan). Jawab dalam 3 baris.", GMAIL_READ, timeout=60)))
+            def email_facts():
+                # _claude_quick returns prose on failure as well as on success —
+                # "Claude Code not found." and "Failed: ..." are strings, not
+                # data, and a report that reads them out as if Gmail had been
+                # checked is worse than one that admits it could not.
+                r = (self._claude_quick(
+                    "Guna Gmail (baca sahaja): berapa email belum dibaca dalam inbox sejak semalam? Sebut subjek "
+                    "maksimum 3 yang nampak penting (abaikan promosi/iklan). Jawab dalam 3 baris.",
+                    GMAIL_READ, timeout=60) or "").strip()
+                low = r.lower()
+                if low.startswith("failed:") or "not found" in low[:60] or not r:
+                    raise RuntimeError("Gmail tak dapat dibaca")
+                return r
+            jobs.append(("email", email_facts))
+
         threads = [threading.Thread(target=grab, args=j, daemon=True) for j in jobs]
         for t in threads:
             t.start()
         for t in threads:
             t.join(timeout=70)
-        for key, _ in jobs:
-            if key in results:
-                facts.append(f"{key.upper()}: {results[key]}")
+        return out, took
+
+    def _brief_compose(self, results):
+        """The report itself. Falls back to plain sentences, never to a blank box."""
+        facts = []
+        if results.get("cuaca"):
+            facts.append("CUACA: " + str(results["cuaca"]))
+        if results.get("solat"):
+            facts.append("SOLAT: " + str(results["solat"]))
+        tg = results.get("telegram")
+        if isinstance(tg, dict):
+            if tg.get("chats"):
+                names = ", ".join("%s (%d)" % (d["name"], d["unread"]) for d in tg["top"])
+                facts.append("TELEGRAM: %d chat belum dibaca, %d mesej semuanya. Paling ramai: %s."
+                             % (tg["chats"], tg["unread"], names))
+            else:
+                facts.append("TELEGRAM: tiada chat belum dibaca.")
+        elif tg is None:
+            facts.append("TELEGRAM: belum disambung.")
+        if results.get("email"):
+            facts.append("EMAIL: " + str(results["email"]))
+
+        # machine and repos, read from the same cached scan the right column
+        # uses — no second git walk, and the numbers cannot disagree with the
+        # panel directly above the brief
+        try:
+            w = self.stage_work()
+            sy, gt = w.get("sys") or {}, w.get("git") or {}
+            if sy:
+                bits = ["RAM %d%%" % (sy.get("ram") or 0)]
+                if sy.get("disk_pct"):
+                    bits.append("cakera %d%% penuh, %s GB bebas"
+                                % (sy["disk_pct"], sy.get("disk_free") or 0))
+                if sy.get("battery") is not None:
+                    bits.append("bateri %d%%%s" % (sy["battery"],
+                                "" if sy.get("plugged") else " (tak bercas)"))
+                facts.append("MESIN: " + ", ".join(bits) + ".")
+            if gt.get("total"):
+                facts.append("REPO: %d repo, %d ada perubahan belum commit, %d ketinggalan."
+                             % (gt["total"], gt.get("dirty") or 0, gt.get("behind") or 0))
+                dirty = [r for r in (w.get("repos") or []) if r.get("dirty")][:3]
+                if dirty:
+                    facts.append("Paling kotor: " + ", ".join(
+                        "%s (%d fail)" % (r["name"], r["dirty"]) for r in dirty) + ".")
+        except Exception as e:
+            self._brief_err = "mesin: %s: %s" % (type(e).__name__, e)
+
+        if not facts:
+            return ""
         s = load_json(SECRETS, {})
-        prompt = ("Buat laporan harian untuk dibaca dengan SUARA bila Sir baru buka laptop. 4-6 ayat pendek, "
-                  "gaya KL santai, mula dengan sapaan ikut waktu sekarang. Sebut cuaca (dan kalau nak hujan), IPU, "
-                  "waktu solat seterusnya, dan email penting jika ada. Jangan guna senarai atau simbol.\n\nDATA:\n" + "\n".join(facts))
+        prompt = ("Buat laporan harian untuk dibaca dengan SUARA bila Sir baru buka laptop. 5-7 ayat pendek, "
+                  "gaya KL santai, mula dengan sapaan ikut waktu sekarang. Sebut cuaca (dan kalau nak hujan), "
+                  "waktu solat seterusnya, apa yang menunggu dalam Telegram, email penting jika ada, dan kalau "
+                  "ada repo yang belum commit sebut sekali sahaja. Kalau bateri rendah dan tak bercas, suruh "
+                  "plug in. Jangan guna senarai, jangan guna simbol, jangan guna markdown. "
+                  "PENTING: bahagian yang tiada dalam DATA jangan disebut langsung — bukan 'tak dapat check', "
+                  "cuma teruskan ke bahagian seterusnya. Jangan reka nombor, jangan reka punca.\n\nDATA:\n"
+                  + "\n".join(facts))
         try:
-            text = self._chat_call(s, [{"role": "system", "content": PERSONA + lang_note() + f"\nSekarang: {time.strftime('%A %d %B %Y, %H:%M')}."},
-                                       {"role": "user", "content": prompt}])["content"]
-        except Exception:
-            text = " ".join(str(results.get(k, "")) for k in ("cuaca", "solat"))
+            text = self._chat_call(s, [
+                {"role": "system", "content": PERSONA + lang_note()
+                 + "\nSekarang: " + time.strftime("%A %d %B %Y, %H:%M") + "."},
+                {"role": "user", "content": prompt}])["content"].strip()
+            if text:
+                return text
+        except Exception as e:
+            self._brief_err = "model: %s: %s" % (type(e).__name__, e)
+        # the model is a nicety; the facts are the report. Do not ship an empty box.
+        return " ".join(str(results.get(k)) for k in ("cuaca", "solat") if results.get(k))
+
+    def _brief_worker(self):
+        t0 = time.time()
+        self._brief_err = ""
         try:
-            self._window.evaluate_js(f"window.onBrief && window.onBrief({json.dumps(text)})")
+            results, took = self._brief_facts()
+            text = self._brief_compose(results)
+        except Exception as e:
+            results, took, text = {}, {}, ""
+            self._brief_err = "%s: %s" % (type(e).__name__, e)
+        sv.cache_set("brief_text", text)
+        sv.cache_set("brief_at", int(time.time()))
+        sv.cache_set("brief_fail", "" if text else (self._brief_err or "kosong"))
+        sv.cache_set("brief_took", took)
+        _note("brief %.1fs %s" % (time.time() - t0,
+                                  "ok" if text else "gagal: " + (self._brief_err or "kosong")))
+        try:
+            self._window.evaluate_js("window.onBrief && window.onBrief(%s)" % json.dumps(
+                {"text": text, "at": int(time.time()), "took": took,
+                 "err": self._brief_err if not text else ""}))
         except Exception:
             pass
+
+    # ---------- Hidup sendiri ----------
+    def startup_report(self, cold=False):
+        """What the HUD should say the moment it opens, and whether it is new.
+
+        Two different questions were being answered by one call and that is why
+        the report went missing. `morning_brief` is a daily artefact: it stamps
+        the date before it does any work, and returns ok=False on every call
+        after the first. So a reload at eleven — or a second window — asked,
+        was told no, and the right column sat on its placeholder all day while
+        the finished answer was already in cache.
+
+        `cold` is the other question: is this a boot or a reload? A reload must
+        not announce services that were already running.
+        """
+        today = time.strftime("%Y-%m-%d")
+        done = sv.cache_get("brief_date") == today
+        text = (sv.cache_get("brief_text") or "").strip()
+        return {
+            "ok": True,
+            "cold": bool(cold),
+            "today": today,
+            "brief": {
+                "due": not (done and text),
+                "done": done,
+                "text": text if done else "",
+                "at": sv.cache_get("brief_at") if done else 0,
+                "failed": sv.cache_get("brief_fail") if done else "",
+                "took": sv.cache_get("brief_took") or {},
+            },
+            "autostart": self._autostart_installed(),
+        }
+
+    def _autostart_installed(self):
+        """Does a shortcut exist in the user's Startup folder, with a target
+        that is still this project? A link to a folder that moved is a boot
+        that silently never happens, so the target is checked, not the name."""
+        try:
+            base = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" \
+                   / "Start Menu" / "Programs" / "Startup"
+            link = base / "Jarvis HUD.lnk"
+            return {"on": link.is_file(), "path": str(link),
+                    "target": str(ROOT / "launch.vbs")}
+        except Exception:
+            return {"on": False, "path": "", "target": str(ROOT / "launch.vbs")}
+
+    def autostart(self, on):
+        """Install or remove the login shortcut by running the script that owns
+        that job, so the two cannot drift apart. Returns what actually happened,
+        which is not always what was asked."""
+        action = "--install" if on else "--remove"
+        try:
+            p = subprocess.run(["cscript", "//nologo", str(ROOT / "autostart.vbs"), action],
+                               cwd=str(ROOT), capture_output=True, text=True, timeout=20,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            out = (p.stdout or "").strip() or (p.stderr or "").strip()
+        except Exception as e:
+            return {"ok": False, "msg": "%s: %s" % (type(e).__name__, e)}
+        st = self._autostart_installed()
+        return {"ok": st["on"] == bool(on), "on": st["on"], "msg": out}
+
+    def _brief_watch(self):
+        """A laptop that never reboots never gets a report.
+
+        The boot path only fires when the process starts, so a machine left
+        running for a week would produce one brief and then silence. This wakes
+        every few minutes and asks a cheaper question: has the date rolled past
+        `brief_hour` since the last one? It never speaks, never sends, and does
+        nothing at all if the switch in config is off.
+        """
+        time.sleep(45)  # let the window and the first fetch settle
+        while True:
+            try:
+                cfg = load_json(CONFIG, {})
+                if cfg.get("morning_brief", True):
+                    hour = int(cfg.get("brief_hour", 7))
+                    now = time.localtime()
+                    done = sv.cache_get("brief_date") == time.strftime("%Y-%m-%d")
+                    if now.tm_hour >= hour and not done:
+                        _note("brief_watch: date rolled, producing")
+                        self.morning_brief()
+            except Exception as e:
+                _note("brief_watch: %s: %s" % (type(e).__name__, e))
+            time.sleep(300)
 
     # ---------- Tool DeepSeek ----------
     def _resolve_place(self, name):
@@ -4499,6 +4717,7 @@ def _run():
     threading.Thread(target=api._stt_janitor, daemon=True).start()
     threading.Thread(target=api._mic_loop, daemon=True).start()       # "Hey Jarvis" + rakaman
     threading.Thread(target=api._prayer_watch, daemon=True).start()   # peringatan waktu solat
+    threading.Thread(target=api._brief_watch, daemon=True).start()    # laporan harian bila tarikh tukar
     sv.prayer_today(api._cfg_place()[2])                               # ambil waktu solat sebulan jika belum ada
     _note("webview.start")
     webview.start(api._wire_drop, api._window)

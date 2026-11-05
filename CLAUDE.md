@@ -69,9 +69,39 @@ Sebelum tu `fd053cd` — inbox Telegram boleh baca chat sendiri, ada paging dan 
 
 **Jam 12 jam** — `d.getHours() % 12 || 12` tangani midnight (0→12) *dan* noon.
 
+**Laporan harian + auto-run** (commit `d7b0e1f`)
+- **Autostart dah hidup.** Shortcut dalam Startup folder →
+  `C:\Users\akmal\jarvis-desktop\launch.vbs`. `cscript //nologo autostart.vbs --status`
+  untuk semak. Panel kanan tunjuk keadaan sebenar, bukan nama fail sahaja.
+- `startup_report(cold)` jawab **dua soalan berasingan**: (a) `cold` — ni boot atau
+  reload? (b) `brief.due` — perlu buat laporan baru? Dua-dua dulu dicampur jadi satu
+  panggilan, dan sebab tu laporan hilang.
+- **Bug asal:** `morning_brief` cap `brief_date` **sebelum** kerja dibuat, dan pulangkan
+  `ok:false` pada setiap panggilan selepas yang pertama. Jadi reload pukul 11 pagi
+  ditolak, dan `briefBox` duduk atas placeholder sepanjang hari walaupun teks penuh
+  dah ada dalam `cache.json`. Sekarang `startup_report` pulangkan teks tu.
+- `_brief_facts()` kumpul semua sumber **selari, setiap satu bertimer**: cuaca 0.01s,
+  solat 0.01s, telegram 0.6s, email 13–49s. Yang paling lambat dinamakan di header
+  laporan (`· email 49s`) supaya Sir tahu apa yang lambat.
+- `_brief_compose()` — model tulis 5–7 ayat; kalau model gagal, fakta mentah dihantar.
+  Kotak kosong tak pernah sampai ke skrin.
+- **`_claude_quick` pulangkan prosa untuk kegagalan juga.** `"Failed: ..."` dan
+  `"Claude Code not found."` ialah string, bukan data. Sekarang ia `raise` dan bahagian
+  email dilangkau — laporan yang cakap "tak dapat check" lebih teruk daripada laporan
+  yang tak sebut langsung.
+- `_brief_watch()` — benang yang bangun tiap 5 minit. Laptop yang tak pernah reboot
+  takkan dapat laporan kedua; ia semak sama ada tarikh dah lepas `brief_hour` (default
+  6) sejak laporan terakhir. Senyap, tak hantar apa-apa.
+- `brief_last()` — teks yang dah siap hari ni, kalau pane minta semula.
+- Butang `buat semula` dalam header → `morning_brief(true)`.
+- **Suara sekali sahaja:** `sessionStorage briefSeen` simpan timestamp terakhir yang
+  dibaca. Reload → papar, tak cakap. Sebelum ni reload = laporan dibaca kuat semula
+  setiap kali.
+
 ### Probe
-`ui/_work_probe.py` — **24 lulus, 0 gagal** atas mesin betul.
-Ganti `ui/_wait_probe.py` (dah dipadam, ia uji panel Menunggu yang tak ada lagi).
+`ui/_work_probe.py` — **24 lulus, 0 gagal** (panel kanan, jam, VS Code, inbox).
+`ui/_daily_probe.py` — **29 lulus, 0 gagal** (laporan, cache, reload, boot, autostart).
+`ui/_launch_test.py` — 27/27.
 
 Jalankan: `python ui/_work_probe.py`. Ia buka WebView2 sebenar, tekan butang sebenar,
 baca DOM sebenar. Output JSON ke `ui/_work_out.json`.
@@ -87,8 +117,7 @@ baca DOM sebenar. Output JSON ke `ui/_work_out.json`.
 | Benda | Status |
 |---|---|
 | **Auto-reply Telegram** | ✅ **DIBINA? TIDAK.** Lihat §5. Suis wujud, enjin tiada. |
-| WhatsApp | berstruktur, tak hidup — tiada Meta token / `phone_number_id` |
-| Multi-tab editor | **ditangguh oleh Sir.** Jangan bina. |
+| WhatsApp | berstruktur, tak hidup — tiada Meta token / `phone_number_id` || Multi-tab editor | **ditangguh oleh Sir.** Jangan bina. |
 | Carian seluruh projek | ditangguh |
 | Git diff dalam editor | ditangguh |
 | Item 6 drag-and-drop pengesahan | `ui/_drop_probe.py` tak pernah keluarkan output |

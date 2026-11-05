@@ -1629,8 +1629,57 @@ aside.right {
 }
 .rp-foot b { color: var(--cyan); font-weight: 600; }
 
-.pane-map { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
-.pane-map button {
+/* the daily report. It is the first thing on screen at login, so it gets a
+   surface rather than a paragraph of grey: an accent edge that carries the
+   "new today" state, a small rule that says when it was made and what was
+   slow, and room for the text to be read rather than skimmed. */
+.brief {
+  margin-top: 4px; padding: 8px 9px 9px 10px;
+  display: flex; flex-direction: column; gap: 6px;
+  border: 1px solid var(--line-soft);
+  border-left: 2px solid hsl(var(--alt) 90% 68% / .55);
+  background: hsl(var(--alt) 90% 60% / .045);
+  transition: border-color .2s, background .2s;
+}
+.brief.fresh {
+  border-left-color: var(--cyan);
+  background: linear-gradient(180deg, hsl(var(--alt) 90% 62% / .10), hsl(var(--hue) 90% 60% / .035));
+}
+.brief.fail { border-left-color: var(--amber); }
+.brief .bd {
+  font: 400 10px/1.62 var(--font-body); color: var(--ink);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.brief .bd.old { color: var(--ink-dim); }
+.brief .bh {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font: 400 7.5px/1.4 var(--font-mono); letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+.brief .bh b { color: var(--cyan); font-weight: 600; }
+.brief .bh b.warn { color: var(--amber); }
+.brief .bh i { font-style: normal; color: var(--ink-faint); opacity: .8; }
+.brief .bgo {
+  margin-left: auto; padding: 2px 6px; cursor: pointer;
+  font: 500 7.5px/1.4 var(--font-mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-dim); background: transparent;
+  border: 1px solid var(--line-soft); transition: color .13s, border-color .13s;
+}
+.brief .bgo:hover { color: var(--cyan); border-color: hsl(var(--alt) 90% 70% / .5); }
+.brief .bgo[disabled] { opacity: .5; cursor: default; }
+.brief .ph { color: var(--ink-faint); font-style: italic; }
+
+/* the boot report: what came up, and whether it was already up */
+.boot {
+  display: flex; flex-direction: column; gap: 2px;
+  font: 400 8px/1.55 var(--font-mono); color: var(--ink-faint);
+}
+.boot div { display: flex; justify-content: space-between; gap: 8px; }
+.boot div b { font-weight: 500; color: var(--ink-dim); }
+.boot div b.on { color: var(--cyan); }
+.boot div b.off { color: var(--amber); }
+
+.pane-map { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }.pane-map button {
   padding: 4px 7px; text-align: left;
   background: transparent; border: 1px solid var(--line-soft);
   font: 400 9px/1.4 var(--font-mono); color: var(--ink-dim); cursor: pointer;
@@ -2694,8 +2743,10 @@ nav.rail {
           </div>
           <h5>Today</h5>
           <div class="brief" id="briefBox">
-            <span>The morning brief appears here once Claude Code has gathered weather, prayer times and email.</span>
+            <div class="bh"><b>laporan harian</b><i>menyediakan…</i></div>
+            <div class="bd ph">Cuaca, waktu solat, apa yang menunggu dalam Telegram, dan keadaan repo — sekali sehari, bila HUD dibuka.</div>
           </div>
+          <div class="boot" id="bootBox"></div>
         </div>
 
         <h5 class="sec">Mesin <span id="wkTag">—</span></h5>
@@ -6982,14 +7033,122 @@ nav.rail {
     act('Prayer time');
   };
 
-  window.onBrief = function (text) {
+  /* ── laporan harian ──
+     Two ways in and they must not fight. `onBrief` is pushed by Python when a
+     report finishes; `paintBrief` is the pull from `startup_report` at boot,
+     for the common case where the report was already made this morning and
+     nothing is going to push it. The old version was push-only and wrote a
+     bare string into the box with textContent — so a reload at eleven wiped
+     the header rule and left a paragraph of grey. */
+  const BRIEF_MON = ['Jan', 'Feb', 'Mac', 'Apr', 'Mei', 'Jun',
+                     'Jul', 'Ogo', 'Sep', 'Okt', 'Nov', 'Dis'];
+
+  function briefWhen(ts) {
+    if (!ts) return '';
+    const d = new Date(ts * 1000);
+    const h = d.getHours() % 12 || 12;
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${d.getDate()} ${BRIEF_MON[d.getMonth()]} ${h}:${mm}${d.getHours() < 12 ? 'AM' : 'PM'}`;
+  }
+
+  /* the slowest source is the honest one to name: if the email job took 40s and
+     the weather took 0.2s, saying "lambat" without saying which one tells Sir
+     nothing he can act on */
+  function briefSlow(took) {
+    const e = Object.entries(took || {}).filter(([, v]) => v >= 0)
+      .sort((a, b) => b[1] - a[1])[0];
+    if (!e || e[1] < 3) return '';
+    return `${e[0]} ${e[1].toFixed(0)}s`;
+  }
+
+  function paintBrief(o) {
     const box = document.getElementById('briefBox');
-    if (box) {
-      box.textContent = text;
-      box.style.color = 'var(--ink)';
+    if (!box) return;
+    const st = o || {};
+    const fresh = !!(st.fresh || (st.done && !st.stale));
+    const failed = !!(st.failed || st.err);
+    box.className = 'brief' + (fresh ? ' fresh' : '') + (st.text ? '' : ' fail');
+    box.textContent = '';
+
+    const head = document.createElement('div');
+    head.className = 'bh';
+    const lab = document.createElement('b');
+    lab.textContent = st.text ? (failed ? 'laporan ada cacat' : 'laporan harian') : 'laporan harian';
+    if (failed) lab.className = 'warn';
+    head.appendChild(lab);
+    const meta = document.createElement('i');
+    meta.textContent = st.text
+      ? (st.at ? briefWhen(st.at) : '') + (briefSlow(st.took) ? ' · ' + briefSlow(st.took) : '')
+      : 'menyediakan…';
+    head.appendChild(meta);
+    const go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'bgo';
+    go.textContent = st.text ? 'buat semula' : 'buat';
+    go.addEventListener('click', () => {
+      go.disabled = true;
+      go.textContent = '…';
+      if (api && api.morning_brief) api.morning_brief(true).catch(() => null);
+      setTimeout(() => { go.disabled = false; go.textContent = 'buat semula'; }, 4000);
+    });
+    head.appendChild(go);
+    box.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'bd' + (fresh ? '' : ' old');
+    if (st.text) {
+      body.textContent = st.text;
+    } else if (st.err) {
+      body.className = 'bd ph';
+      body.textContent = 'Gagal buat laporan: ' + st.err;
+    } else {
+      body.className = 'bd ph';
+      body.textContent = 'Cuaca, waktu solat, apa yang menunggu dalam Telegram, dan keadaan repo '
+        + '— sekali sehari, bila HUD dibuka.';
     }
-    speak(text);
-    act('Morning brief');
+    box.appendChild(body);
+    box.dataset.at = String(st.at || 0);
+  }
+  window.paintBrief = paintBrief;
+
+  function paintBoot(s) {
+    const box = document.getElementById('bootBox');
+    if (!box || !s) return;
+    const rows = [];
+    const push = (k, v, cls) => rows.push([k, v, cls || '']);
+    push('autostart', s.autostart && s.autostart.on ? 'on' : 'off',
+         s.autostart && s.autostart.on ? 'on' : 'off');
+    if (s.cold) push('sesi', 'baru dimulakan', 'on');
+    box.textContent = '';
+    for (const [k, v, cls] of rows) {
+      const d = document.createElement('div');
+      const a = document.createElement('span'); a.textContent = k;
+      const b = document.createElement('b'); b.textContent = v; b.className = cls;
+      d.append(a, b);
+      box.appendChild(d);
+    }
+  }
+  window.paintBoot = paintBoot;
+
+  window.onBrief = function (d) {
+    // Python now hands an object; the old string form is still accepted so a
+    // stale page and a fresh backend cannot deadlock each other
+    if (typeof d === 'string') d = { text: d };
+    const st = d || {};
+    if (!st.text) {
+      paintBrief({ err: st.err || 'tiada data', at: st.at });
+      act('Laporan harian gagal');
+      return;
+    }
+    paintBrief({ text: st.text, at: st.at, took: st.took, fresh: true });
+    try {
+      const seen = Number(sessionStorage.getItem('briefSeen') || 0);
+      if (st.at && st.at > seen) {
+        sessionStorage.setItem('briefSeen', String(st.at));
+        speak(st.text);
+      }
+    } catch (e) { /* storage blocked; speaking twice is not worth a crash */ }
+    act('Laporan harian');
     window.stageShow('comms');
   };
 
@@ -7493,8 +7652,40 @@ nav.rail {
     tickToday();
     tickWork();
     if (window.stageMedia) window.stageMedia.refresh();
-    try { await api.morning_brief(false); } catch (e) {}
+    paintDaily();
   }
+
+  /* The report at login. Three states and they are genuinely different:
+     already made today (show it, say nothing), not made yet (ask for one),
+     made but empty (say it failed rather than sit on a placeholder). The old
+     call asked `morning_brief` every boot and got `ok:false` for the rest of
+     the day once the date was stamped, so the box stayed on its placeholder
+     while the finished text sat in cache.json. */
+  let dailyAt = 0;
+  async function paintDaily(force) {
+    if (!api || !api.startup_report) return;
+    if (!force && Date.now() - dailyAt < 30000) return;
+    dailyAt = Date.now();
+    let cold = false;
+    try {
+      cold = !sessionStorage.getItem('booted');
+      sessionStorage.setItem('booted', '1');
+    } catch (e) { cold = false; }
+    let r = null;
+    try { r = await api.startup_report(cold); } catch (e) { r = null; }
+    if (!r || !r.ok) return;
+    paintBoot(r);
+    const b = r.brief || {};
+    if (b.text) {
+      paintBrief({ text: b.text, at: b.at, took: b.took, failed: b.failed, fresh: false });
+    } else if (b.due) {
+      paintBrief({});
+      try { await api.morning_brief(false); } catch (e) {}
+    } else {
+      paintBrief({ failed: b.failed || 'kosong', at: b.at });
+    }
+  }
+  window.paintDaily = paintDaily;
 
   async function tickStats() {
     if (!api) return;
@@ -7514,9 +7705,10 @@ nav.rail {
   setInterval(tickStats, 2000);
   setInterval(tickToday, 60000);
   setInterval(tickWork, 8000);
+  setInterval(() => paintDaily(false), 5 * 60 * 1000);
   document.addEventListener('stage:change', () => { if (api) tickWork(); });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') tickWork();
+    if (document.visibilityState === 'visible') { tickWork(); paintDaily(false); }
   });
 
   if (window.pywebview) boot();
