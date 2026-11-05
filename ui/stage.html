@@ -258,6 +258,11 @@ header::after {
 .chip.switch[aria-checked="false"] { border-color: rgba(255,179,64,.45); }
 
 .clock { text-align: right; font-variant-numeric: tabular-nums; }
+.clock b em {
+  font: 600 8px/1 var(--font-mono); font-style: normal;
+  letter-spacing: .12em; color: var(--ink-faint);
+  margin-left: 4px; vertical-align: middle;
+}
 .clock b {
   display: block; font: 500 25px/1 var(--font-display);
   color: var(--cyan); letter-spacing: .05em;
@@ -1544,55 +1549,86 @@ aside.right {
 .pray b { display: block; margin-top: 2px; font: 600 11.5px/1 var(--font-display); color: var(--ink); }
 .pray em { display: block; margin-top: 2px; font-size: 8.5px; font-style: normal; color: var(--cyan); }
 
-/* right rail: what is actually waiting for Sir. Replaced a column of canned
-   prompt buttons — four suggestions he never pressed, in space that could
-   carry a live number. Badge uses the alt hue so this column is not one colour. */
-.wait { display: flex; flex-direction: column; gap: 3px; }
-.wait-empty { font: 400 9px/1.6 var(--font-mono); color: var(--ink-faint); padding: 3px 2px; }
-.wait-row {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center; gap: 7px;
-  padding: 5px 7px; text-align: left; cursor: pointer;
-  background: transparent; border: 0; border-left: 1px solid var(--line-soft);
-  transition: color .13s, border-color .13s, background .13s;
+/* right rail: this column is about the machine, not the inbox.
+   Four canned prompt buttons lived here and told Sir nothing. Now it carries
+   system health and the state of his repos — the two things he asked for.
+   Three hues side by side so the column is not one flat colour: hue for the
+   machine, alt for anything needing a decision, amber for a warning. */
+.wk, .rp { display: flex; flex-direction: column; gap: 3px; }
+.wk-empty { font: 400 9px/1.6 var(--font-mono); color: var(--ink-faint); padding: 3px 2px; }
+
+.wk-row {
+  display: grid; grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center; gap: 7px; padding: 3px 2px;
 }
-.wait-row:hover { border-left-color: var(--alt); background: hsl(var(--alt) 100% 74% / .055); }
-.wait-row .nm {
-  min-width: 0; font: 500 9.5px/1.35 var(--font-mono); color: var(--ink-dim);
+.wk-row .k {
+  font: 500 7.5px/1 var(--font-mono); letter-spacing: .14em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+.wk-row .bar {
+  height: 3px; border-radius: 2px; overflow: hidden;
+  background: hsl(var(--hue) 60% 40% / .18);
+}
+.wk-row .bar i {
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, hsl(var(--hue) 100% 68%), hsl(var(--alt) 100% 72%));
+  transition: width .5s ease-out;
+}
+.wk-row .bar i.warn { background: linear-gradient(90deg, var(--amber), hsl(28 100% 66%)); }
+.wk-row .bar i.hot  { background: linear-gradient(90deg, hsl(0 90% 62%), hsl(14 100% 64%)); }
+.wk-row .v {
+  font: 600 9px/1 var(--font-mono); font-variant-numeric: tabular-nums;
+  color: var(--ink-dim); min-width: 44px; text-align: right;
+}
+.wk-row .v b { color: var(--ink); font-weight: 600; }
+.wk-row .v s { text-decoration: none; color: var(--ink-faint); font-weight: 400; }
+
+.wk-facts {
+  margin-top: 4px; padding-top: 5px; border-top: 1px solid var(--line-soft);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.wk-facts div {
+  display: flex; justify-content: space-between; gap: 8px;
+  font: 400 8px/1.5 var(--font-mono); color: var(--ink-faint);
+}
+.wk-facts div b { color: var(--ink-dim); font-weight: 500; }
+.wk-facts div b.warn { color: var(--amber); }
+
+/* repo rows: the branch name is the informative part, so it gets the room */
+.rp-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 7px; padding: 4px 2px 4px 7px; text-align: left; cursor: pointer;
+  background: transparent; border: 0; border-left: 1px solid var(--line-soft);
+  transition: border-color .13s, background .13s;
+}
+.rp-row:hover { border-left-color: var(--alt); background: hsl(var(--alt) 100% 74% / .055); }
+.rp-row .n {
+  min-width: 0; font: 500 9.5px/1.3 var(--font-mono); color: var(--ink-dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.wait-row:hover .nm { color: var(--ink); }
-.wait-row .tm { font: 400 7.5px/1 var(--font-mono); color: var(--ink-faint); letter-spacing: .06em; }
-.wait-n {
-  min-width: 26px; padding: 2px 5px; text-align: center;
-  font: 600 8px/1.2 var(--font-mono); font-variant-numeric: tabular-nums;
+.rp-row:hover .n { color: var(--ink); }
+.rp-row .d {
+  font: 600 7.5px/1.2 var(--font-mono); font-variant-numeric: tabular-nums;
+  padding: 1px 5px; border-radius: 999px; white-space: nowrap;
   color: hsl(var(--alt) 100% 84%);
-  background: linear-gradient(150deg, hsl(var(--alt) 84% 30% / .55), hsl(var(--alt) 70% 18% / .45));
-  border: 1px solid hsl(var(--alt) 90% 70% / .34); border-radius: 999px;
+  background: hsl(var(--alt) 84% 30% / .5);
+  border: 1px solid hsl(var(--alt) 90% 70% / .3);
 }
-.wait-foot {
+.rp-row .d.clean { color: var(--ink-faint); background: transparent;
+  border-color: var(--line-soft); }
+.rp-row .b {
+  grid-column: 1 / -1; font: 400 7.5px/1.4 var(--font-mono); color: var(--ink-faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rp-row .b i { font-style: normal; color: var(--cyan); }
+.rp-row .b em { font-style: normal; color: var(--amber); }
+.rp-foot {
   margin-top: 3px; padding: 4px 2px 0; border-top: 1px solid var(--line-soft);
   font: 400 7.5px/1.5 var(--font-mono); letter-spacing: .1em;
   text-transform: uppercase; color: var(--ink-faint);
 }
-.wait-foot b { color: var(--cyan); font-weight: 600; }
+.rp-foot b { color: var(--cyan); font-weight: 600; }
 
-/* right rail second half: morning brief + panel map */
-.feed h5.sec {
-  margin: 6px 0 2px; font: 600 7.5px/1 var(--font-mono);
-  letter-spacing: .24em; text-transform: uppercase; color: var(--cyan); opacity: .85;
-}
-.brief {
-  padding: 7px 9px;
-  border: 1px solid var(--line-soft);
-  background: hsl(var(--hue) 100% 74% / .025);
-  font: 400 9.5px/1.75 var(--font-mono);
-  color: var(--ink-dim);
-  user-select: text; white-space: pre-wrap; max-height: 190px; overflow-y: auto;
-  text-align: left;
-}
-.brief::-webkit-scrollbar { width: 4px; }
-.brief::-webkit-scrollbar-thumb { background: var(--line); }
 .pane-map { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
 .pane-map button {
   padding: 4px 7px; text-align: left;
@@ -2662,9 +2698,14 @@ nav.rail {
           </div>
         </div>
 
-        <h5 class="sec">Menunggu <span id="waitTag">—</span></h5>
-        <div class="wait" id="waitBox">
-          <div class="wait-empty">menyemak…</div>
+        <h5 class="sec">Mesin <span id="wkTag">—</span></h5>
+        <div class="wk" id="wkBox">
+          <div class="wk-empty">menyemak…</div>
+        </div>
+
+        <h5 class="sec">Repo <span id="rpTag">—</span></h5>
+        <div class="rp" id="rpBox">
+          <div class="wk-empty">menyemak…</div>
         </div>
 
         <h5 class="sec">Panels</h5>
@@ -3314,9 +3355,13 @@ nav.rail {
 
   function tick() {
     const d = new Date();
-    const hh = String(d.getHours()).padStart(2, '0');
+    // 12-hour with a small AM/PM. `getHours()` is 24-hour, and midnight must
+    // read 12 AM, not 0 — the modulo handles both ends of the wrap.
+    const h12 = d.getHours() % 12 || 12;
     const mm = String(d.getMinutes()).padStart(2, '0');
-    clockEl.innerHTML = `${hh}:${mm}<small>:${String(d.getSeconds()).padStart(2, '0')}</small>`;
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    const ap = d.getHours() < 12 ? 'AM' : 'PM';
+    clockEl.innerHTML = `${h12}:${mm}<small>:${ss}</small><em>${ap}</em>`;
     todayEl.textContent = `${DAYS[d.getDay()]} · ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
   }
   tick();
@@ -7271,88 +7316,156 @@ nav.rail {
       window.stageShow(b.dataset.goto);
     }));
 
-  /* ── Menunggu: the one live number in the right column ──
-     What is unread, ranked by how much of it there is, one click straight
-     into the thread. Cached on the python side for 45s, polled here at 90s —
-     a column that re-ran a network fetch every two seconds would cost more
-     battery than the whole telemetry rail. */
-  const waitBox = document.getElementById('waitBox');
-  const waitTag = document.getElementById('waitTag');
-  let waitAt = 0;
+  /* ── Mesin + Repo: the right column is about this machine ──
+     Two live panels, no chat. System health is cheap and polled with the
+     existing 2s tick; the repo scan is nine git subprocesses per repo and is
+     therefore started on a Python thread and cached for five minutes, so the
+     column shows the last known answer instead of blocking the paint. */
+  const wkBox = document.getElementById('wkBox');
+  const wkTag = document.getElementById('wkTag');
+  const rpBox = document.getElementById('rpBox');
+  const rpTag = document.getElementById('rpTag');
+  let wkAt = 0;
+  let wkData = null;
 
-  const _wd = ts => {
-    if (!ts) return '—';
-    const s = Math.max(0, Math.floor(Date.now() / 1000) - ts);
-    if (s < 90) return 'now';
-    if (s < 3600) return Math.floor(s / 60) + 'm';
-    if (s < 86400) return Math.floor(s / 3600) + 'h';
-    return Math.floor(s / 86400) + 'd';
+  // esc lives inside the inbox closure; this column needs its own, because a
+  // branch name is user data and goes into innerHTML
+  const escH = v => String(v == null ? '' : v).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const GB = n => n >= 10 ? Math.round(n) + ' GB' : (n || 0).toFixed(1) + ' GB';
+  const upFor = sec => {
+    if (!sec) return '—';
+    const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600),
+          m = Math.floor((sec % 3600) / 60);
+    return d ? d + 'h ' + h + 'j' : h ? h + 'j ' + m + 'm' : m + 'm';
   };
 
-  async function paintWaiting() {
-    if (!api || !waitBox) return;
-    waitAt = Date.now();
-    let d = null;
-    try { d = await api.ib_overview(5); } catch (e) { d = null; }
-    if (!d || !d.ok) {
-      waitBox.innerHTML = '<div class="wait-empty">'
-        + (d && d.msg === 'belum sambung' ? 'Telegram belum disambung' : 'tiada data')
-        + '</div>';
-      if (waitTag) waitTag.textContent = '—';
+  function meterRow(key, pct, label, warnAt, hotAt) {
+    const row = document.createElement('div');
+    row.className = 'wk-row';
+    const k = document.createElement('span');
+    k.className = 'k';
+    k.textContent = key;
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    const fill = document.createElement('i');
+    const p = Math.max(0, Math.min(100, Number(pct) || 0));
+    fill.style.width = p + '%';
+    if (hotAt != null && p >= hotAt) fill.className = 'hot';
+    else if (warnAt != null && p >= warnAt) fill.className = 'warn';
+    bar.appendChild(fill);
+    const v = document.createElement('span');
+    v.className = 'v';
+    v.innerHTML = '<b>' + p + '</b>%';
+    row.append(k, bar, v);
+    return row;
+  }
+
+  function paintWorkPanel(d) {
+    if (!wkBox) return;
+    wkBox.textContent = '';
+    if (d && d.scanning && !(d.sys && d.sys.cpu != null)) {
+      wkBox.innerHTML = '<div class="wk-empty">mengukur…</div>';
+      if (wkTag) wkTag.textContent = '—';
       return;
     }
-    if (waitTag) waitTag.textContent = d.waiting ? d.waiting + ' chat' : 'kosong';
-    waitBox.textContent = '';
-    if (!d.top || !d.top.length) {
-      const e = document.createElement('div');
-      e.className = 'wait-empty';
-      e.textContent = 'Semua chat dah dibaca.';
-      waitBox.appendChild(e);
+    const sy = (d && d.sys) || {};
+    if (sy.cpu == null && !sy.ram) {
+      wkBox.innerHTML = '<div class="wk-empty">tiada data</div>';
       return;
     }
-    for (const c of d.top) {
+    wkBox.appendChild(meterRow('CPU', sy.cpu, '', 70, 90));
+    wkBox.appendChild(meterRow('RAM', sy.ram, '', 80, 93));
+    wkBox.appendChild(meterRow('DSK', sy.disk_pct, '', 85, 95));
+
+    const facts = document.createElement('div');
+    facts.className = 'wk-facts';
+    const f = (k, v, cls) => {
+      const row = document.createElement('div');
+      row.innerHTML = '<span>' + k + '</span><b' + (cls ? ' class="' + cls + '"' : '')
+        + '>' + v + '</b>';
+      facts.appendChild(row);
+    };
+    f('Bateri', sy.battery == null ? 'tiada'
+      : sy.battery + '%' + (sy.plugged ? ' ⚡' : ''),
+      sy.battery != null && sy.battery <= 20 && !sy.plugged ? 'warn' : '');
+    f('Bebas', GB(sy.disk_free));
+    f('RAM', (sy.ram_used || 0) + ' GB');
+    f('Proses', sy.procs || 0);
+    f('Hidup', upFor(sy.uptime));
+    if (sy.heavy) f('Berat', sy.heavy + ' · ' + sy.heavy_mb + ' MB');
+    wkBox.appendChild(facts);
+    if (wkTag) wkTag.textContent = (d && d.stale) ? 'lama' : 'live';
+  }
+
+  function paintRepos(d) {
+    if (!rpBox) return;
+    const g = (d && d.git) || {};
+    rpBox.textContent = '';
+    if (!g.installed) {
+      rpBox.innerHTML = '<div class="wk-empty">git tiada pada PATH</div>';
+      if (rpTag) rpTag.textContent = '—';
+      return;
+    }
+    const rows = (d && d.repos) || [];
+    if (!rows.length) {
+      rpBox.innerHTML = '<div class="wk-empty">tiada repo dijumpai</div>';
+      if (rpTag) rpTag.textContent = '0';
+      return;
+    }
+    for (const r of rows) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'wait-row';
-      b.title = c.name + ' · ' + c.type;
-      const nm = document.createElement('span');
-      nm.className = 'nm';
-      nm.textContent = c.name;
-      const tm = document.createElement('span');
-      tm.className = 'tm';
-      tm.textContent = _wd(c.at);
+      b.className = 'rp-row';
+      b.title = r.path + '\n' + r.commits + ' commit · ' + r.branch;
       const n = document.createElement('span');
-      n.className = 'wait-n';
-      n.textContent = c.unread >= 1000 ? (c.unread / 1000).toFixed(1) + 'k' : c.unread;
-      b.append(nm, tm, n);
+      n.className = 'n';
+      n.textContent = r.name;
+      const dEl = document.createElement('span');
+      dEl.className = 'd' + (r.dirty ? '' : ' clean');
+      dEl.textContent = r.dirty ? r.dirty + ' ubah' : 'bersih';
+      const br = document.createElement('span');
+      br.className = 'b';
+      br.innerHTML = '<i>' + escH(r.branch) + '</i>'
+        + (r.behind ? ' <em>▼' + r.behind + '</em>' : '')
+        + (r.ahead ? ' <em>▲' + r.ahead + '</em>' : '')
+        + ' · ' + r.commits;
+      b.append(n, dEl, br);
       b.addEventListener('click', () => {
-        window.stageShow('inbox');
-        const st = window.stageInbox;
-        if (!st) return;
-        const go = () => st.open(c.id);
-        if (!st.dialogs || !st.dialogs.length) {
-          Promise.resolve(st.load()).then(go);
-        } else go();
+        if (api && api.open_in_vscode) api.open_in_vscode(r.path).catch(() => null);
       });
-      waitBox.appendChild(b);
+      rpBox.appendChild(b);
     }
     const foot = document.createElement('div');
-    foot.className = 'wait-foot';
-    foot.innerHTML = '<b>' + d.unread.toLocaleString() + '</b> belum baca · '
-      + d.chats + ' chat disemak';
-    waitBox.appendChild(foot);
+    foot.className = 'rp-foot';
+    foot.innerHTML = '<b>' + g.total + '</b> repo · ' + g.commits + ' commit · '
+      + (g.dirty ? g.dirty + ' ada perubahan' : 'semua bersih');
+    rpBox.appendChild(foot);
+    if (rpTag) rpTag.textContent = g.dirty ? g.dirty + ' ubah' : 'bersih';
   }
 
-  window.__pw = paintWaiting;   // probe hook: repaint on demand, ignore the 90s gate
+  async function paintWork(force) {
+    if (!api) return;
+    wkAt = Date.now();
+    let d = null;
+    try { d = await api.stage_work(); } catch (e) { d = null; }
+    if (!d) {
+      if (wkBox) wkBox.innerHTML = '<div class="wk-empty">API tak jawab</div>';
+      return;
+    }
+    wkData = d;
+    paintWorkPanel(d);
+    paintRepos(d);
+  }
 
-  async function tickWaiting() {
-    if (!api || Date.now() - waitAt < 90 * 1000) return;
-    if (!document.getElementById('waitBox')) return;
-    // only when the column is actually on screen — an occluded window should
-    // not keep a socket warm for a number nobody is reading
+  async function tickWork() {
+    if (!api || Date.now() - wkAt < 8000) return;
     if (document.visibilityState === 'hidden') return;
-    await paintWaiting();
+    await paintWork();
   }
+
+  window.__pw = () => paintWork(true);
 
   /* ── boot: wait for the bridge, then pull the first snapshot ── */
   function bridgeUp() {
@@ -7378,7 +7491,7 @@ nav.rail {
     try { await stageDock.load(); } catch (e) {}
     tickStats();
     tickToday();
-    tickWaiting();
+    tickWork();
     if (window.stageMedia) window.stageMedia.refresh();
     try { await api.morning_brief(false); } catch (e) {}
   }
@@ -7400,10 +7513,10 @@ nav.rail {
 
   setInterval(tickStats, 2000);
   setInterval(tickToday, 60000);
-  setInterval(tickWaiting, 60000);
-  document.addEventListener('stage:change', () => { if (api) tickWaiting(); });
+  setInterval(tickWork, 8000);
+  document.addEventListener('stage:change', () => { if (api) tickWork(); });
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') tickWaiting();
+    if (document.visibilityState === 'visible') tickWork();
   });
 
   if (window.pywebview) boot();

@@ -1631,13 +1631,18 @@ class Api:
         self._continue_next = True
         return {"ok": True}
 
-    def open_in_vscode(self):
-        target = self._project or HOME
+    def open_in_vscode(self, path=None):
+        # `path` is what the repo column passes: a specific repo, not whatever
+        # project the chat is pinned to. Without it a click on "HATRIK" would
+        # open jarvis-desktop.
+        target = Path(os.path.expanduser(str(path))) if path else (self._project or HOME)
+        if path and not target.is_dir():
+            return {"ok": False, "msg": "folder tak wujud: " + str(target)}
         code = shutil.which("code.cmd") or shutil.which("code")
         if not code:
             return {"ok": False, "msg": "VS Code not found."}
         subprocess.Popen([code, str(target)], creationflags=NO_WINDOW)
-        return {"ok": True}
+        return {"ok": True, "path": str(target)}
 
     def _save_session(self):
         if self._project:
@@ -2418,6 +2423,130 @@ class Api:
                                              until_id=int(until_id or 0))}
         except Exception as e:
             return {"ok": False, "msg": f"{type(e).__name__}: {e}"}
+
+    # ---------- the right column: what this machine is actually doing ----------
+    # Manuel does not want chats here. He wants his machine: is it healthy, is
+    # any repo dirty, what has he been working on. The full _repo_shape() runs
+    # nine git subprocesses per repo and measured 3.9s each on Windows — 50s for
+    # thirteen repos. That cannot live behind a poll, so this returns whatever
+    # it already knows and refreshes on a daemon thread.
+    WORK_TTL = 300          # a repo's branch does not change between heartbeats
+
+    def _repo_quick(self, repo):
+        """Three git calls, not nine. Branch + dirt in one, then the last commit
+        and the commit count. Everything a glance needs, nothing it does not."""
+        st = self._git(repo, "status", "--porcelain=v2", "--branch")
+        branch, dirty, ahead, behind = "-", 0, 0, 0
+        for line in st.splitlines():
+            if line.startswith("# branch.head "):
+                branch = line.split(" ", 2)[2].strip() or "-"
+            elif line.startswith("# branch.ab "):
+                ab = line.split(" ", 3)
+                if len(ab) >= 4:
+                    try:
+                        ahead, behind = int(ab[2].lstrip("+")), int(ab[3].lstrip("-"))
+                    except ValueError:
+                        pass
+            elif line.strip():
+                dirty += 1
+        last = self._git(repo, "log", "-1", "--format=%cI").strip()
+        raw = self._git(repo, "rev-list", "--count", "HEAD").strip()
+        return {
+            "name": repo.name, "path": str(repo), "branch": branch,
+            "dirty": dirty, "ahead": ahead, "behind": behind,
+            "commits": int(raw) if raw.isdigit() else 0,
+            "last": last,
+        }
+
+    def _heaviest_process(self):
+        """RSS, not CPU percent: psutil's cpu_percent is 0.0 on its first read
+        for every new process, so ranking by it here would name a random one."""
+        best, best_mb = "", 0
+        for p in psutil.process_iter(["name", "memory_info"]):
+            try:
+                mb = (p.info["memory_info"].rss or 0) / 1048576
+            except Exception:
+                continue
+            if mb > best_mb:
+                best_mb, best = mb, (p.info["name"] or "?").replace(".exe", "")
+        return best, round(best_mb)
+
+    def _work_scan(self):
+        try:
+            repos = []
+            for rp in self._repos_found():
+                try:
+                    repos.append(self._repo_quick(rp))
+                except Exception:
+                    repos.append({"name": rp.name, "path": str(rp), "branch": "-",
+                                  "dirty": 0, "ahead": 0, "behind": 0,
+                                  "commits": 0, "last": ""})
+            # dirtiest first, then most recently touched — the column is for
+            # what needs attention, not an alphabetical listing
+            # newest last-commit first among equally dirty repos: ISO-8601 sorts
+            # lexicographically, and a repo never committed has an empty string
+            # that must not be negated
+            repos.sort(key=lambda r: (-r["dirty"], r["name"].lower()))
+            repos.sort(key=lambda r: (r["last"] or ""), reverse=True)
+            repos.sort(key=lambda r: -r["dirty"])
+            gitv = self._git(HOME, "--version").strip()
+            try:
+                du = psutil.disk_usage(os.environ.get("SystemDrive", "C:") + "\\")
+                disk_free, disk_pct = round(du.free / 1024**3, 1), round(du.percent)
+            except OSError:
+                disk_free, disk_pct = 0.0, 0
+            bat = psutil.sensors_battery()
+            # the scan is a background thread: a bare cpu_percent(None) here reads
+            # the gap since the previous scan, which can be minutes, so it always
+            # reports 0. Sample against a short blocking window instead — 300ms is
+            # invisible next to 3.9s per repo for the git walk.
+            cpu_now = psutil.cpu_percent(interval=0.3)
+            heavy, heavy_mb = self._heaviest_process()
+            self._work = (time.time(), {
+                "ok": True,
+                "sys": {
+                    "cpu": cpu_now,
+                    "ram": round(psutil.virtual_memory().percent),
+                    "ram_used": round(psutil.virtual_memory().used / 1024**3, 1),
+                    "disk_pct": disk_pct, "disk_free": disk_free,
+                    "battery": None if bat is None else round(bat.percent),
+                    "plugged": None if bat is None else bool(bat.power_plugged),
+                    "uptime": int(time.time() - psutil.boot_time()),
+                    "heavy": heavy, "heavy_mb": heavy_mb,
+                    "procs": len(psutil.pids()),
+                },
+                "git": {
+                    "installed": bool(gitv),
+                    "version": gitv.replace("git version ", "") if gitv else "",
+                    "total": len(repos),
+                    "dirty": sum(1 for r in repos if r["dirty"]),
+                    "behind": sum(1 for r in repos if r["behind"]),
+                    "commits": sum(r["commits"] for r in repos),
+                },
+                "repos": repos[:14],
+                "at": int(time.time()),
+            })
+        except Exception as e:
+            self._work = (time.time(), {"ok": False, "msg": f"{type(e).__name__}: {e}"})
+        finally:
+            self._work_busy = False
+
+    def stage_work(self):
+        """Never blocks. First call starts the scan and says so; the next poll
+        gets the answer. The HUD already polls at 2s, so the wait is invisible."""
+        now = time.time()
+        c = getattr(self, "_work", None)
+        if c and (now - c[0]) < self.WORK_TTL:
+            return c[1]
+        if not getattr(self, "_work_busy", False):
+            self._work_busy = True
+            threading.Thread(target=self._work_scan, daemon=True).start()
+        if c:
+            d = dict(c[1])
+            d["stale"] = True
+            return d
+        return {"ok": True, "scanning": True, "sys": {}, "git": {},
+                "repos": []}
 
     def ib_overview(self, top=5):
         """A tiny, cached unread summary for the right-hand column.
