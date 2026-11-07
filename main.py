@@ -94,7 +94,7 @@ Kamu berjalan dalam HUD desktop Windows 11 dan boleh buat kerja dalam PC.
 CHAT_PROMPT = PERSONA + """
 
 Dalam mod ni kamu tak boleh access atau run apa-apa dalam PC. Kalau Tuan minta buat kerja dengan file, app atau code dalam PC, suruh dia tukar ke mod CLAUDE.
-Tool yang kamu ada: web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), chrome (buka Chrome ikut profil, url, carian Google), browser_task (klik, isi borang dan baca dalam laman web — lambat, guna bila perlu sahaja), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Tuan guna mod CLAUDE.
+Tool yang kamu ada: web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), chrome (buka Chrome ikut profil, url, carian Google), browser_task (klik, isi borang dan baca dalam laman web — lambat, guna bila perlu sahaja), telegram_send (draf mesej Telegram, Tuan sahkan dengan "ya"), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Tuan guna mod CLAUDE.
 ANALISIS: bila Tuan minta analisis, kumpul data secukupnya (maksimum 3-4 langkah tool, baca fail paling penting sahaja seperti README, package.json, data), kira angka penting, kemudian jawab dengan ringkasan padat yang ada angka. HUD akan tukar jawapan kamu jadi dashboard visual.
 Kamu ADA akses internet melalui tool web_search. Biasanya SATU carian dah cukup; cari lagi hanya kalau hasil pertama memang tak menjawab. Guna bila soalan perlukan maklumat terkini atau fakta yang kamu tak pasti (harga, berita, cuaca, jadual, skor, release terbaru). Jangan cakap kamu takde internet. Lepas cari, jawab ringkas dan sebut sumber secara santai (contoh: "ikut Bernama semalam...")."""
 
@@ -234,6 +234,13 @@ CHAT_TOOLS = WEB_TOOLS + [
         {"task": {"type": "string", "description": "Arahan lengkap, cth: buka youtube.com dan klik video pertama "
                                                    "tentang resepi nasi lemak"}},
         ["task"]),
+    _fn("telegram_send", "Sediakan mesej Telegram daripada akaun Tuan kepada satu chat/orang/kumpulan. Mesej TIDAK "
+                         "dihantar terus: Jarvis papar draf dan Tuan mesti jawab 'ya' dulu. Tulis teks TEPAT seperti "
+                         "yang Tuan mahu — jangan tambah salam, emoji atau ayat lain. Kalau tool pulangkan beberapa "
+                         "calon chat, tanya Tuan yang mana.",
+        {"chat": {"type": "string", "description": "Nama chat, orang atau kumpulan, cth: Mak, PIBG, Cikgu Ali"},
+         "text": {"type": "string", "description": "Isi mesej yang akan dihantar"}},
+        ["chat", "text"]),
 ]
 
 # Setiap tool tambahan melambatkan API rootsys (18 tool ≈ 19 s walaupun soalan mudah),
@@ -261,6 +268,7 @@ TOOL_TRIGGERS = {
     "play_youtube": r"youtube|yt\b|lagu|muzik|music|playlist|video klip|\bmain\b|\bplay\b|putar|pasang|"
                     r"cari lagu|cari video|lagu tu|video tu",
     "set_reminder": r"ingat|remind|peringatan|minit lagi|jam lagi|alarm",
+    "telegram_send": r"telegram|tg\b|mesej|message|chat\b|hantar|send|balas|reply|bagi ?tahu|beritahu|whats ?app",
     "chrome": r"chrome|browser|pelayar|profile|profil|google|laman|website|web\b|\.com|\.my|url|link",
     "browser_task": r"klik|click|tekan|pilih|isi|borang|form|login|log masuk|scroll|laman|website|chrome|"
                     r"dalam (web|laman|chrome)|tab\b",
@@ -626,6 +634,7 @@ class Api:
         self._sys = sysctl.System()  # satu instance: token pengesahan hidup di sini
         self._pending_cmd = None     # ayat penuh yang menunggu pengesahan Tuan
         self._pending_token = None   # token terakhir yang belum dijawab
+        self._pending_tg = None      # draf Telegram menunggu "ya": {token, id, name, text, until}
         self._app_rect = None        # rect stage untuk app yang di-embed
         psutil.cpu_percent(None)  # panggilan pertama sentiasa 0, jadi panaskan dulu
 
@@ -2614,7 +2623,8 @@ class Api:
                  "play_youtube": "YouTube",
                  "read_telegram": "Telegram", "telegram_files": "TG Files",
                  "system": "System", "repo_stats": "Repos",
-                 "chrome": "Chrome", "browser_task": "Browser"}.get(name, name)
+                 "chrome": "Chrome", "browser_task": "Browser",
+                 "telegram_send": "TG Send"}.get(name, name)
         lat, lon, zone = self._cfg_place()
         if name == "open_media":
             want = str(args.get("name", "") or "").strip()
@@ -2756,6 +2766,9 @@ class Api:
                                                                  ("action", "profile", "url", "query")).strip(),
                                 "full": ""})
             return msg
+        if name == "telegram_send":
+            self._emit("tool", {"name": label, "detail": str(args.get("chat", "")), "full": ""})
+            return self._tool_tg_send(str(args.get("chat", "") or ""), str(args.get("text", "") or ""))
         if name == "browser_task":
             self._emit("tool", {"name": label, "detail": str(args.get("task", ""))[:80], "full": ""})
             return self._tool_browser_task(str(args.get("task", "") or ""))
@@ -3169,6 +3182,86 @@ class Api:
         out.append("Nota: ini ringkasan struktur, bukan transkrip penuh. "
                    "Guna action=thread untuk baca mesej sebenar bahagian tertentu.")
         return "\n".join(out)
+
+    # ---------- Telegram: hantar mesej (dua langkah, "ya" daripada Tuan sahaja) ----------
+    TG_SEND_TTL = 120
+
+    def _tg_candidates(self, acc, name):
+        """Nama chat -> senarai calon. Satu calon tepat = selamat; banyak = tanya Tuan."""
+        low = str(name or "").strip().lower()
+        if not low:
+            return []
+        dialogs = acc.dialogs(limit=150)
+        exact = [d for d in dialogs if d["name"].lower() == low]
+        if exact:
+            return exact[:1]
+        part = [d for d in dialogs if low in d["name"].lower()]
+        if part:
+            return part
+        try:   # orang dalam kenalan/carian global yang belum pernah di-chat
+            found = [u for u in acc.contacts(query=name, limit=8) if u.get("id") and u.get("name")]
+        except Exception:
+            found = []
+        if found:
+            hit = [u for u in found if u["name"].lower() == low]
+            return hit[:1] or found
+        import difflib
+        names = {d["name"].lower(): d for d in dialogs}
+        return [names[n] for n in difflib.get_close_matches(low, list(names), n=4, cutoff=0.6)]
+
+    def _tool_tg_send(self, chat, text):
+        text = text.strip()
+        if not text:
+            return "Mesej kosong — tanya Tuan nak tulis apa."
+        acc = self._tg_account()
+        if not acc:
+            return "Telegram belum disambung. Jalankan python telegram_login.py dulu."
+        try:
+            cands = self._tg_candidates(acc, chat)
+        except Exception as e:
+            return f"Telegram gagal: {type(e).__name__}: {e}"
+        if not cands:
+            return f"Tiada chat bernama '{chat}' dalam Telegram Tuan. Tanya Tuan nama sebenar chat itu."
+        if len(cands) > 1:
+            return ("Ada beberapa chat yang padan: " + "; ".join(d["name"] for d in cands[:6]) +
+                    ". Tanya Tuan yang mana satu, kemudian panggil telegram_send semula dengan nama penuh.")
+        d = cands[0]
+        tok = "tg" + os.urandom(4).hex()
+        self._pending_tg = {"token": tok, "id": d["id"], "name": d["name"], "text": text,
+                            "until": time.time() + self.TG_SEND_TTL}
+        ask = f'Hantar ke {d["name"]}: \u201c{text}\u201d?'
+        self._push(f"window.jarvisConfirm && window.jarvisConfirm({json.dumps({'need_confirm': True, 'token': tok, 'ask': ask})})")
+        ph = self._phone
+        if ph and getattr(ph, "_turn", None):      # arahan dari fon: tunjuk draf di fon juga
+            ph._reply(ph._turn["chat"], f"✉ {ask}\nBalas «ya» untuk hantar, «tak» untuk batal.")
+        return (f"Draf sedia untuk {d['name']}. Mesej BELUM dihantar. JANGAN panggil tool ini lagi. "
+                f"Tanya Tuan dalam satu ayat pendek sama ada nak hantar, dan berhenti.")
+
+    def _tg_send_confirmed(self):
+        pend, self._pending_tg = self._pending_tg, None
+        if time.time() > pend["until"]:
+            return {"handled": True, "label": "✖ Draf Telegram dah luput — minta semula."}
+        # Telegram tolak mesej > 4096 aksara (analisis penuh selalu lebih): pecah ikut perenggan
+        parts, cur = [], ""
+        for para in pend["text"].split("\n"):
+            while len(para) > 3800:
+                parts += [cur] if cur else []
+                cur, parts = "", parts + [para[:3800]]
+                para = para[3800:]
+            if len(cur) + len(para) + 1 > 3800:
+                parts.append(cur)
+                cur = para
+            else:
+                cur = (cur + "\n" + para) if cur else para
+        parts += [cur] if cur.strip() else []
+        for part in parts:
+            r = self.ib_send_tg(pend["id"], part)
+            if not r.get("ok"):
+                break
+        if r.get("ok"):
+            n = f" ({len(parts)} bahagian)" if len(parts) > 1 else ""
+            return {"handled": True, "label": f"✔ Dihantar ke {pend['name']}{n}"}
+        return {"handled": True, "label": f"✖ Gagal hantar ke {pend['name']}: {r.get('msg', '')[:120]}"}
 
     def _tool_telegram(self, name, args):
         acc = self._tg_account()
@@ -4153,13 +4246,18 @@ class Api:
             return {"handled": False}
 
         # "ya" / "tak" hanya bermakna kalau ada tindakan yang menunggu
-        if re.match(r"^(ya|yes|ok|okay|buat|teruskan|jalan|go|confirm|sahkan)\b", low):
+        if re.match(r"^(ya|yes|ok|okay|buat|teruskan|jalan|go|confirm|sahkan|hantar|send)\b", low):
+            if self._pending_tg:
+                return self._tg_send_confirmed()
             if self._pending_token:
                 tok, self._pending_token = self._pending_token, None
                 self._pending_cmd = None
                 return self._sys_report(self._sys.confirm(tok))
             return {"handled": False}
         if re.match(r"^(tak|no|jangan|batal|cancel|stop|jangan buat)\b", low):
+            if self._pending_tg:
+                self._pending_tg = None
+                return {"handled": True, "label": "✖ Mesej Telegram dibatalkan"}
             if self._pending_token:
                 self._sys.cancel(self._pending_token)
                 self._pending_token = None
@@ -4348,6 +4446,9 @@ class Api:
 
     def cancel_system(self, token=None):
         """Butang 'Tak' di HUD. Buang token tanpa menjalankan apa-apa."""
+        if self._pending_tg and (not token or token == self._pending_tg["token"]):
+            self._pending_tg = None
+            return {"ok": True, "msg": "Cancelled."}
         self._pending_token = None
         self._pending_cmd = None
         return self._sys.cancel(token)
