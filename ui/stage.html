@@ -669,6 +669,13 @@ main.stage-wrap {
 .proj-acts { display: flex; gap: 6px; padding: 8px 12px; flex-wrap: wrap;
   border-bottom: 1px solid hsl(var(--hue) 60% 70% / .1); }
 .proj-acts:empty { display: none; }
+.proj-new { display: flex; gap: 6px; width: 100%; }
+.proj-new input {
+  flex: 1; min-width: 0; height: 24px; padding: 0 8px;
+  background: rgb(var(--inset) / .8); color: var(--ink);
+  border: 1px solid hsl(var(--hue) 80% 74% / .25); font-size: 10.5px; outline: none;
+}
+.proj-new input:focus { border-color: hsl(var(--alt) 90% 70% / .7); box-shadow: 0 0 10px hsl(var(--alt) 100% 60% / .2); }
 .hist-item.cur { border-left-color: hsl(var(--alt) 90% 70% / .9); background: hsl(var(--alt) 90% 65% / .08); }
 .hist-item .tag { font: 500 7.5px/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase;
   color: hsl(var(--hue) 90% 78%); margin-left: 6px; }
@@ -6998,6 +7005,24 @@ nav.rail {
           toggleProjects(false);
         }));
     }
+    // Projek baru: folder kosong di Desktop, terus jadi projek aktif
+    const nw = document.createElement('form');
+    nw.className = 'proj-new';
+    const inp = document.createElement('input');
+    inp.placeholder = 'Projek baru… cth Tempahan Bilik';
+    inp.spellcheck = false;
+    nw.append(inp, projBtn('+ Cipta', () => nw.requestSubmit()));
+    nw.addEventListener('click', (e) => e.stopPropagation());
+    nw.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = inp.value.trim();
+      if (!name) { inp.focus(); return; }
+      const r = await api.new_project(name);
+      if (!r || !r.ok) { sysNote('✖ ' + ((r && r.msg) || 'Gagal cipta projek'), true); return; }
+      sysNote((r.created ? '✔ Projek baru ' : '✔ Projek sedia ada ') + r.name + ' — cakap apa nak dibina');
+      toggleProjects(false);
+    });
+    projActs.prepend(nw);
     let rows = [];
     try { rows = await api.list_projects(); } catch (e) {}
     projN.textContent = rows.length + ' folder';

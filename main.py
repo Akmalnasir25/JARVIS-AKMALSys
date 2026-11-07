@@ -1842,6 +1842,38 @@ class Api:
         self._push_project()
         return {"ok": True}
 
+    def new_project(self, name, root=None):
+        """Cipta folder projek kosong dan terus masuk mod projek.
+
+        Lokasi: config new_project_root, lalai Desktop (tempat semua projek Tuan sedia ada).
+        Nama dari suara selalunya huruf kecil dan berjarak ("tempahan bilik") — ruang ditukar ke
+        tanda sempang supaya laluan selamat untuk npm/composer/git. Kalau folder dah wujud,
+        masuk sahaja; tiada apa yang ditulis ganti."""
+        raw = re.sub(r"\s+", " ", str(name or "")).strip(" .")
+        raw = re.sub(r"\s+(dalam|kat|dekat|di)\s+(desktop|documents?)$", "", raw, flags=re.I)
+        clean = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", raw).strip(" .")
+        if not clean:
+            return {"ok": False, "msg": "Nama projek kosong — cth: projek baru tempahan bilik"}
+        if clean.upper() in {"CON", "PRN", "AUX", "NUL"} or re.fullmatch(r"(?i)(com|lpt)\d", clean):
+            return {"ok": False, "msg": f"'{clean}' nama terpelihara Windows."}
+        folder = clean.replace(" ", "-")
+        base = Path(os.path.expanduser(root or load_json(CONFIG, {}).get("new_project_root") or "")) \
+            if (root or load_json(CONFIG, {}).get("new_project_root")) else known_folder("Desktop")
+        if not base or not base.is_dir():
+            return {"ok": False, "msg": "Folder induk projek tak dijumpai."}
+        target = base / folder
+        existing = next((p for p in base.iterdir() if p.is_dir() and p.name.lower() == folder.lower()), None)
+        created = existing is None
+        if created:
+            try:
+                target.mkdir()
+            except OSError as e:
+                return {"ok": False, "msg": f"Tak dapat cipta folder: {e}"}
+        else:
+            target = existing
+        r = self.set_project(str(target))
+        return {**r, "created": created}
+
     def get_project(self):
         p = self._project
         return {"name": p.name if p else None, "path": str(p) if p else None,
@@ -1853,7 +1885,7 @@ class Api:
         except Exception:
             pass
 
-    def _project_command(self, low):
+    def _project_command(self, low, orig=None):
         """Arahan mod projek tanpa AI. None = bukan arahan projek.
 
         "projek eLawatan"                    -> masuk, handled
@@ -1875,6 +1907,22 @@ class Api:
             self.continue_last()
             return {"handled": True, "label": f"✔ Arahan seterusnya sambung sesi Claude terakhir dalam "
                                               f"{self._project.name} (termasuk dari VS Code)"}
+        nm = re.match(r"^(buat\s+|cipta\s+|create\s+|bina\s+|mula\s+|start\s+)?(satu\s+)?(projek|project)\s+"
+                      r"(baru|new)\s+(?P<name>[^,.;:]+?)\s*(?:[,.;:]\s*(?P<rest>.+))?$", low)
+        if nm:
+            # clean_command menukar semua ke huruf kecil; ambil ejaan asal dari ayat mentah
+            # supaya folder jadi "Sistem-Kehadiran", bukan "sistem-kehadiran".
+            name = nm.group("name")
+            i = (orig or "").lower().find(name)
+            if i >= 0:
+                name = orig[i:i + len(name)]
+            r = self.new_project(name)
+            if not r.get("ok"):
+                return {"handled": True, "label": "✖ " + r["msg"]}
+            if nm.group("rest"):
+                return {"handled": False}        # folder siap; baki ayat ("buat website ...") ke Claude
+            return {"handled": True, "label": ("✔ Projek baru " if r.get("created") else "✔ Projek sedia ada ")
+                                              + r["name"] + " · " + r["path"] + " — cakap apa nak dibina"}
         m = re.match(r"^(masuk\s+|buka\s+|guna\s+|tukar\s+|pilih\s+)?(ke\s+)?(mod\s+)?(projek|project)\s+"
                      r"(?P<name>[^,.;:]+?)\s*(?:[,.;:]\s*(?P<rest>.+))?$", low)
         if not m:
@@ -4414,8 +4462,11 @@ class Api:
         if not low:
             return {"handled": False}
 
-        # "ya" / "tak" hanya bermakna kalau ada tindakan yang menunggu
-        if re.match(r"^(ya|yes|ok|okay|buat|teruskan|jalan|go|confirm|sahkan|hantar|send)\b", low):
+        # "ya" / "tak" hanya bermakna kalau ada tindakan yang menunggu, DAN ayatnya pendek.
+        # Tanpa had panjang, "buat projek baru X, ..." dikira "ya": ia ditelan (tiada yang menunggu)
+        # atau, lebih teruk, menghantar draf Telegram yang sedang menunggu.
+        short = len(low.split()) <= 4
+        if short and re.match(r"^(ya|yes|ok|okay|buat|teruskan|jalan|go|confirm|sahkan|hantar|send)\b", low):
             if self._pending_tg:
                 return self._tg_send_confirmed()
             if self._pending_token:
@@ -4423,7 +4474,7 @@ class Api:
                 self._pending_cmd = None
                 return self._sys_report(self._sys.confirm(tok))
             return {"handled": False}
-        if re.match(r"^(tak|no|jangan|batal|cancel|stop|jangan buat)\b", low):
+        if short and re.match(r"^(tak|no|jangan|batal|cancel|stop|jangan buat)\b", low):
             if self._pending_tg:
                 self._pending_tg = None
                 return {"handled": True, "label": "✖ Mesej Telegram dibatalkan"}
@@ -4434,7 +4485,7 @@ class Api:
                 return {"handled": True, "label": "Dibatalkan"}
             return {"handled": False}
 
-        pr = self._project_command(low)
+        pr = self._project_command(low, raw)
         if pr is not None:
             return pr
 
