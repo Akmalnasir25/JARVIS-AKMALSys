@@ -299,6 +299,15 @@ def carries_data(text):
     return any(re.search(p, t, re.I) for p in NUM_SIGNAL)
 
 
+_SIR_RX = re.compile(r"\bSir\b")
+
+
+def tuan(text):
+    """Tuan, bukan Sir. Model tetap tergelincir ke "Sir" (watak JARVIS asal terlalu kuat,
+    dan sejarah lama penuh dengannya), jadi arahan dalam prompt tak cukup: tapis output."""
+    return _SIR_RX.sub("Tuan", text) if isinstance(text, str) else text
+
+
 def strip_tool_markup(text):
     """Sesetengah model (DeepSeek) kadang-kadang tulis panggilan tool sebagai teks mentah, cth <｜｜DSML｜｜ calls>."""
     text = re.sub(r"<[｜|]{1,2}DSML[｜|]{1,2}.*", "", text or "", flags=re.S)
@@ -562,7 +571,10 @@ class Api:
         self._chat_history = _sess.get("chat", []) if isinstance(_sess, dict) else []
         if not isinstance(self._chat_history, list):
             self._chat_history = []
-        self._chat_history = self._chat_history[-40:]
+        # Sejarah lama penuh dengan "Sir"; model meniru gaya jawapan sebelumnya
+        # lebih kuat daripada PERSONA, jadi bersihkan semasa dimuat.
+        self._chat_history = [{**m, "content": tuan(m.get("content"))} if isinstance(m, dict) else m
+                              for m in self._chat_history[-40:]]
         self._chat_busy = False
         self._listening = False
         self._stt = None
@@ -2238,6 +2250,7 @@ class Api:
         except Exception as e:
             results, took, text = {}, {}, ""
             self._brief_err = "%s: %s" % (type(e).__name__, e)
+        text = tuan(text)
         sv.cache_set("brief_text", text)
         sv.cache_set("brief_at", int(time.time()))
         sv.cache_set("brief_fail", "" if text else (self._brief_err or "kosong"))
@@ -3342,6 +3355,7 @@ class Api:
         key = self._dash_key(question, answer, collected)
         hit = self._dash_cache_get(key)
         if hit:
+            hit = json.loads(tuan(json.dumps(hit, ensure_ascii=False)))
             self._emit("note", {"text": "Dashboard recalled from cache"})
             self._chat_tool("present_analysis", hit)
             return
@@ -3350,6 +3364,8 @@ class Api:
                                       {"role": "user", "content": prompt}])["content"] or ""
             blob = re.search(r"\{[\s\S]*\}", strip_tool_markup(out))
             data = json.loads(re.sub(r",\s*([}\]])", r"\1", blob.group(0))) if blob else None
+            if data:
+                data = json.loads(tuan(json.dumps(data, ensure_ascii=False)))
             if data and data.get("points"):
                 self._chat_tool("present_analysis", data)
                 self._dash_cache_put(key, data, question)
@@ -3395,7 +3411,7 @@ class Api:
                     {"role": "system", "content": PERSONA + location_note() + lang_note()},
                     {"role": "user", "content": f"Soalan Tuan: {text}\n\nData yang dah dikumpul:\n" +
                                                 "\n\n".join(collected)[-24000:] + "\n\nJawab sekarang berdasarkan data ini, ringkas."}])["content"] or "")
-            reply = reply or "Okay Tuan, dah siap."
+            reply = tuan(reply) or "Okay Tuan, dah siap."
             self._chat_history.append({"role": "assistant", "content": reply})
             self._chat_history = self._chat_history[-40:]
             self._save_session()
@@ -3519,7 +3535,7 @@ class Api:
                 elif kind == "assistant":
                     for block in ev.get("message", {}).get("content", []):
                         if block.get("type") == "text" and block.get("text", "").strip():
-                            self._emit("text", {"text": block["text"]})
+                            self._emit("text", {"text": tuan(block["text"])})
                         elif block.get("type") == "tool_use":
                             inp = block.get("input") or {}
                             tool_names[block.get("id")] = block.get("name", "?")
