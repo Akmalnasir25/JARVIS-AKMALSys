@@ -6961,7 +6961,16 @@ nav.rail {
     else if (kind === 'status') { act('◆ ' + d); }
     else if (kind === 'transcribing') { act('◆ Processing speech…'); window.jarvisState('thinking'); }
     else if (kind === 'text') { listenMode = false; act('◆ Heard: "' + d + '"'); send(d, true); }
-    else if (kind === 'none') { listenMode = false; window.jarvisState('idle'); act('Heard nothing. Press the mic and try again.'); }
+    else if (kind === 'none') {
+      listenMode = false; window.jarvisState('idle');
+      /* Paras sebenar yang mic dengar lawan paras yang diperlukan. Tanpa ni
+         "Heard nothing" tak beza antara mic perlahan dan Tuan tak bercakap. */
+      if (d && d.peak != null && d.need) {
+        const pct = Math.round(100 * d.peak / d.need);
+        act('Heard nothing — loudest was ' + pct + '% of what counts as speech.'
+            + (pct > 20 && pct < 100 ? ' Speak closer, or raise the mic level in Windows.' : ' Press the mic and try again.'));
+      } else act('Heard nothing. Press the mic and try again.');
+    }
     else if (kind === 'error') { listenMode = false; window.jarvisState('idle'); sysNote('Mic: ' + d, true); }
     else if (kind === 'wake') { listenMode = true; window.jarvisState('listening'); act('◆ Mic open, just talk, Tuan…'); }
     /* The stream opened because the wake word is on — nobody pressed anything.
@@ -6980,7 +6989,10 @@ nav.rail {
      audio stream is genuinely open. Off closes the stream, so nothing in the
      room is captured at all until the mic button is pressed. */
   let wakeOn = false;
+  let wakePending = false;   // suis dihidupkan, model "Hey Jarvis" masih dimuat (~10 s kali pertama)
   function paintWake(on) {
+    if (wakePending && !on) return;   // jangan biar acara "masih tutup" padam label "starting"
+    wakePending = false;
     wakeOn = !!on;
     const led = document.getElementById('ledWake');
     const row = document.getElementById('wakeRow');
@@ -7001,16 +7013,34 @@ nav.rail {
   }
   async function toggleWake() {
     if (!api) return;
+    if (wakePending) return;
     const want = !wakeOn;
     paintWake(false);
     try {
       const r = await api.set_wake(want);
       if (!r || !r.ok) { paintWake(!want); sysNote('Could not change the mic: ' + ((r && r.msg) || 'unknown'), true); return; }
-      if (!want) sysNote('Mic closed. Press the mic button when you want to talk.');
-      else sysNote('Listening for "Hey Jarvis" again…');
-      const w = await api.wake_status();
-      paintWake(!!(w && w.on));
+      if (!want) { sysNote('Mic closed. Press the mic button when you want to talk.'); return; }
+      /* Hidupkan: mic hanya terbuka selepas model dimuat. Tunjuk "starting"
+         dan tunggu backend sendiri kata ya, bukan teka. */
+      wakePending = true;
+      const lbl = document.getElementById('wakeLbl'), chipLbl = document.getElementById('wakeChipLbl');
+      const dot = document.getElementById('wakeDot');
+      if (lbl) lbl.textContent = 'starting…';
+      if (chipLbl) chipLbl.textContent = 'Mic starting…';
+      if (dot) dot.className = 'dot armed';
+      sysNote('Opening the mic for "Hey Jarvis"… (first time takes ~10 s)');
+      const t0 = Date.now();
+      while (wakePending && Date.now() - t0 < 40000) {
+        await new Promise(res => setTimeout(res, 500));
+        const w = await api.wake_status();
+        if (w && w.on) { paintWake(true); sysNote('Listening for "Hey Jarvis".'); return; }
+      }
+      if (wakePending) {
+        wakePending = false; paintWake(false);
+        sysNote('The mic did not open after 40 s. Check that no other app holds it, then try again.', true);
+      }
     } catch (e) {
+      wakePending = false;
       paintWake(!want);
       sysNote('Could not change the mic: ' + e.message, true);
     }

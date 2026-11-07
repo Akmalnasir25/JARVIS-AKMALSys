@@ -576,6 +576,7 @@ class Api:
         # text is the stage. Syncing from the keystroke keeps both in step.
         self._deck = {"path": None, "slide": 0, "total": 0}
         self._wake_ready = False
+        self._ww_model = None        # model openWakeWord, dimuat sekali (~10 s)
         self._speaking = False
         self._prayer_done = set()  # (tarikh, solat) yang dah diingatkan
         self._stt_used = 0.0
@@ -3821,6 +3822,7 @@ class Api:
         # so a wake that fires on background noise is visible as it happens
         # instead of arriving as an unexplained answer.
         announced = False
+        wake_off_sent = False
 
         def build():
             """Muat model wake HANYA bila ia dihidupkan dalam config.
@@ -3832,9 +3834,17 @@ class Api:
             """
             if not load_json(CONFIG, {}).get("wake_word", True):
                 return None
+            # Muat sekali sahaja dan simpan: muatan pertama ~10 s pada laptop ni
+            # (import + ONNX). Tanpa cache, setiap kali suis dihidupkan semula
+            # UI nampak "Mic off" selama 10 s dan Tuan sangka suis tak jalan.
+            if self._ww_model is not None:
+                self._ww_model.reset()
+                return self._ww_model
             try:
+                self._voice_emit("wake_loading", True)
                 from openwakeword.model import Model
-                return Model(wakeword_models=["hey_jarvis"], inference_framework="onnx")
+                self._ww_model = Model(wakeword_models=["hey_jarvis"], inference_framework="onnx")
+                return self._ww_model
             except Exception as e:
                 self._voice_emit("status", f"Hey Jarvis unavailable: {e}")
                 return None
@@ -3848,8 +3858,12 @@ class Api:
                 # atas apa yang didengar. Menutup aliran adalah satu-satunya cara
                 # Windows berhenti menunjukkan mic sedang digunakan, dan satu-satunya
                 # cara bunyi bilik tidak lagi diproses langsung.
+                # Hantar hanya bila berubah. Dulu ia dihantar setiap 0.5 s, dan
+                # setiap satu menimpa keadaan "sedang buka" dalam UI.
+                if self._wake_ready or not wake_off_sent:
+                    self._voice_emit("wake_ready", False)
+                    wake_off_sent = True
                 self._wake_ready = False
-                self._voice_emit("wake_ready", False)
                 # Tunggu butang mic ATAU suis wake dihidupkan. poll(0.5) dan bukan
                 # wait() kerana suis itu bukan Event — ia tulisan config dari
                 # thread lain, dan inilah satu-satunya tempat yang boleh membina
@@ -3861,6 +3875,7 @@ class Api:
                 with sd.InputStream(samplerate=16000, channels=1, dtype="int16", blocksize=1280) as st:
                     self._wake_ready = ww is not None
                     self._voice_emit("wake_ready", self._wake_ready)
+                    wake_off_sent = not self._wake_ready
                     if ww is not None and not announced:
                         announced = True
                         self._voice_emit("listening")
@@ -3897,40 +3912,6 @@ class Api:
                 self._listening = False
                 self._voice_emit("error", str(e))
                 time.sleep(5)
-            try:
-                with sd.InputStream(samplerate=16000, channels=1, dtype="int16", blocksize=1280) as st:
-                    self._wake_ready = ww is not None
-                    self._voice_emit("wake_ready", self._wake_ready)
-                    if ww is not None and not announced:
-                        announced = True
-                        self._voice_emit("listening")
-                    while True:
-                        if self._listen_request.is_set():
-                            self._listen_request.clear()
-                            self._capture(st, list(ring)[-3:], noise, from_wake=False)
-                            ring.clear()
-                            if ww is None:
-                                break
-                            ww.reset()
-                            continue
-                        if ww is None:
-                            break
-                        data, _ = st.read(1280)
-                        x = data[:, 0].copy()
-                        ring.append(x)
-                        rms = float(np.sqrt(np.mean((x / 32768.0) ** 2)))
-                        noise = rms if noise is None else noise * 0.97 + rms * 0.03
-                        if not self._speaking and ww.predict(x).get("hey_jarvis", 0) >= thr:
-                            sv.beep("wake")
-                            self._voice_emit("wake")
-                            self._capture(st, list(ring)[-8:], noise, from_wake=True)
-                            ring.clear()
-                            ww.reset()
-            except Exception as e:
-                self._wake_ready = False
-                self._listening = False
-                self._voice_emit("error", str(e))
-                time.sleep(5)
 
     def set_speaking(self, on):
         # Jangan kesan "Hey Jarvis" dari suara Jarvis sendiri
@@ -3942,16 +3923,22 @@ class Api:
         import numpy as np
         self._listening = True
         threading.Thread(target=self._whisper, daemon=True).start()  # panaskan model sambil dengar
-        cfg_min = float(load_json(CONFIG, {}).get("mic_min_level", 0.0008))
+        cfg_min = float(load_json(CONFIG, {}).get("mic_min_level", 0.0004))
         frames = [p.astype(np.float32) / 32768.0 for p in preroll]
-        started, silent, waited, last_emit = False, 0, 0, 0
+        started, silent, waited, last_emit, peak_rms = False, 0, 0, 0, 0.0
         floor = max(noise or 0, 2e-5)
+        cal = []
         while self._listening:
             data, _ = st.read(1280)
             x = data[:, 0].astype(np.float32) / 32768.0
             rms = float(np.sqrt(np.mean(x ** 2)))
+            peak_rms = max(peak_rms, rms)
             if not started and waited < 4 and not from_wake:  # anggar bunyi latar sebelum bercakap
-                floor = max(rms if noise is None else (floor * 0.7 + rms * 0.3), 2e-5)
+                # Minimum, bukan purata: kalau Tuan terus bercakap sebaik tekan butang,
+                # purata jadi paras suara sendiri dan ambang naik 4x di atasnya —
+                # setiap arahan jadi "Heard nothing". Jeda antara suku kata bagi minimum.
+                cal.append(rms)
+                floor = max(min(cal) if noise is None else min(noise, min(cal)), 2e-5)
             level = min(1.0, max(0.0, (rms / floor - 1) / 12))
             if time.time() - last_emit > 0.08:
                 self._voice_emit("level", round(level, 3))
@@ -3970,7 +3957,8 @@ class Api:
                     break
         self._listening = False
         if len(frames) <= len(preroll) + 2:
-            self._voice_emit("none")
+            self._voice_emit("none", {"peak": round(peak_rms, 5),
+                                      "need": round(max(floor * 4, cfg_min), 5)})
             return
         self._voice_emit("transcribing")
         try:
