@@ -1010,6 +1010,31 @@ main.stage-wrap {
 }
 .trace.gone { display: none; }
 .trace span::before { content: "› "; opacity: .55; }
+/* Dalam .orb-box: terapung di kiri orb, jadi kotak jawapan tak lagi mengecut semasa kerja berjalan.
+   Ukuran cermin .orb-tasks (kanan): orb 250px, jadi 108px dari tengah = tepi orb. */
+/* Bila trace ada, orb kekal di tengah (tiada anjakan .has-tasks) dan kedua-dua senarai duduk
+   di luar gelang luar orb (~135px dari tengah), satu di kiri, satu di kanan. */
+.orb-box.has-trace #orb { transform: none; }
+.orb-box.has-trace .orb-tasks { left: calc(50% + 142px); width: min(300px, calc(50% - 150px)); }
+.orb-box > .trace {
+  position: absolute; z-index: 2;
+  right: calc(50% + 142px); top: 50%;
+  transform: translateY(-50%);
+  width: min(300px, calc(50% - 150px)); min-width: 150px;
+  max-height: 100%; overflow: hidden;
+  margin: 0; padding: 6px 10px 6px 0;
+  border-left: 0; border-right: 2px solid rgba(255,179,64,.35);
+  background: linear-gradient(270deg, rgba(255,179,64,.06), transparent 85%);
+  text-align: right;
+  pointer-events: none;
+}
+.orb-box > .trace span {
+  display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  animation: traceIn .18s ease-out;
+}
+.orb-box > .trace span:last-child { opacity: 1; color: hsl(36 100% 70%); }
+.orb-box > .trace span:not(:last-child) { opacity: .62; }
+@keyframes traceIn { from { opacity: 0; transform: translateX(6px); } to { opacity: 1; transform: none; } }
 
 /* ── MEDIA panel ──────────────────────────────────────────── */
 .media-shell { display: flex; flex-direction: column; height: 100%; }
@@ -6444,9 +6469,14 @@ nav.rail {
     if (!traceEl) {
       traceEl = document.createElement('div');
       traceEl.className = 'trace';
-      talk && talk.parentElement && talk.parentElement.insertBefore(traceEl, talk);
+      // Di kiri orb (cermin .orb-tasks di kanan), bukan atas kotak jawapan: dulu setiap baris
+      // menolak kotak jawapan jadi kecil sepanjang kerja berjalan, dan besar semula bila siap.
+      const box = document.querySelector('#pane-comms .orb-box');
+      if (box) box.appendChild(traceEl);
+      else if (talk && talk.parentElement) talk.parentElement.insertBefore(traceEl, talk);
     }
     traceEl.classList.remove('gone');
+    if (traceEl.parentElement) traceEl.parentElement.classList.add('has-trace');
     const nm = TOOL_LABEL[d.name] || d.name;
     const s = document.createElement('span');
     s.textContent = nm + (d.detail ? ' · ' + d.detail : '');
@@ -6465,6 +6495,7 @@ nav.rail {
   function traceEnd() {
     if (!traceEl) return;
     traceEl.classList.add('gone');
+    if (traceEl.parentElement) traceEl.parentElement.classList.remove('has-trace');
     while (traceEl.firstChild) traceEl.removeChild(traceEl.firstChild);
   }
 
