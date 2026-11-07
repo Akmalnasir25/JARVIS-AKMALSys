@@ -25,6 +25,17 @@ block — pulang cache `live_loc` dan segar di thread latar setiap 20 min; gerak
 OSM lagi. `config.json` `location`/`latitude`/`prayer_zone` kini **fallback** sahaja;
 `"location_auto": false` untuk kunci ke config. Kalau Location Windows dimatikan, guna yang lama.
 
+**Fon → laptop melalui bot Telegram** (2026-11-07, `phone.py`). Tuan taip atau hantar voice
+note kepada bot; ia masuk sebagai `onVoice('text')`, jalan yang sama dengan mic laptop, jadi
+semua jawapan keluar di HUD. Fon cuma dapat "🖥 di laptop" dan "✓ Siap (N s)" (cangkuk
+`done` dalam `Api._emit`). Kawalan pantas (`quick_control`) jalan terus dan balas label.
+Voice note: `messaging.Telegram.voice_file` → `phone.decode_16k` (PyAV, bukan
+`faster_whisper.decode_audio`) → `_transcribe`. **Kunci:** hanya `telegram_owner_id` dalam
+secrets.json didengar. Belum ada pemilik → HUD papar kod 6 digit, chat yang hantar kod jadi
+pemilik; 5 kod salah = chat itu diabaikan. Orang asing tak dapat balasan langsung. Token:
+`telegram_bot_token` (Tuan isi sendiri, jangan minta dia tampal dalam chat). Ini **bot**,
+berasingan daripada `telegram_session` (akaun Tuan sendiri, untuk inbox).
+
 ---
 
 ## 2. Peta fail

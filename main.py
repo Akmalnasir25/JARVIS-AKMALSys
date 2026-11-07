@@ -589,6 +589,7 @@ class Api:
         self._deck = {"path": None, "slide": 0, "total": 0}
         self._wake_ready = False
         self._ww_model = None        # model openWakeWord, dimuat sekali (~10 s)
+        self._phone = None           # phone.PhoneLink bila telegram_bot_token ada
         self._speaking = False
         self._prayer_done = set()  # (tarikh, solat) yang dah diingatkan
         self._stt_used = 0.0
@@ -3431,6 +3432,8 @@ class Api:
             self._chat_busy = False
 
     def _emit(self, kind, data):
+        if kind == "done" and self._phone:
+            self._phone.turn_done(data)   # arahan dari fon: beritahu fon giliran dah tamat
         try:
             self._window.evaluate_js(f"window.onClaude && window.onClaude({json.dumps(kind)}, {json.dumps(data)})")
         except Exception:
@@ -4477,6 +4480,29 @@ class Api:
     def minimize(self):
         self._window.minimize()
 
+    def _show_window(self):
+        # Arahan dari fon: jawapan mesti kelihatan, jadi bawa HUD ke depan kalau diminimumkan
+        try:
+            self._window.restore()
+        except Exception:
+            pass
+
+    # ---------- Fon (bot Telegram) ----------
+    def phone_status(self):
+        return self._phone.status() if self._phone else {"up": False, "paired": False, "err": "off"}
+
+    def _phone_start(self):
+        import phone
+        try:   # kod pasangan dipapar dalam HUD, jadi tunggu halaman siap dulu
+            self._window.events.loaded.wait(60)
+        except Exception:
+            pass
+        self._phone = phone.PhoneLink(self, SECRETS, ROOT / "runtime", log=_note)
+        r = self._phone.start()
+        if not r.get("ok"):
+            _note(f"phone link off: {r.get('msg')}")
+            self._phone = None
+
     def quit(self):
         self.stop()
         self._window.destroy()
@@ -4780,6 +4806,7 @@ def _run():
     threading.Thread(target=api._mic_loop, daemon=True).start()       # "Hey Jarvis" + rakaman
     threading.Thread(target=api._prayer_watch, daemon=True).start()   # peringatan waktu solat
     threading.Thread(target=api._brief_watch, daemon=True).start()    # laporan harian bila tarikh tukar
+    threading.Thread(target=api._phone_start, daemon=True).start()    # bot Telegram: cakap dari fon
     sv.prayer_today(api._cfg_place()[2])                               # ambil waktu solat sebulan jika belum ada
     _note("webview.start")
     webview.start(api._wire_drop, api._window)
