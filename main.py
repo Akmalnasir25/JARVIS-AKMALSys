@@ -3243,6 +3243,28 @@ class Api:
                           "Which one has the most uncommitted work?"],
         }
 
+    DASH_TTL = 6 * 3600   # data (cuaca, repo, proses) basi selepas beberapa jam
+    DASH_MAX = 30
+
+    def _dash_key(self, question, answer, collected):
+        # Ikut soalan + data mentah, bukan jawapan: jawapan model berubah-ubah walau data sama.
+        import hashlib
+        raw = (question or "").strip().lower() + "\n" + "\n".join(collected or [])
+        return hashlib.sha1(raw.encode("utf-8", "ignore")).hexdigest()[:16]
+
+    def _dash_cache_get(self, key):
+        ent = (sv.cache_get("dash") or {}).get(key)
+        if not ent or time.time() - ent.get("at", 0) > self.DASH_TTL:
+            return None
+        return ent.get("data")
+
+    def _dash_cache_put(self, key, data, question):
+        dash = sv.cache_get("dash") or {}
+        dash[key] = {"at": int(time.time()), "q": (question or "")[:120], "data": data}
+        if len(dash) > self.DASH_MAX:   # buang yang paling lama
+            dash = dict(sorted(dash.items(), key=lambda kv: kv[1].get("at", 0))[-self.DASH_MAX:])
+        sv.cache_set("dash", dash)
+
     def _make_analysis(self, s, question, answer, collected):
         """Tukar jawapan analisis jadi dashboard (JSON) dalam panggilan berasingan tanpa tool. Berfungsi untuk semua model."""
         prompt = (f"Soalan Sir: {question}\n\nJawapan analisis:\n{answer}\n\nData mentah (rujukan):\n" + "\n\n".join(collected)[-8000:] +
