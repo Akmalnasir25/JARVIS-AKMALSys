@@ -8,7 +8,7 @@
   "morning_brief": true,
   "brief_hour": 6,
   "brief_email": true,
-  "wake_word": false,
+  "wake_word": true,
   "wake_threshold": 0.35,
   "workdir": "~",
   "allowed_tools": [
@@ -45,10 +45,12 @@
   "chat_model": "deepseek-v4.1-flash",
   "speak_replies": true,
   "whisper_beam": 5,
-  "stt_engine": "hybrid",
+  "stt_engine": "gemini",
   "stt_min_confidence": 0.85,
   "reply_language": "ms",
   "voice_en": "en-GB-ThomasNeural",
   "voice_provider": "google",
-  "voice_english_words": true
+  "voice_english_words": true,
+  "gemini_stt_model": "gemini-3.1-flash-lite",
+  "gemini_stt_thinking": "minimal"
 }

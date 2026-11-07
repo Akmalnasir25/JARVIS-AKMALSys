@@ -49,6 +49,7 @@ ROOT = Path(__file__).resolve().parent
 SHORTCUTS = ROOT / "shortcuts.json"
 CONFIG = ROOT / "config.json"
 SESSIONS = ROOT / "sessions.json"  # sesi Claude terakhir bagi setiap projek
+CHAT_ARCHIVE = ROOT / "chat_history.json"   # sesi lama (New session mengarkib, bukan membuang)
 CHAT_LOG = ROOT / "sessions.json"  # sejarah chat disimpan dalam kunci berasingan
 DASH_CACHE = ROOT / "cache.json"   # dashboard analisis, ikut hash data
 SECRETS = ROOT / "secrets.json"  # API key (DeepSeek via rootsys); jangan kongsi fail ini
@@ -94,6 +95,7 @@ Kamu berjalan dalam HUD desktop Windows 11 dan boleh buat kerja dalam PC.
 CHAT_PROMPT = PERSONA + """
 
 Dalam mod ni kamu tak boleh access atau run apa-apa dalam PC. Kalau Tuan minta buat kerja dengan file, app atau code dalam PC, suruh dia tukar ke mod CLAUDE.
+Arahan Tuan selalunya datang dari suara (transkripsi), jadi nama dan perkataan Inggeris mungkin tersalah dengar: tafsir ikut maksud dan bunyi, cth "ppt Hafiz" = "PPKIU Hafiz", "bukan youtube" selepas pilih profile = "buka new tab", "sihat chrome" = "chrome". Kalau nama masih tak pasti, tanya Tuan dalam satu ayat.
 Tool yang kamu ada: web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), chrome (buka Chrome ikut profil, url, carian Google), browser_task (klik, isi borang dan baca dalam laman web — lambat, guna bila perlu sahaja), telegram_send (draf mesej Telegram, Tuan sahkan dengan "ya"), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Tuan guna mod CLAUDE.
 ANALISIS: bila Tuan minta analisis, kumpul data secukupnya (maksimum 3-4 langkah tool, baca fail paling penting sahaja seperti README, package.json, data), kira angka penting, kemudian jawab dengan ringkasan padat yang ada angka. HUD akan tukar jawapan kamu jadi dashboard visual.
 Kamu ADA akses internet melalui tool web_search. Biasanya SATU carian dah cukup; cari lagi hanya kalau hasil pertama memang tak menjawab. Guna bila soalan perlukan maklumat terkini atau fakta yang kamu tak pasti (harga, berita, cuaca, jadual, skor, release terbaru). Jangan cakap kamu takde internet. Lepas cari, jawab ringkas dan sebut sumber secara santai (contoh: "ikut Bernama semalam...")."""
@@ -149,8 +151,12 @@ CHAT_TOOLS = WEB_TOOLS + [
     _fn("prayer_times", "Waktu solat hari ini (JAKIM) di lokasi Tuan, dan solat seterusnya."),
     _fn("check_email", "Semak Gmail Tuan (baca sahaja): email belum dibaca, cari email ikut topik/pengirim.",
         {"request": {"type": "string", "description": "Apa yang nak disemak, contoh: email penting hari ini, email dari PPD"}}, ["request"]),
-    _fn("search_drive", "Cari atau baca fail dalam Google Drive Tuan (baca sahaja).",
-        {"request": {"type": "string", "description": "Contoh: fail RPH minggu lepas, dokumen PIBG terbaru"}}, ["request"]),
+    _fn("search_drive", "Cari ATAU baca isi penuh fail dalam Google Drive Tuan (Docs, Sheets, Form responses, PDF) "
+                        "terus melalui API — TANPA buka Chrome. Untuk \"cari fail X dalam drive dan analisis\", "
+                        "panggil ini SEKALI dengan permintaan baca/analisis; ia pulangkan data mentah penuh. "
+                        "JANGAN guna chrome atau browser_task untuk fail Drive. ~45 s.",
+        {"request": {"type": "string", "description": "Contoh: baca penuh fail survey kehadiran majlis anugerah "
+                                                      "rambu untuk analisis; cari fail RPH minggu lepas"}}, ["request"]),
     _fn("look_at_screen", "Tengok apa yang ada atas skrin laptop sekarang (screenshot) dan jawab soalan pasal skrin.",
         {"question": {"type": "string", "description": "Soalan pasal skrin, contoh: apa error ni?"}}, ["question"]),
     _fn("present_analysis", "Papar analisis visual (kad + graf bar) dan bacakan poin satu-satu. Guna selepas data dikumpul.",
@@ -255,7 +261,8 @@ TOOL_TRIGGERS = {
     "read_telegram": r"telegram|tg\b|chat\b|perbualan|group|kumpulan|mesej|message",
     "telegram_files": r"telegram.*\b(fail|file|dokumen|document|pdf|gambar|photo|video|audio)\b|"
                       r"\b(fail|file|dokumen|document|pdf|gambar|photo|video|audio)\b.*telegram",
-    "search_drive": r"\bdrive\b",
+    "search_drive": r"\bdrive\b|google (sheet|form|doc)|spreadsheet|form responses|\bsheet\b|\bsurvey\b|"
+                    r"\bborang\b|\bgoogle form\b",
     "look_at_screen": r"skrin|screen|paparan|nampak|tengok ni|error ni",
     "control_pc": r"slide|volume|bunyi|mute|lagu|muzik|music|scroll|tingkap|window|present",
     "system": r"volume|bunyi|kecerahan|cerah|brightness|clipboard|salin|tutup|close|kill|fokus|focus|"
@@ -270,8 +277,10 @@ TOOL_TRIGGERS = {
     "set_reminder": r"ingat|remind|peringatan|minit lagi|jam lagi|alarm",
     "telegram_send": r"telegram|tg\b|mesej|message|chat\b|hantar|send|balas|reply|bagi ?tahu|beritahu|whats ?app",
     "chrome": r"chrome|browser|pelayar|profile|profil|google|laman|website|web\b|\.com|\.my|url|link",
-    "browser_task": r"klik|click|tekan|pilih|isi|borang|form|login|log masuk|scroll|laman|website|chrome|"
-                    r"dalam (web|laman|chrome)|tab\b",
+    # Sempadan perkataan penting: "isi" tanpa \b terkena "anal-ISI-s", jadi setiap analisis
+    # dapat browser_task dan model memilih jalan Chrome yang lambat untuk fail Drive.
+    "browser_task": r"\bklik|\bclick|\btekan\b|\bisi\b|\bisikan\b|\blogin\b|log masuk|\bscroll|\blaman\b|"
+                    r"\bwebsite\b|\bchrome\b|dalam (web|laman|chrome)|\btab\b",
 }
 
 
@@ -604,6 +613,12 @@ class Api:
         # lebih kuat daripada PERSONA, jadi bersihkan semasa dimuat.
         self._chat_history = [{**m, "content": tuan(m.get("content"))} if isinstance(m, dict) else m
                               for m in self._chat_history[-40:]]
+        self._chat_id = _sess.get("chat_id") if isinstance(_sess, dict) else None
+        _ap = _sess.get("active_project") if isinstance(_sess, dict) else None
+        if _ap and Path(_ap).is_dir():
+            self._project = Path(_ap)
+            self._session = _sess.get("claude") or self._sessions.get(_ap)
+        self._chat_started = (_sess.get("chat_started") if isinstance(_sess, dict) else 0) or time.time()
         self._chat_busy = False
         self._listening = False
         self._stt = None
@@ -1690,11 +1705,87 @@ class Api:
         return {"ok": True}
 
     def new_session(self):
+        self._archive_current()
         self._session = None
         self._continue_next = False
         self._chat_history = []
+        self._chat_started = time.time()
         self._save_session()
         return {"ok": True}
+
+    # ---------- Sejarah sesi ----------
+    # Setiap "New session" menyimpan perbualan semasa ke chat_history.json (gitignored).
+    # Satu rekod: {id, title, started, updated, chat:[...], claude, project}. "claude" ialah
+    # session id Claude Code, jadi membuka semula sesi turut menyambung konteks Claude.
+    ARCHIVE_MAX = 60
+
+    def _archive_load(self):
+        a = load_json(CHAT_ARCHIVE, [])
+        return a if isinstance(a, list) else []
+
+    def _archive_write(self, rows):
+        try:
+            CHAT_ARCHIVE.write_text(json.dumps(rows[:self.ARCHIVE_MAX], indent=1, ensure_ascii=False),
+                                    encoding="utf-8")
+        except OSError:
+            pass
+
+    def _archive_current(self):
+        chat = [m for m in self._chat_history if isinstance(m, dict) and m.get("content")]
+        if not any(m.get("role") == "user" for m in chat):
+            return None
+        first = next(m["content"] for m in chat if m.get("role") == "user")
+        title = re.sub(r"\s+", " ", first).strip()
+        title = title[:70] + ("…" if len(title) > 70 else "")
+        sid = getattr(self, "_chat_id", None) or ("s" + os.urandom(5).hex())
+        rows = [r for r in self._archive_load() if r.get("id") != sid]
+        rows.insert(0, {"id": sid, "title": title,
+                        "started": int(getattr(self, "_chat_started", 0) or time.time()),
+                        "updated": int(time.time()), "chat": chat[-40:],
+                        "claude": self._session, "project": str(self._project) if self._project else None})
+        self._archive_write(rows)
+        self._chat_id = None
+        return sid
+
+    def list_sessions(self):
+        """Senarai untuk panel History: terbaru dahulu, tanpa isi penuh."""
+        out = []
+        for r in self._archive_load():
+            chat = r.get("chat") or []
+            last = next((m.get("content", "") for m in reversed(chat) if m.get("role") == "assistant"), "")
+            out.append({"id": r.get("id"), "title": r.get("title") or "(tanpa tajuk)",
+                        "updated": r.get("updated", 0), "count": len(chat),
+                        "preview": re.sub(r"\s+", " ", last)[:90],
+                        "project": Path(r["project"]).name if r.get("project") else ""})
+        return {"ok": True, "sessions": out}
+
+    def open_session(self, sid):
+        """Buka semula satu sesi lama. Sesi semasa diarkib dulu supaya tiada yang hilang."""
+        rows = self._archive_load()
+        rec = next((r for r in rows if r.get("id") == sid), None)
+        if not rec:
+            return {"ok": False, "msg": "Sesi tak dijumpai."}
+        if self._chat_busy:
+            return {"ok": False, "msg": "Jarvis tengah jawab — tunggu siap dulu."}
+        self._archive_current()
+        rows = [r for r in self._archive_load() if r.get("id") != sid]   # dibaca semula: arkib baru ditulis
+        self._archive_write(rows)
+        self._chat_history = [m for m in rec.get("chat") or [] if isinstance(m, dict)]
+        self._chat_id = sid
+        self._chat_started = rec.get("started") or time.time()
+        self._session = rec.get("claude")
+        self._continue_next = False
+        pj = rec.get("project")
+        self._project = Path(pj) if pj and Path(pj).is_dir() else None
+        self._save_session()
+        self._push_project()
+        return {"ok": True, "title": rec.get("title", ""), "history": self._chat_history[-40:]}
+
+    def delete_session(self, sid):
+        rows = self._archive_load()
+        keep = [r for r in rows if r.get("id") != sid]
+        self._archive_write(keep)
+        return {"ok": len(keep) < len(rows)}
 
     # ---------- Projek ----------
     def _project_roots(self):
@@ -1710,12 +1801,22 @@ class Api:
                 if p.is_dir() and not p.name.startswith(".") and p not in seen:
                     seen.add(p)
                     out.append({"name": p.name, "path": str(p), "saved": str(p) in self._sessions})
+        # Repo git terus di bawah ~ (cth jarvis-desktop) — bukan semua folder ~, yang penuh AppData dsb.
+        try:
+            for p in sorted(HOME.iterdir(), key=lambda p: p.name.lower()):
+                if p.is_dir() and not p.name.startswith(".") and p not in seen and (p / ".git").exists():
+                    seen.add(p)
+                    out.append({"name": p.name, "path": str(p), "saved": str(p) in self._sessions})
+        except OSError:
+            pass
         return out
 
     def set_project(self, query):
         """Pilih folder projek ikut nama (atau path penuh). Kosong = keluar mod projek."""
         if not query:
             self._project, self._session = None, None
+            self._save_session()
+            self._push_project()
             return {"ok": True, "name": None}
         target = Path(os.path.expanduser(query))
         if not target.is_dir():
@@ -1730,13 +1831,64 @@ class Api:
         self._project = target
         self._session = self._sessions.get(str(target))
         self._continue_next = False
+        self._save_session()
+        self._push_project()
         return {"ok": True, "name": target.name, "path": str(target), "resumed": bool(self._session)}
 
     def continue_last(self):
         """Sesi seterusnya sambung perbualan Claude terakhir dalam folder ini (termasuk dari VS Code)."""
         self._session = None
         self._continue_next = True
+        self._push_project()
         return {"ok": True}
+
+    def get_project(self):
+        p = self._project
+        return {"name": p.name if p else None, "path": str(p) if p else None,
+                "resumed": bool(self._session), "vscode": bool(self._continue_next)}
+
+    def _push_project(self):
+        try:
+            self._push(f"window.jarvisProject && window.jarvisProject({json.dumps(self.get_project())})")
+        except Exception:
+            pass
+
+    def _project_command(self, low):
+        """Arahan mod projek tanpa AI. None = bukan arahan projek.
+
+        "projek eLawatan"                    -> masuk, handled
+        "projek eLawatan, betulkan login"    -> masuk, BUKAN handled: baki ayat terus ke Claude
+        "keluar projek" / "sambung vscode" / "senarai projek"
+        """
+        if re.match(r"^(keluar|tutup|exit|stop|habis)\s+(dari\s+)?(mod\s+)?(projek|project)\b", low):
+            if not self._project:
+                return {"handled": True, "label": "Tiada projek aktif."}
+            name = self._project.name
+            self.set_project("")
+            return {"handled": True, "label": f"✔ Keluar projek {name}"}
+        if re.match(r"^(senarai|list|tunjuk|apa)\s+(semua\s+)?(projek|project)", low):
+            names = [x["name"] for x in self.list_projects()]
+            return {"handled": True, "label": "Projek: " + (", ".join(names[:25]) or "tiada")}
+        if re.match(r"^sambung\s+(sesi\s+|chat\s+)?(dari\s+)?(vs\s?code|vscode|claude(\s+code)?)\b", low):
+            if not self._project:
+                return {"handled": True, "label": "✖ Pilih projek dulu — cth: projek eLawatan"}
+            self.continue_last()
+            return {"handled": True, "label": f"✔ Arahan seterusnya sambung sesi Claude terakhir dalam "
+                                              f"{self._project.name} (termasuk dari VS Code)"}
+        m = re.match(r"^(masuk\s+|buka\s+|guna\s+|tukar\s+|pilih\s+)?(ke\s+)?(mod\s+)?(projek|project)\s+"
+                     r"(?P<name>[^,.;:]+?)\s*(?:[,.;:]\s*(?P<rest>.+))?$", low)
+        if not m:
+            return None
+        name = re.sub(r"\s+(dalam|in|kat|dekat)\s+(vs\s?code|jarvis)$", "", m.group("name")).strip()
+        if name in ("baru", "new", "ni", "ini", "tu"):
+            return None
+        r = self.set_project(name)
+        if not r.get("ok"):
+            return None                      # bukan nama projek: biar AI faham ayat itu
+        if m.group("rest"):
+            return {"handled": False}        # projek dipasang; baki ayat diteruskan ke Claude
+        return {"handled": True, "label": f"✔ Projek {r['name']}" +
+                                          (" · sambung sesi lama" if r.get("resumed") else " · sesi baru")}
 
     def open_in_vscode(self, path=None):
         # `path` is what the repo column passes: a specific repo, not whatever
@@ -1758,7 +1910,11 @@ class Api:
             else:
                 self._sessions.pop(str(self._project), None)
         payload = {"projects": self._sessions,
-                   "chat": self._chat_history[-40:]}
+                   "chat": self._chat_history[-40:],
+                   "chat_id": getattr(self, "_chat_id", None),
+                   "chat_started": int(getattr(self, "_chat_started", 0) or time.time()),
+                   "claude": self._session,
+                   "active_project": str(self._project) if self._project else None}
         try:
             SESSIONS.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         except OSError:
@@ -2675,8 +2831,16 @@ class Api:
             if name == "check_email":
                 return self._claude_quick(f"Guna Gmail, BACA SAHAJA (jangan hantar/padam apa-apa). {req}. "
                                           "Jawab ringkas: pengirim, subjek, tarikh, dan isi penting.", GMAIL_READ)
-            return self._claude_quick(f"Guna Google Drive, BACA SAHAJA. {req}. Jawab ringkas dengan nama fail, "
-                                      "tarikh ubah dan link.", DRIVE_READ)
+            # Analisis perlukan isi, bukan pautan: dulu ia hanya pulangkan nama + link, jadi model
+            # terpaksa buka Chrome dan klik fail (278 s). Baca terus melalui API: ~45 s.
+            return self._claude_quick(
+                f"Guna Google Drive, BACA SAHAJA. Permintaan: {req}\n"
+                "Cari fail yang paling padan (nama boleh tersalah eja — guna kata kunci utama). "
+                "Jika permintaan melibatkan baca, analisis, ringkas, kira atau hantar isi fail: guna "
+                "read_file_content dan pulangkan nama fail, link, kemudian DATA MENTAH PENUH (Sheet/Form "
+                "responses sebagai jadual: header + setiap baris; dokumen sebagai teks penuh) — JANGAN ringkaskan. "
+                "Jika sekadar cari: jawab ringkas nama fail, tarikh ubah dan link. "
+                "Jika ada beberapa fail yang padan, senaraikan semuanya.", DRIVE_READ, timeout=200)
         if name == "look_at_screen":
             q = args.get("question", "Apa yang ada atas skrin?")
             self._emit("tool", {"name": label, "detail": q, "full": ""})
@@ -3737,6 +3901,7 @@ class Api:
             cmd += ["--continue"]
             self._continue_next = False
         workdir = self._project or Path(os.path.expanduser(cfg.get("workdir", "~")))
+        asked = text
         if self._project:
             text = f"[Projek aktif: {self._project}]\n{text}"
 
@@ -3795,6 +3960,10 @@ class Api:
                 elif kind == "result":
                     got_result = True
                     self._session = ev.get("session_id") or self._session
+                    if not ev.get("is_error") and str(ev.get("result") or "").strip():
+                        self._chat_history += [{"role": "user", "content": asked},
+                                               {"role": "assistant", "content": tuan(str(ev["result"]))}]
+                        self._chat_history = self._chat_history[-40:]
                     self._save_session()
                     self._emit("done", {"ok": not ev.get("is_error"), "secs": round(time.time() - t0, 1),
                                         "error": ev.get("result") if ev.get("is_error") else None})
@@ -4265,6 +4434,10 @@ class Api:
                 return {"handled": True, "label": "Dibatalkan"}
             return {"handled": False}
 
+        pr = self._project_command(low)
+        if pr is not None:
+            return pr
+
         m = self._match_system(low)
         if m is None:
             return {"handled": False}
@@ -4648,17 +4821,49 @@ class Api:
                     self._stt = None
                     gc.collect()
 
+    STT_WORDS = ["new tab", "Google Drive", "Telegram", "Chrome", "profile", "survey", "analisis lengkap",
+                 "hantar ke Telegram", "pilih profile", "buka drive", "YouTube", "Gmail", "form responses"]
+
+    def _stt_tg_names(self):
+        """Nama chat Telegram untuk STT, dari cache (disegar di latar, tak pernah menahan transkripsi)."""
+        c = getattr(self, "_tg_names", None)
+        if (c is None or time.time() - c[0] > 1800) and not getattr(self, "_tg_names_busy", False):
+            self._tg_names_busy = True
+
+            def fill():
+                try:
+                    acc = self._tg_account()
+                    if acc:
+                        self._tg_names = (time.time(), [d["name"] for d in acc.dialogs(limit=120)
+                                                        if d.get("name") and len(d["name"]) <= 60])
+                except Exception:
+                    pass
+                finally:
+                    self._tg_names_busy = False
+            threading.Thread(target=fill, daemon=True).start()
+        return (c or (0, []))[1]
+
     def _stt_names(self):
-        # Nama folder Desktop & app bantu pengecaman eja nama khas dengan betul
+        # Nama khas (profil Chrome, chat Telegram, folder Desktop, app) supaya STT eja dengan betul.
+        # Yang paling kerap disebut didahulukan: Whisper hanya ambil 40 pertama sebagai hotwords.
         desk = known_folder("Desktop")
         names = [p.name for p in desk.iterdir() if p.is_dir()][:30] if desk else []
         apps = [a.get("name", "") for a in load_json(SHORTCUTS, {}).get("apps", [])]
-        return ["Jarvis", "Tuan"] + names + apps
+        try:
+            prof = [r[1] for r in self._chrome_profiles() if r[1]]
+        except Exception:
+            prof = []
+        out, seen = [], set()
+        for n in ["Jarvis", "Tuan"] + prof + self._stt_tg_names()[:25] + self.STT_WORDS + names + apps:
+            if n and n.lower() not in seen:
+                seen.add(n.lower())
+                out.append(n)
+        return out
 
     def _stt_hint(self):
         # Contoh gaya cakap Tuan (BM KL campur English) supaya Whisper tak tukar ke ejaan Indonesia
         return ("Hey Jarvis, tolong check email aku. Buka folder Pengakap. Analisis fail sipeng kat desktop. "
-                "Next slide, volume naik. Cuaca hari ni macam mana? Okay, settle. " + ", ".join(self._stt_names()))
+                "Next slide, volume naik. Cuaca hari ni macam mana? Okay, settle. " + ", ".join(self._stt_names()[:30]))
 
     # Ayat yang Whisper "dengar" bila audio senyap/bising (data latihan sari kata YouTube)
     STT_GHOSTS = ("terima kasih kerana menonton", "terima kasih kerana menyaksikan", "terima kasih telah menonton",
@@ -4671,6 +4876,22 @@ class Api:
                                                     for g in self.STT_GHOSTS if len(g) > 12)
 
     def _transcribe(self, audio, source="mic"):
+        """Bungkus _transcribe_raw dengan log ke runtime/stt.log: enjin mana menang, keyakinan Google, masa.
+        Tanpa ni, transkripsi yang salah tak dapat disiasat (siapa yang dengar salah: Google atau Whisper?)."""
+        t0, self._stt_g, self._stt_src = time.time(), None, None
+        out = self._transcribe_raw(audio, source)
+        try:
+            g = self._stt_g or ("", 0)
+            engine = self._stt_src or "google" if out and out == g[0] else ("none" if not out else "whisper/fuzzy")
+            line = (f"{datetime.now():%Y-%m-%d %H:%M:%S} {source} {len(audio) / 16000:.1f}s audio "
+                    f"{time.time() - t0:.1f}s {engine} gconf={g[1]:.2f}\n  google : {g[0]}\n  result : {out}\n")
+            with open(ROOT / "runtime" / "stt.log", "a", encoding="utf-8") as f:
+                f.write(line)
+        except Exception:
+            pass
+        return out
+
+    def _transcribe_raw(self, audio, source="mic"):
         """Suara -> teks. Google Speech-to-Text (jika dipilih & key dibenarkan), jika tidak Whisper tempatan.
 
         source="phone": voice note Telegram — audio dah bersih, jadi terima Google pada keyakinan lebih
@@ -4679,10 +4900,23 @@ class Api:
         phone = source == "phone"
         min_conf = float(cfg.get("stt_phone_min_confidence", 0.6) if phone else cfg.get("stt_min_confidence", 0.85))
         g_text = ""
-        if cfg.get("stt_engine") in ("google", "hybrid"):
+        if cfg.get("stt_engine") == "gemini" and load_json(SECRETS, {}).get("gemini_api_key"):
+            # Gemini dengar audio terus dan faham konteks (BM campur English, nama khas). Gagal -> jalan lama.
+            try:
+                text = self._gemini_stt(audio)
+                self._stt_g, self._stt_src = (text, 1.0), "gemini"
+                if not self._ghost(text):
+                    return text
+                return ""
+            except Exception as e:
+                self._stt_g = None
+                if not phone:
+                    self._voice_emit("status", f"Gemini STT failed ({str(e)[:50]}), using Google")
+        if cfg.get("stt_engine") in ("google", "hybrid", "gemini"):
             # Hibrid: Google laju (~2 s); jika keyakinan rendah, semak semula dengan Whisper (tepat untuk loghat & nama khas)
             try:
                 text, conf = self._google_stt(audio)
+                self._stt_g = (text, conf)
                 g_text = "" if self._ghost(text) else text
                 if g_text and (cfg.get("stt_engine") == "google" or conf >= min_conf):
                     return g_text
@@ -4694,7 +4928,7 @@ class Api:
             except Exception as e:
                 if not phone:
                     self._voice_emit("status", f"Google STT failed ({str(e)[:50]}), using Whisper")
-        beam = int(cfg.get("whisper_phone_beam", 1) if phone else cfg.get("whisper_beam", 5))
+        beam = int(cfg.get("whisper_phone_beam", 5) if phone else cfg.get("whisper_beam", 5))
         segs, _ = self._whisper().transcribe(
             audio, language=cfg.get("whisper_language", "ms"), beam_size=beam, best_of=beam,
             temperature=[0.0] if phone else [0.0, 0.2, 0.4], condition_on_previous_text=False,
@@ -4708,6 +4942,94 @@ class Api:
     def warm_whisper(self):
         """Muat Whisper di latar (dipanggil bila voice note fon masuk) supaya sandaran tak tunggu muat model."""
         threading.Thread(target=lambda: self._whisper(), daemon=True).start()
+
+    def _gemini_model(self, key):
+        """Model Gemini untuk transkripsi: config gemini_stt_model, atau 'flash' terbaru dari ListModels
+        (nama model bertukar setiap beberapa bulan; jangan kod keras)."""
+        want = load_json(CONFIG, {}).get("gemini_stt_model")
+        if want:
+            return want
+        if getattr(self, "_gem_model", None):
+            return self._gem_model
+        req = urllib.request.Request("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",
+                                     headers={"x-goog-api-key": key})
+        with urllib.request.urlopen(req, timeout=15) as r:
+            models = json.load(r).get("models", [])
+        bad = ("image", "tts", "live", "embedding", "audio", "thinking", "exp", "preview", "lite", "8b", "learnlm")
+        ok = [m["name"].split("/", 1)[-1] for m in models
+              if "generateContent" in (m.get("supportedGenerationMethods") or [])
+              and "flash" in m["name"] and not any(b in m["name"] for b in bad)]
+        if not ok:   # tiada flash stabil: terima preview
+            ok = [m["name"].split("/", 1)[-1] for m in models
+                  if "generateContent" in (m.get("supportedGenerationMethods") or []) and "flash" in m["name"]]
+
+        def ver(n):
+            return [int(x) for x in re.findall(r"\d+", n)[:2]] or [0]
+        self._gem_model = sorted(ok, key=ver)[-1]
+        return self._gem_model
+
+    def _gemini_stt(self, audio):
+        import io
+        import wave
+        import numpy as np
+        key = load_json(SECRETS, {}).get("gemini_api_key")
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(16000)
+            w.writeframes((np.clip(audio, -1, 1) * 32767).astype("<i2").tobytes())
+        # Pengawal 1: audio senyap/bising tak dihantar. Diukur: 1 s senyap -> Gemini mereka 180 patah
+        # perkataan arahan daripada senarai nama dalam prompt. Arahan rekaan = tindakan yang Tuan tak minta.
+        secs = len(audio) / 16000
+        frame = 320                                   # 20 ms
+        n = len(audio) // frame
+        if n == 0:
+            return ""
+        rms = np.sqrt(np.mean(np.square(audio[:n * frame].reshape(n, frame)), axis=1))
+        if float((rms > 0.015).sum()) * 0.02 < 0.3:   # kurang 0.3 s bunyi bertenaga = tiada pertuturan
+            return ""
+        names = ", ".join(self._stt_names()[:40])
+        prompt = ("Transkripsikan audio ini PERKATAAN DEMI PERKATAAN. Penutur ialah lelaki Malaysia yang bercakap "
+                  "Bahasa Melayu Malaysia santai (loghat KL/Perak) bercampur perkataan Inggeris; dia memberi arahan "
+                  "kepada pembantu AI bernama Jarvis. Tulis perkataan Inggeris dalam ejaan Inggeris (new tab, "
+                  "profile, drive) dan BM dalam ejaan Malaysia (bukan Indonesia).\n"
+                  f"RUJUKAN EJAAN SAHAJA (bukan kandungan audio): {names}. Guna senarai ini HANYA untuk mengeja "
+                  "nama yang BENAR-BENAR kedengaran dalam audio. JANGAN sekali-kali keluarkan nama atau arahan "
+                  "yang tidak disebut.\n"
+                  "Jangan terjemah, jangan ringkas, jangan betulkan tatabahasa, jangan tambah apa-apa. "
+                  "Keluarkan teks transkripsi SAHAJA. Kalau audio senyap, bising atau tiada pertuturan jelas, "
+                  "keluarkan tepat: SENYAP")
+        body = {"contents": [{"parts": [{"text": prompt},
+                                        {"inline_data": {"mime_type": "audio/wav",
+                                                         "data": base64.b64encode(buf.getvalue()).decode()}}]}],
+                "generationConfig": {"temperature": 0}}
+        model = self._gemini_model(key)
+        # Diukur 7 Nov 2026: tanpa had "berfikir", gemini-3.8-flash ambil 23 s dan thinkingBudget 0 tamat
+        # masa; 3.1-flash-lite + thinkingLevel minimal = 2.4 s dan paling tepat. Model yang tak terima
+        # tahap itu pulangkan 400 — cuba semula tanpa thinkingConfig.
+        level = load_json(CONFIG, {}).get("gemini_stt_thinking", "minimal")
+        for tc in ([{"thinkingLevel": level}] if level else []) + [None]:
+            body["generationConfig"] = {"temperature": 0, **({"thinkingConfig": tc} if tc else {})}
+            req = urllib.request.Request(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent", method="POST",
+                data=json.dumps(body).encode("utf-8"),
+                headers={"Content-Type": "application/json", "x-goog-api-key": key})
+            try:
+                with urllib.request.urlopen(req, timeout=20) as r:
+                    d = json.load(r)
+                break
+            except urllib.error.HTTPError as e:
+                if e.code != 400 or tc is None:
+                    raise
+        parts = ((d.get("candidates") or [{}])[0].get("content") or {}).get("parts") or []
+        text = " ".join(p.get("text", "") for p in parts if not p.get("thought")).strip()
+        if re.sub(r"[^a-z]", "", text.lower()) in ("senyap", ""):
+            return ""
+        # Pengawal 3: manusia tak cakap > ~5 patah sesaat. Lebih dari itu = Gemini mereka; biar Google ambil alih.
+        if len(text.split()) > secs * 5 + 6:
+            raise ValueError(f"Gemini output too long for {secs:.1f}s audio ({len(text.split())} words)")
+        return text
 
     def _google_stt(self, audio):
         import base64

@@ -616,6 +616,62 @@ main.stage-wrap {
   color: hsl(var(--alt) 60% 66% / .85);
 }
 .pane-head .grow { flex: 1; }
+
+/* ── History: sesi lama yang diarkib oleh New session ── */
+.hist-pop {
+  position: absolute; top: 38px; right: 12px; z-index: 30;
+  width: min(360px, calc(100% - 24px)); max-height: 62%;
+  display: flex; flex-direction: column;
+  background: linear-gradient(160deg, rgb(var(--lift-top) / .97), rgb(var(--lift-bot) / .97));
+  border: 1px solid hsl(var(--hue) 80% 74% / .35);
+  box-shadow: 0 14px 40px rgb(0 0 0 / .45), 0 0 0 1px hsl(var(--alt) 90% 70% / .08) inset;
+}
+.hist-pop[hidden] { display: none; }
+.hist-head {
+  display: flex; justify-content: space-between; padding: 8px 12px;
+  font: 600 9px/1 var(--font-display); letter-spacing: .2em; text-transform: uppercase;
+  color: hsl(var(--hue) 100% 80%);
+  border-bottom: 1px solid hsl(var(--hue) 80% 74% / .18);
+  background: linear-gradient(90deg, hsl(var(--hue) 95% 68% / .14), hsl(var(--alt) 95% 68% / .06));
+}
+.hist-n { color: hsl(var(--alt) 60% 70% / .9); letter-spacing: .1em; }
+.hist-list { overflow-y: auto; min-height: 0; }
+.hist-list::-webkit-scrollbar { width: 5px; }
+.hist-list::-webkit-scrollbar-thumb { background: var(--line); }
+.hist-item {
+  position: relative; display: block; width: 100%; text-align: left; cursor: pointer;
+  padding: 8px 34px 8px 12px; background: transparent; border: 0;
+  border-bottom: 1px solid hsl(var(--hue) 60% 70% / .08);
+  border-left: 2px solid transparent; color: var(--ink);
+}
+.hist-item:hover { background: hsl(var(--hue) 100% 74% / .08); border-left-color: hsl(var(--alt) 90% 70% / .7); }
+.hist-item .t { font-size: 11px; line-height: 1.35; display: block; }
+.hist-item .p { font-size: 9.5px; color: var(--ink-faint); display: block; margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hist-item .w { font: 500 8px/1 var(--font-mono); letter-spacing: .08em; color: hsl(var(--alt) 60% 70% / .85);
+  display: block; margin-top: 4px; }
+.hist-del {
+  position: absolute; top: 7px; right: 8px; width: 20px; height: 20px;
+  background: transparent; border: 1px solid transparent; color: var(--ink-faint); cursor: pointer;
+}
+.hist-del:hover { color: var(--amber, #ffb340); border-color: hsl(var(--alt) 80% 70% / .4); }
+.hist-empty { padding: 18px 12px; font-size: 10.5px; color: var(--ink-faint); text-align: center; }
+
+/* ── Mod projek: chip + senarai folder ── */
+.proj-chip { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proj-chip.on {
+  color: hsl(var(--alt) 100% 82%);
+  border-color: hsl(var(--alt) 90% 70% / .6);
+  background: linear-gradient(90deg, hsl(var(--alt) 95% 65% / .18), hsl(var(--hue) 95% 65% / .10));
+  box-shadow: 0 0 12px hsl(var(--alt) 100% 60% / .25);
+}
+.proj-pop { right: 150px; width: min(300px, calc(100% - 24px)); }
+.proj-acts { display: flex; gap: 6px; padding: 8px 12px; flex-wrap: wrap;
+  border-bottom: 1px solid hsl(var(--hue) 60% 70% / .1); }
+.proj-acts:empty { display: none; }
+.hist-item.cur { border-left-color: hsl(var(--alt) 90% 70% / .9); background: hsl(var(--alt) 90% 65% / .08); }
+.hist-item .tag { font: 500 7.5px/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase;
+  color: hsl(var(--hue) 90% 78%); margin-left: 6px; }
 .pane-body { flex: 1; min-height: 0; overflow-y: auto; padding: 13px; }
 .pane-body.tight { padding: 0; }
 .pane-body::-webkit-scrollbar { width: 5px; }
@@ -2422,7 +2478,19 @@ nav.rail {
           <span class="title">Comms</span>
           <span class="meta" id="talkMeta">new session</span>
           <span class="grow"></span>
+          <button type="button" class="btn proj-chip" id="btnProject" aria-expanded="false"
+                  title="Mod projek: arahan coding dijalankan oleh Claude Code dalam folder ini">Projek · —</button>
+          <button type="button" class="btn" id="btnHistory" aria-expanded="false">History</button>
           <button type="button" class="btn" id="btnNewSession">New session</button>
+        </div>
+        <div class="hist-pop proj-pop" id="projPop" hidden>
+          <div class="hist-head"><span>Mod projek</span><span class="hist-n" id="projN"></span></div>
+          <div class="proj-acts" id="projActs"></div>
+          <div class="hist-list" id="projList"></div>
+        </div>
+        <div class="hist-pop" id="histPop" hidden>
+          <div class="hist-head"><span>Sesi lama</span><span class="hist-n" id="histN"></span></div>
+          <div class="hist-list" id="histList"></div>
         </div>
         <div class="core-body">
           <div class="orb-box">
@@ -6803,7 +6871,167 @@ nav.rail {
     traceEnd();
     orbTasks.clear();
     window.jarvisState('idle');
+    if (histPop && !histPop.hidden) loadHistory();
   }
+
+  /* ── History: New session mengarkib sesi lama ke chat_history.json ──
+     Klik satu baris = sambung sesi itu (sesi semasa diarkib dulu, tiada yang
+     hilang). Konteks Claude pun ikut kerana session id disimpan bersama. */
+  const histPop = $('histPop'), histList = $('histList'), histN = $('histN'), btnHist = $('btnHistory');
+
+  function histWhen(ts) {
+    const d = new Date((ts || 0) * 1000), now = new Date();
+    const hm = (d.getHours() % 12 || 12) + ':' + String(d.getMinutes()).padStart(2, '0') +
+               (d.getHours() < 12 ? ' am' : ' pm');
+    if (d.toDateString() === now.toDateString()) return 'hari ni ' + hm;
+    const y = new Date(now); y.setDate(now.getDate() - 1);
+    if (d.toDateString() === y.toDateString()) return 'semalam ' + hm;
+    return d.toLocaleDateString('ms-MY', { day: 'numeric', month: 'short' }) + ' ' + hm;
+  }
+
+  async function loadHistory() {
+    if (!histList) return;
+    let r = { sessions: [] };
+    try { if (api && api.list_sessions) r = await api.list_sessions(); } catch (e) {}
+    const rows = (r && r.sessions) || [];
+    histN.textContent = rows.length ? rows.length + ' sesi' : '';
+    histList.innerHTML = '';
+    if (!rows.length) {
+      histList.innerHTML = '<div class="hist-empty">Belum ada sesi lama. Tekan New session — ' +
+                           'perbualan sekarang akan disimpan di sini.</div>';
+      return;
+    }
+    for (const s of rows) {
+      const it = document.createElement('button');
+      it.type = 'button';
+      it.className = 'hist-item';
+      const t = document.createElement('span'); t.className = 't'; t.textContent = s.title;
+      const p = document.createElement('span'); p.className = 'p'; p.textContent = s.preview || '';
+      const w = document.createElement('span'); w.className = 'w';
+      w.textContent = histWhen(s.updated) + ' · ' + s.count + ' mesej' + (s.project ? ' · ' + s.project : '');
+      const del = document.createElement('span');
+      del.className = 'hist-del'; del.textContent = '✕'; del.title = 'Padam sesi ni';
+      del.setAttribute('role', 'button');
+      del.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        if (del.dataset.armed !== '1') {         // klik kedua baru padam: tiada dialog confirm()
+          del.dataset.armed = '1'; del.textContent = 'padam?'; del.style.width = 'auto';
+          setTimeout(() => { if (del.isConnected) { del.dataset.armed = ''; del.textContent = '✕'; del.style.width = ''; } }, 2500);
+          return;
+        }
+        try { await api.delete_session(s.id); } catch (e) {}
+        loadHistory();
+      });
+      it.append(t, p, w, del);
+      it.addEventListener('click', () => openOldSession(s.id));
+      histList.appendChild(it);
+    }
+  }
+
+  async function openOldSession(id) {
+    let r = null;
+    try { r = await api.open_session(id); } catch (e) {}
+    if (!r || !r.ok) { sysNote('✖ ' + ((r && r.msg) || 'Tak dapat buka sesi')); return; }
+    liveBubble = null;
+    traceEnd();
+    orbTasks.clear();
+    if (talk) talk.innerHTML = '';
+    restoreTalk(r.history);
+    if (talkMeta) talkMeta.textContent = 'sesi lama · ' + (r.title || '').slice(0, 28);
+    toggleHistory(false);
+  }
+
+  function toggleHistory(show) {
+    if (!histPop) return;
+    const on = typeof show === 'boolean' ? show : histPop.hidden;
+    histPop.hidden = !on;
+    if (btnHist) btnHist.setAttribute('aria-expanded', String(on));
+    if (on) loadHistory();
+  }
+  if (btnHist) btnHist.addEventListener('click', (e) => { e.stopPropagation(); toggleHistory(); });
+  document.addEventListener('click', (e) => {
+    if (histPop && !histPop.hidden && !histPop.contains(e.target) && e.target !== btnHist) toggleHistory(false);
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && histPop && !histPop.hidden) toggleHistory(false); });
+
+  /* ── Mod projek ──
+     Projek aktif = folder kerja Claude Code. Dipasang dengan klik di sini atau
+     dengan ayat ("projek eLawatan", "keluar projek", "sambung vscode") yang
+     diselesaikan oleh resolve_system — Python menolak keadaan baru ke sini
+     melalui window.jarvisProject, jadi chip betul walau arahan datang dari fon. */
+  const projPop = $('projPop'), projList = $('projList'), projActs = $('projActs'),
+        projN = $('projN'), btnProj = $('btnProject');
+  let projCur = null;
+
+  window.jarvisProject = function (d) {
+    projCur = d && d.name ? d : null;
+    if (!btnProj) return;
+    btnProj.textContent = projCur ? 'Projek · ' + projCur.name + (projCur.vscode ? ' ↺' : '') : 'Projek · —';
+    btnProj.classList.toggle('on', !!projCur);
+    btnProj.title = projCur
+      ? projCur.path + (projCur.vscode ? '\nArahan seterusnya sambung sesi VS Code terakhir' : '')
+      : 'Mod projek: arahan coding dijalankan oleh Claude Code dalam folder ini';
+    if (projPop && !projPop.hidden) loadProjects();
+  };
+
+  function projBtn(label, fn) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'btn'; b.textContent = label;
+    b.addEventListener('click', async (e) => { e.stopPropagation(); await fn(); });
+    return b;
+  }
+
+  async function loadProjects() {
+    if (!projList || !api || !api.list_projects) return;
+    projActs.innerHTML = '';
+    if (projCur) {
+      projActs.append(
+        projBtn('Sambung sesi VS Code', async () => {
+          await api.continue_last();
+          sysNote('↺ Arahan seterusnya sambung sesi Claude terakhir dalam ' + projCur.name);
+          toggleProjects(false);
+        }),
+        projBtn('Buka dalam VS Code', async () => { await api.open_in_vscode(projCur.path); toggleProjects(false); }),
+        projBtn('Keluar projek', async () => {
+          await api.set_project('');
+          sysNote('Keluar mod projek');
+          toggleProjects(false);
+        }));
+    }
+    let rows = [];
+    try { rows = await api.list_projects(); } catch (e) {}
+    projN.textContent = rows.length + ' folder';
+    projList.innerHTML = '';
+    for (const p of rows) {
+      const it = document.createElement('button');
+      it.type = 'button';
+      it.className = 'hist-item' + (projCur && projCur.path === p.path ? ' cur' : '');
+      const t = document.createElement('span'); t.className = 't'; t.textContent = p.name;
+      if (p.saved) { const g = document.createElement('span'); g.className = 'tag'; g.textContent = 'ada sesi'; t.appendChild(g); }
+      const w = document.createElement('span'); w.className = 'p'; w.textContent = p.path;
+      it.append(t, w);
+      it.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const r = await api.set_project(p.path);
+        if (r && r.ok) sysNote('✔ Projek ' + r.name + (r.resumed ? ' · sambung sesi lama' : ' · sesi baru'));
+        toggleProjects(false);
+      });
+      projList.appendChild(it);
+    }
+  }
+
+  function toggleProjects(show) {
+    if (!projPop) return;
+    const on = typeof show === 'boolean' ? show : projPop.hidden;
+    projPop.hidden = !on;
+    if (btnProj) btnProj.setAttribute('aria-expanded', String(on));
+    if (on) { toggleHistory(false); loadProjects(); }
+  }
+  if (btnProj) btnProj.addEventListener('click', (e) => { e.stopPropagation(); toggleProjects(); });
+  document.addEventListener('click', (e) => {
+    if (projPop && !projPop.hidden && !projPop.contains(e.target) && e.target !== btnProj) toggleProjects(false);
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && projPop && !projPop.hidden) toggleProjects(false); });
 
   /* A test surface, and the only reason it exists: the speak switch has to be
      provable without a human hand on the mouse. Everything it exposes is state
@@ -7677,6 +7905,7 @@ nav.rail {
       window.stageSettings(cfg);
       restoreTalk(cfg && cfg.history);
     } catch (e) {}
+    try { window.jarvisProject(await api.get_project()); } catch (e) {}
     try { await stageDock.load(); } catch (e) {}
     tickStats();
     tickToday();
