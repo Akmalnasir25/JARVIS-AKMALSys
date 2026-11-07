@@ -14,6 +14,7 @@ import sys
 import threading
 import time
 import traceback
+import urllib.parse
 import urllib.request
 import webbrowser
 from datetime import datetime
@@ -93,7 +94,7 @@ Kamu berjalan dalam HUD desktop Windows 11 dan boleh buat kerja dalam PC.
 CHAT_PROMPT = PERSONA + """
 
 Dalam mod ni kamu tak boleh access atau run apa-apa dalam PC. Kalau Tuan minta buat kerja dengan file, app atau code dalam PC, suruh dia tukar ke mod CLAUDE.
-Tool yang kamu ada: web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Tuan guna mod CLAUDE.
+Tool yang kamu ada: web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), chrome (buka Chrome ikut profil, url, carian Google), browser_task (klik, isi borang dan baca dalam laman web — lambat, guna bila perlu sahaja), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Tuan guna mod CLAUDE.
 ANALISIS: bila Tuan minta analisis, kumpul data secukupnya (maksimum 3-4 langkah tool, baca fail paling penting sahaja seperti README, package.json, data), kira angka penting, kemudian jawab dengan ringkasan padat yang ada angka. HUD akan tukar jawapan kamu jadi dashboard visual.
 Kamu ADA akses internet melalui tool web_search. Biasanya SATU carian dah cukup; cari lagi hanya kalau hasil pertama memang tak menjawab. Guna bila soalan perlukan maklumat terkini atau fakta yang kamu tak pasti (harga, berita, cuaca, jadual, skor, release terbaru). Jangan cakap kamu takde internet. Lepas cari, jawab ringkas dan sebut sumber secara santai (contoh: "ikut Bernama semalam...")."""
 
@@ -216,6 +217,23 @@ CHAT_TOOLS = WEB_TOOLS + [
                                  "\"browser\" hanya jika muat turun gagal dan embed ditolak — ia buka "
                                  "Chrome dalam stage, tetapi tetingkap itu kosong putih."}},
         ["query"]),
+    _fn("chrome", "Buka Google Chrome Tuan dengan PROFIL tertentu, buka alamat web, atau buat carian Google — "
+                  "terus, laju (1-2 s). Guna untuk \"buka chrome profile X\", \"masuk profile myself\", "
+                  "\"cari X dalam chrome\", \"buka facebook\". Profil dicari ikut nama, nama akaun atau e-mel. "
+                  "Untuk KLIK, isi borang atau baca sesuatu DALAM laman web, guna browser_task.",
+        {"action": {"type": "string", "enum": ["profiles", "open", "search"],
+                    "description": "profiles = senarai profil; open = buka profil/url; search = carian Google"},
+         "profile": {"type": "string", "description": "Nama profil, cth MySelf, AI, UPP-SPS, sekolah. Kosong = profil terakhir"},
+         "url": {"type": "string", "description": "Alamat web untuk open"},
+         "query": {"type": "string", "description": "Kata carian untuk search"}},
+        ["action"]),
+    _fn("browser_task", "Kawal Chrome sebenar Tuan seperti manusia: klik butang/pautan, pilih menu, isi borang, "
+                        "baca isi laman, cari sesuatu dan klik hasilnya. Lambat (20-90 s) — guna hanya bila "
+                        "perlu berinteraksi dengan laman web; untuk sekadar buka profil/url/carian, guna chrome. "
+                        "Ia TIDAK akan hantar mesej, beli, padam atau taip kata laluan.",
+        {"task": {"type": "string", "description": "Arahan lengkap, cth: buka youtube.com dan klik video pertama "
+                                                   "tentang resepi nasi lemak"}},
+        ["task"]),
 ]
 
 # Setiap tool tambahan melambatkan API rootsys (18 tool ≈ 19 s walaupun soalan mudah),
@@ -243,6 +261,9 @@ TOOL_TRIGGERS = {
     "play_youtube": r"youtube|yt\b|lagu|muzik|music|playlist|video klip|\bmain\b|\bplay\b|putar|pasang|"
                     r"cari lagu|cari video|lagu tu|video tu",
     "set_reminder": r"ingat|remind|peringatan|minit lagi|jam lagi|alarm",
+    "chrome": r"chrome|browser|pelayar|profile|profil|google|laman|website|web\b|\.com|\.my|url|link",
+    "browser_task": r"klik|click|tekan|pilih|isi|borang|form|login|log masuk|scroll|laman|website|chrome|"
+                    r"dalam (web|laman|chrome)|tab\b",
 }
 
 
@@ -1922,6 +1943,107 @@ class Api:
                 return p
         return ""
 
+    # ---------- Chrome: profil, url, carian (laju) dan tugasan klik (Claude in Chrome) ----------
+    def _chrome_profiles(self):
+        """[(dir, nama, akaun, e-mel)] dari 'Local State' Chrome, profil terakhir digunakan dahulu."""
+        ls = Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data" / "Local State"
+        try:
+            d = json.loads(ls.read_text(encoding="utf-8"))
+        except Exception:
+            return []
+        prof = d.get("profile") or {}
+        last = prof.get("last_used", "Default")
+        rows = [(k, v.get("name", ""), v.get("gaia_name", ""), v.get("user_name", ""))
+                for k, v in (prof.get("info_cache") or {}).items()]
+        return sorted(rows, key=lambda r: r[0] != last)
+
+    def _chrome_profile(self, want):
+        """Nama yang Tuan sebut ('myself', 'sekolah', 'upp') -> baris profil, atau None."""
+        def norm(x):
+            return re.sub(r"[^a-z0-9@.]", "", str(x or "").lower())
+        rows, w = self._chrome_profiles(), norm(want)
+        if not rows or not w:
+            return rows[0] if rows else None
+        for exact in (True, False):
+            for r in rows:
+                for f in map(norm, r[1:]):
+                    if f and (f == w if exact else (w in f or f in w)):
+                        return r
+        import difflib
+        names = {norm(r[1]): r for r in rows if r[1]}
+        hit = difflib.get_close_matches(w, list(names), n=1, cutoff=0.6)
+        return names[hit[0]] if hit else None
+
+    def _tool_chrome(self, args):
+        act = str(args.get("action") or "open")
+        rows = self._chrome_profiles()
+        if act == "profiles":
+            if not rows:
+                return "Tiada profil Chrome dijumpai."
+            return "Profil Chrome: " + "; ".join(r[1] + (f" ({r[3]})" if r[3] else "") for r in rows)
+        exe = self._browser_exe()
+        if not exe or "chrome" not in exe.lower():
+            return "Google Chrome tak dijumpai dalam PC ni."
+        want = str(args.get("profile") or "").strip()
+        prof = self._chrome_profile(want) if want else None
+        if want and not prof:
+            return f"Tiada profil Chrome bernama '{want}'. Yang ada: " + ", ".join(r[1] for r in rows)
+        cmd = [exe] + ([f"--profile-directory={prof[0]}"] if prof else [])
+        url = str(args.get("url") or "").strip()
+        if act == "search":
+            q = str(args.get("query") or "").strip()
+            if not q:
+                return "Nak cari apa?"
+            cmd.append("https://www.google.com/search?q=" + urllib.parse.quote_plus(q))
+        elif url:
+            cmd.append(url if re.match(r"^[a-z]+://", url) else "https://" + url)
+        else:
+            cmd.append("--new-window")
+        try:
+            subprocess.Popen(cmd, creationflags=NO_WINDOW)
+        except Exception as e:
+            return f"Chrome gagal dibuka: {e}"
+        where = f" dalam profil {prof[1]}" if prof else ""
+        if act == "search":
+            return f"Carian Google '{args.get('query')}' dibuka{where}."
+        return f"Dibuka {url}{where}." if url else f"Chrome dibuka{where}."
+
+    BROWSER_RULES = (
+        "Anda mengawal Google Chrome sebenar pengguna melalui tool Claude in Chrome. "
+        "Langkah pertama: panggil ToolSearch dengan query \"select:mcp__claude-in-chrome__tabs_context_mcp,"
+        "mcp__claude-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__computer,"
+        "mcp__claude-in-chrome__find,mcp__claude-in-chrome__read_page,mcp__claude-in-chrome__get_page_text,"
+        "mcp__claude-in-chrome__form_input\", kemudian tabs_context_mcp, kemudian buat tab baharu dengan "
+        "tabs_create_mcp. "
+        "PERATURAN KESELAMATAN (wajib): jangan hantar/post mesej atau e-mel, jangan beli atau bayar, jangan padam "
+        "apa-apa, jangan tukar tetapan akaun, jangan taip kata laluan atau kod OTP, jangan klik butang yang "
+        "memaparkan dialog alert/confirm. Kalau tugasan perlukan salah satu itu, berhenti sebelum langkah tersebut "
+        "dan laporkan apa yang tinggal untuk Tuan buat sendiri. Jangan tutup tab Tuan. "
+        "Bila siap, jawab dalam 1-3 ayat pendek: apa yang dibuat dan apa yang kelihatan.\n\nTugasan: ")
+
+    def _tool_browser_task(self, task):
+        if not task.strip():
+            return "Tugasan browser kosong."
+        if not self._claude:
+            return "Claude Code tak dijumpai — browser_task perlukannya."
+        cfg = load_json(CONFIG, {})
+        lang = ("\n\nReply in natural English only." if cfg.get("reply_language") == "en" else
+                "\n\nJawab dalam Bahasa Melayu MALAYSIA (bukan Indonesia), guna \"saya\" dan panggil dia \"Tuan\".")
+        try:
+            p = subprocess.run(
+                [self._claude, "-p", "--chrome", "--output-format", "json",
+                 "--model", cfg.get("browser_model", "sonnet"),
+                 "--allowedTools", "ToolSearch,mcp__claude-in-chrome", "--max-turns", "30"],
+                input=(self.BROWSER_RULES + task + lang).encode("utf-8"),
+                capture_output=True, timeout=int(cfg.get("browser_timeout", 180)), cwd=HOME,
+                creationflags=NO_WINDOW)
+        except subprocess.TimeoutExpired:
+            return "Tugasan browser terlalu lama dan dihentikan — semak Chrome, mungkin separuh siap."
+        try:
+            return json.loads(p.stdout.decode("utf-8", "replace")).get("result") or "Tiada hasil."
+        except json.JSONDecodeError:
+            return "Browser gagal: " + p.stderr.decode("utf-8", "replace")[-300:]
+
     def _play_in_browser(self, url):
         """Buka url dalam Chrome sebenar dan masukkan tetingkapnya ke stage.
 
@@ -2491,7 +2613,8 @@ class Api:
                  "look_at_screen": "Screen", "control_pc": "Control", "open_media": "Media",
                  "play_youtube": "YouTube",
                  "read_telegram": "Telegram", "telegram_files": "TG Files",
-                 "system": "System", "repo_stats": "Repos"}.get(name, name)
+                 "system": "System", "repo_stats": "Repos",
+                 "chrome": "Chrome", "browser_task": "Browser"}.get(name, name)
         lat, lon, zone = self._cfg_place()
         if name == "open_media":
             want = str(args.get("name", "") or "").strip()
@@ -2627,6 +2750,15 @@ class Api:
         if name == "set_reminder":
             self._emit("tool", {"name": label, "detail": detail, "full": ""})
             return self._tool_reminder(args.get("minutes", 1), args.get("message", "Reminder"))
+        if name == "chrome":
+            msg = self._tool_chrome(args)
+            self._emit("tool", {"name": label, "detail": " ".join(str(args.get(k) or "") for k in
+                                                                 ("action", "profile", "url", "query")).strip(),
+                                "full": ""})
+            return msg
+        if name == "browser_task":
+            self._emit("tool", {"name": label, "detail": str(args.get("task", ""))[:80], "full": ""})
+            return self._tool_browser_task(str(args.get("task", "") or ""))
         if name == "open_item":
             msg, path = self._tool_open(args.get("name", ""))
             self._emit("tool", {"name": label, "detail": detail, "full": path or ""})
@@ -4427,27 +4559,54 @@ class Api:
         return ("Hey Jarvis, tolong check email aku. Buka folder Pengakap. Analisis fail sipeng kat desktop. "
                 "Next slide, volume naik. Cuaca hari ni macam mana? Okay, settle. " + ", ".join(self._stt_names()))
 
-    def _transcribe(self, audio):
-        """Suara -> teks. Google Speech-to-Text (jika dipilih & key dibenarkan), jika tidak Whisper tempatan."""
+    # Ayat yang Whisper "dengar" bila audio senyap/bising (data latihan sari kata YouTube)
+    STT_GHOSTS = ("terima kasih kerana menonton", "terima kasih kerana menyaksikan", "terima kasih telah menonton",
+                  "thank you for watching", "thanks for watching", "subscribe", "like and subscribe",
+                  "jangan lupa subscribe", "sila langgan", "sari kata oleh", "subtitle by", "you")
+
+    def _ghost(self, text):
+        t = re.sub(r"[^\w\s]", "", (text or "").lower()).strip()
+        return not t or t in self.STT_GHOSTS or any(t.startswith(g) and len(t) < len(g) + 12
+                                                    for g in self.STT_GHOSTS if len(g) > 12)
+
+    def _transcribe(self, audio, source="mic"):
+        """Suara -> teks. Google Speech-to-Text (jika dipilih & key dibenarkan), jika tidak Whisper tempatan.
+
+        source="phone": voice note Telegram — audio dah bersih, jadi terima Google pada keyakinan lebih
+        rendah dan guna Whisper beam kecil kalau terpaksa (laju lebih penting dari mic laptop)."""
         cfg = load_json(CONFIG, {})
+        phone = source == "phone"
+        min_conf = float(cfg.get("stt_phone_min_confidence", 0.6) if phone else cfg.get("stt_min_confidence", 0.85))
+        g_text = ""
         if cfg.get("stt_engine") in ("google", "hybrid"):
             # Hibrid: Google laju (~2 s); jika keyakinan rendah, semak semula dengan Whisper (tepat untuk loghat & nama khas)
             try:
                 text, conf = self._google_stt(audio)
-                if text and (cfg.get("stt_engine") == "google" or conf >= float(cfg.get("stt_min_confidence", 0.85))):
-                    return text
+                g_text = "" if self._ghost(text) else text
+                if g_text and (cfg.get("stt_engine") == "google" or conf >= min_conf):
+                    return g_text
                 near = sv.fuzzy_control(text)   # arahan kawalan pendek: jangan tunggu Whisper
                 if near:
                     return near
-                self._voice_emit("status", f'Double-checking "{text[:40]}"…')
+                if not phone:
+                    self._voice_emit("status", f'Double-checking "{text[:40]}"…')
             except Exception as e:
-                self._voice_emit("status", f"Google STT failed ({str(e)[:50]}), using Whisper")
+                if not phone:
+                    self._voice_emit("status", f"Google STT failed ({str(e)[:50]}), using Whisper")
+        beam = int(cfg.get("whisper_phone_beam", 1) if phone else cfg.get("whisper_beam", 5))
         segs, _ = self._whisper().transcribe(
-            audio, language=cfg.get("whisper_language", "ms"), beam_size=int(cfg.get("whisper_beam", 5)), best_of=5,
-            temperature=[0.0, 0.2, 0.4], condition_on_previous_text=False,
+            audio, language=cfg.get("whisper_language", "ms"), beam_size=beam, best_of=beam,
+            temperature=[0.0] if phone else [0.0, 0.2, 0.4], condition_on_previous_text=False,
             vad_filter=True, vad_parameters={"min_silence_duration_ms": 300},
             initial_prompt=self._stt_hint(), hotwords=" ".join(self._stt_names()[:40]))
-        return " ".join(s.text.strip() for s in segs).strip()
+        w_text = " ".join(s.text.strip() for s in segs).strip()
+        if self._ghost(w_text):
+            return g_text          # Whisper reka ayat: guna Google walaupun keyakinan rendah (atau kosong)
+        return w_text
+
+    def warm_whisper(self):
+        """Muat Whisper di latar (dipanggil bila voice note fon masuk) supaya sandaran tak tunggu muat model."""
+        threading.Thread(target=lambda: self._whisper(), daemon=True).start()
 
     def _google_stt(self, audio):
         import base64

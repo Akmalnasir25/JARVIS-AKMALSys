@@ -129,6 +129,7 @@ class PhoneLink:
             if not fid:
                 return
             self._reply(chat, "🎙 Dengar…")
+            self.api.warm_whisper()        # muat sandaran serentak dengan Google, bukan selepasnya
             try:
                 text = self._transcribe_note(fid)
             except Exception as e:
@@ -185,7 +186,7 @@ class PhoneLink:
                 pass
         if audio.size < 1600:
             return ""
-        return (self.api._transcribe(audio) or "").strip()
+        return (self.api._transcribe(audio, source="phone") or "").strip()
 
 
 def decode_16k(path: Path):
