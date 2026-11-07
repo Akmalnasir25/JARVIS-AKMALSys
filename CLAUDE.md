@@ -10,12 +10,20 @@
 
 ## 1. Apa benda ni
 
-HUD desktop untuk Sir (Akmal). Python + pywebview (WebView2), satu halaman
+HUD desktop untuk Akmal. **Jarvis panggil dia "Tuan"** (ditukar daripada "Sir" pada 2026-11-07,
+atas permintaan dia — dalam PERSONA, prompt English, UI dan hotword Whisper). Dokumen ni masih
+sebut "Sir" di tempat lain; itu nota lama, bukan arahan. Python + pywebview (WebView2), satu halaman
 `ui/stage.html` (~322k, satu `<script>` inline), backend `main.py` (~4,500 baris,
 184 method dalam `Api`). Model AI melalui `_run_chat` / `_run_claude`. Suara, Telegram,
 media, editor, sistem — semua dalam satu tetingkap.
 
 **Jalan:** `python main.py` atau `launch.vbs`. Autostart melalui `autostart.vbs`.
+
+**Lokasi ikut Windows Location** (2026-11-07). `current_place()` dalam `main.py`: Windows
+Location (WiFi, ~130 m) → Nominatim OSM (nama) → api.waktusolat.app (zon JAKIM). Tak pernah
+block — pulang cache `live_loc` dan segar di thread latar setiap 20 min; gerak < 2 km tak tanya
+OSM lagi. `config.json` `location`/`latitude`/`prayer_zone` kini **fallback** sahaja;
+`"location_auto": false` untuk kunci ke config. Kalau Location Windows dimatikan, guna yang lama.
 
 ---
 

@@ -40,6 +40,45 @@ def _get_json(url, timeout=30):
         return json.load(r)
 
 
+# ---------- Lokasi semasa (Windows Location → OSM → zon JAKIM) ----------
+_GEO_PS = (
+    "Add-Type -AssemblyName System.Device;"
+    "$w=New-Object System.Device.Location.GeoCoordinateWatcher;$w.Start();$t=0;"
+    "while(($w.Status -ne 'Ready') -and ($t -lt 80)){Start-Sleep -Milliseconds 100;$t++};"
+    "$l=$w.Position.Location;"
+    "if($l.IsUnknown){'{}'}else{'{\"lat\":'+$l.Latitude+',\"lon\":'+$l.Longitude+',\"acc\":'+$l.HorizontalAccuracy+'}'}"
+)
+
+
+def windows_location():
+    """(lat, lon, ketepatan_m) dari Windows Location (WiFi/GPS), atau None kalau dimatikan/tak tahu."""
+    import subprocess
+    try:
+        p = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", _GEO_PS],
+                           capture_output=True, timeout=20, creationflags=0x08000000)
+        d = json.loads(p.stdout.decode("utf-8", "replace").strip() or "{}")
+    except Exception:
+        return None
+    if "lat" not in d:
+        return None
+    return float(d["lat"]), float(d["lon"]), float(d.get("acc") or 0)
+
+
+def reverse_place(lat, lon):
+    """Nama tempat dari OpenStreetMap Nominatim, cth 'Kampung Ibus, Kubang Pasu, Kedah'."""
+    d = _get_json(f"https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={lat}&lon={lon}"
+                  "&zoom=14&accept-language=ms", 15)
+    a = d.get("address", {})
+    local = next((a[k] for k in ("town", "city", "village", "suburb", "hamlet") if a.get(k)), "")
+    parts = [p for p in (local, a.get("district") or a.get("county"), a.get("state"), a.get("country")) if p]
+    return ", ".join(dict.fromkeys(parts)) or d.get("display_name", "")
+
+
+def prayer_zone_at(lat, lon):
+    """Kod zon JAKIM (cth KDH01) untuk koordinat, dari api.waktusolat.app."""
+    return _get_json(f"https://api.waktusolat.app/zones/{lat}/{lon}", 15).get("zone")
+
+
 # ---------- Cuaca & kualiti udara (Open-Meteo) ----------
 WEATHER_CODES = {
     0: "clear", 1: "mostly clear", 2: "cloudy", 3: "overcast", 45: "foggy", 48: "foggy",

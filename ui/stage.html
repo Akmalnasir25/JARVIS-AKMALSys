@@ -1550,7 +1550,7 @@ aside.right {
 .pray em { display: block; margin-top: 2px; font-size: 8.5px; font-style: normal; color: var(--cyan); }
 
 /* right rail: this column is about the machine, not the inbox.
-   Four canned prompt buttons lived here and told Sir nothing. Now it carries
+   Four canned prompt buttons lived here and told Tuan nothing. Now it carries
    system health and the state of his repos — the two things he asked for.
    Three hues side by side so the column is not one flat colour: hue for the
    machine, alt for anything needing a decision, amber for a warning. */
@@ -1714,7 +1714,7 @@ footer {
 }
 .tile:hover { border-color: var(--line); background: hsl(var(--hue) 100% 74% / .07); transform: translateY(-2px); }
 /* tile yang sasarannya tiada pada mesin ini — masih boleh klik, tetapi
-   kelihatan berbeza supaya Sir tidak meneka kenapa ia senyap */
+   kelihatan berbeza supaya Tuan tidak meneka kenapa ia senyap */
 .tile.nope { opacity: .42; }
 .tile.nope .hex { border-style: dashed; }
 .dock-empty {
@@ -2303,7 +2303,7 @@ nav.rail {
       <img src="ui/logo.png" alt="Akmal Systems">
       <div>
         <b>J.A.R.V.I.S</b>
-        <small>Sir · stage v1.1</small>
+        <small>Tuan · stage v1.1</small>
       </div>
     </div>
     <div class="spacer"></div>
@@ -2806,7 +2806,7 @@ nav.rail {
           <button type="button" aria-pressed="false">CLAUDE</button>
           <button type="button" aria-pressed="false">CHAT</button>
         </div>
-        <input id="cmd" type="text" placeholder="What can I do for you, Sir?" aria-label="Command for Jarvis">
+        <input id="cmd" type="text" placeholder="What can I do for you, Tuan?" aria-label="Command for Jarvis">
         <button type="button" class="round" id="btnMic" aria-label="Speak to Jarvis"
                 title="Talk to Jarvis (Ctrl+Space). Hold the mic open, release to send.">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>
@@ -3112,7 +3112,7 @@ nav.rail {
       col.appendChild(wrap);
       const t = document.createElement('div');
       t.className = 'ib-meta';
-      t.textContent = (m.out ? 'Sir' : (chatName || '?')) + ' · ' + when(m.at);
+      t.textContent = (m.out ? 'Tuan' : (chatName || '?')) + ' · ' + when(m.at);
       if (m.out) t.style.textAlign = 'right';
       col.appendChild(t);
       return col;
@@ -6089,7 +6089,7 @@ nav.rail {
   }
 
   // Tindakan yang susah diundur (bunuh proses, tutup tetingkap, recycle, kuasa)
-  // tidak jalan sampai Sir jawab. Dua jalan jawab: tekan butang di sini, atau
+  // tidak jalan sampai Tuan jawab. Dua jalan jawab: tekan butang di sini, atau
   // cakap "ya" — ayat itu masuk resolve_system() dan menyambung token yang sama.
   // Butang sengaja dibuang selepas satu jawapan supaya prompt lama tidak boleh
   // ditekan semula dan melahirkan dua shutdown.
@@ -6176,14 +6176,14 @@ nav.rail {
      Apa yang sedang berlaku, di sebelah orb. Bukan log: setiap baris ada kind
      (carian, folder, fail, app, ukur, kod), satu subjek, dan kadang-kadang
      beberapa item (hasil carian, isi folder). Baris bertukar jadi "done"
-     apabila tool itu pulang, dan kekal di situ supaya Sir boleh baca apa
+     apabila tool itu pulang, dan kekal di situ supaya Tuan boleh baca apa
      yang baru berlaku tanpa scroll transkrip.
      Tiga sumber menulis ke sini:
        trace()      — tool call Claude, satu per satu
        _emit("web") — hasil carian dengan tajuk + favicon
        _emit("result") — senarai folder / hasil find
      ───────────────────────────────────────────────────────────── */
-  /* Nama kerja, bukan nama API. "Read" bukan bahasa yang Sir guna;
+  /* Nama kerja, bukan nama API. "Read" bukan bahasa yang Tuan guna;
      "membaca fail" adalah. Inilah yang muncul di sebelah orb. */
   const TOOL_LABEL = {
     web_search: 'connecting web', find_files: 'searching files',
@@ -6396,7 +6396,7 @@ nav.rail {
   // ---------- orb + status ----------
   const ORB_LABEL = {
     idle:      ['Standby', 'Awaiting command'],
-    listening: ['Listening', 'Just talk, Sir'],
+    listening: ['Listening', 'Just talk, Tuan'],
     thinking:  ['Thinking', 'Processing'],
     speaking:  ['Speaking', 'Reading the answer']
   };
@@ -6686,25 +6686,25 @@ nav.rail {
       stopSpeaking(); window.jarvisState('idle'); act('Stopped.'); return true;
     }
     if (/^(tutup jarvis|keluar|quit|exit)$/.test(s)) {
-      word('Sir', q, 'me');
-      await speak('Okay Sir, going quiet.');
+      word('Tuan', q, 'me');
+      await speak('Okay Tuan, going quiet.');
       setTimeout(() => api && api.quit(), 1800);
       return true;
     }
     if (/^(sembunyi|minimize|hide)$/.test(s)) {
-      word('Sir', q, 'me'); act('Minimized.'); api && api.minimize(); return true;
+      word('Tuan', q, 'me'); act('Minimized.'); api && api.minimize(); return true;
     }
     if (/^(sesi baru|reset)$/.test(s)) { newSession(); return true; }
     if ((m = s.match(/^panel\s+(\d|[a-z]+)$/))) {
       const map = { 1:'comms',2:'media',3:'term',4:'files',5:'editor',6:'browse',7:'docs',8:'ana',9:'native' };
       const name = map[m[1]] || m[1];
-      word('Sir', q, 'me'); window.stageShow(name); act('Panel ' + name); return true;
+      word('Tuan', q, 'me'); window.stageShow(name); act('Panel ' + name); return true;
     }
     if (/^(main|play)\s*(muzik|lagu|media)?$/.test(s) && window.stageMedia) {
-      word('Sir', q, 'me'); window.stageShow('media'); window.stageMedia.play(); return true;
+      word('Tuan', q, 'me'); window.stageShow('media'); window.stageMedia.play(); return true;
     }
     if (/^(stop|pause)\s*(muzik|lagu|media)$/.test(s) && window.stageMedia) {
-      word('Sir', q, 'me'); window.stageMedia.pause(); return true;
+      word('Tuan', q, 'me'); window.stageMedia.pause(); return true;
     }
     // "main lecture 3" / "buka file.mp4" — the range server resolves the name
     if ((m = s.match(/^(?:main|play|putar|buka|open)\s+(.+\.(?:mp4|mkv|webm|mov|mp3|m4a|wav|flac))$/))
@@ -6712,13 +6712,13 @@ nav.rail {
       if (api && api.media_open) {
         const r = await api.media_open(m[1]);
         if (r && r.ok) {
-          word('Sir', q, 'me');
+          word('Tuan', q, 'me');
           window.stageShow('media');
           act('▶ ' + r.name);
           return true;
         }
         if (r && /\.(mp4|mkv|webm|mov|mp3|m4a|wav|flac)$/i.test(m[1])) {
-          word('Sir', q, 'me');
+          word('Tuan', q, 'me');
           sysNote(r.msg || 'File is not in media/.', true);
           return true;
         }
@@ -6735,7 +6735,7 @@ nav.rail {
     let r;
     try { r = await api.resolve_system(q); } catch (e) { return false; }
     if (!r || !r.handled) return false;
-    word('Sir', q, 'me');
+    word('Tuan', q, 'me');
     act(r.label || 'Done.');
     if (r.confirm) {
       // jarvisConfirm() sudah memaparkan prompt dan membacanya; jangan ulang
@@ -6753,9 +6753,9 @@ nav.rail {
     if (!q || busy) return;
     if (await localFirst(q)) return;
     if (await trySystem(q)) return;
-    if (!api) { word('Sir', q, 'me'); sysNote('Bridge not connected — run main.py.', true); return; }
+    if (!api) { word('Tuan', q, 'me'); sysNote('Bridge not connected — run main.py.', true); return; }
 
-    word('Sir', q, 'me');
+    word('Tuan', q, 'me');
     liveBubble = null;
     lastReply = '';
     busy = true;
@@ -6787,7 +6787,7 @@ nav.rail {
     for (const m of hist) {
       if (!m || !m.content) continue;
       const isMe = m.role === 'user';
-      word(isMe ? 'Sir' : 'Jarvis', m.content, isMe ? 'me' : 'jarvis');
+      word(isMe ? 'Tuan' : 'Jarvis', m.content, isMe ? 'me' : 'jarvis');
     }
     msgCount = hist.length;
     if (talkMeta) talkMeta.textContent = 'restored';
@@ -6796,7 +6796,7 @@ nav.rail {
 
   async function newSession() {
     if (api) await api.new_session();
-    if (talk) talk.innerHTML = '<div class="talk-empty"><b>New session.</b>History cleared. Carry on when ready, Sir.</div>';
+    if (talk) talk.innerHTML = '<div class="talk-empty"><b>New session.</b>History cleared. Carry on when ready, Tuan.</div>';
     msgCount = 0;
     if (talkMeta) talkMeta.textContent = 'new session';
     liveBubble = null;
@@ -6963,15 +6963,15 @@ nav.rail {
     else if (kind === 'text') { listenMode = false; act('◆ Heard: "' + d + '"'); send(d, true); }
     else if (kind === 'none') { listenMode = false; window.jarvisState('idle'); act('Heard nothing. Press the mic and try again.'); }
     else if (kind === 'error') { listenMode = false; window.jarvisState('idle'); sysNote('Mic: ' + d, true); }
-    else if (kind === 'wake') { listenMode = true; window.jarvisState('listening'); act('◆ Mic open, just talk, Sir…'); }
+    else if (kind === 'wake') { listenMode = true; window.jarvisState('listening'); act('◆ Mic open, just talk, Tuan…'); }
     /* The stream opened because the wake word is on — nobody pressed anything.
        Shown in the trace so a wake triggered by room noise is not a mystery:
        it names the moment the mic went live, and the capture that follows. */
     else if (kind === 'listening') { listenMode = true; window.jarvisState('listening'); act('◆ Mic open — listening for "Hey Jarvis"'); }
-    else if (kind === 'wake_only') { listenMode = false; speak('Ya Sir?'); }
+    else if (kind === 'wake_only') { listenMode = false; speak('Ya Tuan?'); }
     else if (kind === 'control') {
       listenMode = false; window.jarvisState('idle');
-      word('Sir', d.text, 'me'); sysNote('⌨ ' + d.label);
+      word('Tuan', d.text, 'me'); sysNote('⌨ ' + d.label);
     }    else if (kind === 'wake_ready') { paintWake(!!d); }
   };
 
@@ -7029,7 +7029,7 @@ nav.rail {
   window.onPrayer = function (d) {
     const txt = d.name + ' in ' + d.mins + ' min (' + d.time + ')';
     word('Jarvis', '🕌 ' + txt, 'jarvis');
-    speak('Sir, ' + d.mins + ' min until ' + d.name + '.');
+    speak('Tuan, ' + d.mins + ' min until ' + d.name + '.');
     act('Prayer time');
   };
 
@@ -7052,7 +7052,7 @@ nav.rail {
   }
 
   /* the slowest source is the honest one to name: if the email job took 40s and
-     the weather took 0.2s, saying "lambat" without saying which one tells Sir
+     the weather took 0.2s, saying "lambat" without saying which one tells Tuan
      nothing he can act on */
   function briefSlow(took) {
     const e = Object.entries(took || {}).filter(([, v]) => v >= 0)
@@ -7348,7 +7348,7 @@ nav.rail {
         const v = (el.value || '').trim() || fallback;
         if (!re.test(v)) {
           // Jangan pulihkan senyap: nilai yang ditolak kekal di medan supaya
-          // Sir nampak apa yang dia taip, dan mesej memberitahu bentuknya.
+          // Tuan nampak apa yang dia taip, dan mesej memberitahu bentuknya.
           flash(false, hint);
           el.classList.add('bad');
           return;

@@ -64,37 +64,37 @@ START_MENUS = [
     Path(os.environ.get("PROGRAMDATA", "")) / "Microsoft/Windows/Start Menu/Programs",
 ]
 
-PERSONA = """Kamu ialah JARVIS, AI pembantu peribadi Sir.
-Bahasa: Bahasa Melayu MALAYSIA gaya santai KL, macam pembantu muda yang power IT dan rapat dengan Sir.
-- Kata ganti: guna "saya" untuk diri sendiri. Panggil dia "Sir" (bukan bos, tuan, encik, atau nama). JANGAN guna "aku", "kau", "kamu", "anda" atau "saudara". (Dia sendiri guna "aku", itu biasa.)
+PERSONA = """Kamu ialah JARVIS, AI pembantu peribadi Tuan.
+Bahasa: Bahasa Melayu MALAYSIA gaya santai KL, macam pembantu muda yang power IT dan rapat dengan Tuan.
+- Kata ganti: guna "saya" untuk diri sendiri. Panggil dia "Tuan" (huruf besar T; bukan Sir, bos, encik, atau nama). JANGAN guna "aku", "kau", "kamu", "anda" atau "saudara". (Dia sendiri guna "aku", itu biasa.)
 - Ayat pendek, terus ke point. Perkataan harian Malaysia: nak, tak, dah, je, la, kot, takpe, okay, settle, jap, sikit, banyak, tengok, cakap.
-- Campur English sikit macam orang KL (contoh: "okay Sir, dah settle", "file tu saya dah check").
+- Campur English sikit macam orang KL (contoh: "okay Tuan, dah settle", "file tu saya dah check").
 - BUKAN Bahasa Indonesia. Jangan guna perkataan Indonesia. Tukar: kondisi→keadaan, silakan→sila, disarankan→disyorkan,
   pengaturan→tetapan, bisa→boleh, saja→je/sahaja, aja→je, nggak/enggak→tak, banget→sangat, sepertinya→rasanya,
-  kamu→Sir, uang→duit, mobil→kereta, kantor→pejabat, kalian→korang, memeriksa→semak/check, otorisasi→kebenaran,
-  mengunduh→download, tersedia→ada, mohon maaf→sorry, terima kasih banyak→thanks Sir, gimana→macam mana.
+  kamu→Tuan, uang→duit, mobil→kereta, kantor→pejabat, kalian→korang, memeriksa→semak/check, otorisasi→kebenaran,
+  mengunduh→download, tersedia→ada, mohon maaf→sorry, terima kasih banyak→thanks Tuan, gimana→macam mana.
 - Jawapan mungkin dibaca dengan suara, jadi elak jadual besar dan simbol pelik. Kalau ringkas, satu dua ayat cukup."""
 
 SYSTEM_PROMPT = PERSONA + """
 
 Kamu berjalan dalam HUD desktop Windows 11 dan boleh buat kerja dalam PC.
 - Untuk buka app, folder atau fail, guna Start-Process.
-- Sebelum tindakan yang susah diundur (padam atau tulis ganti fail, hantar mesej/email, install software, ubah setting sistem), stop dan tanya dulu. Sambung hanya lepas Sir setuju dalam mesej seterusnya.
+- Sebelum tindakan yang susah diundur (padam atau tulis ganti fail, hantar mesej/email, install software, ubah setting sistem), stop dan tanya dulu. Sambung hanya lepas Tuan setuju dalam mesej seterusnya.
 - Bila kerja siap, lapor hasil dalam satu dua ayat.
-- Bila Sir minta ANALISIS (data, fail Excel/CSV, disk, jualan, markah, dll.): lepas kumpul dan kira data, akhiri jawapan dengan satu blok kod ```jarvis-analysis berisi JSON:
+- Bila Tuan minta ANALISIS (data, fail Excel/CSV, disk, jualan, markah, dll.): lepas kumpul dan kira data, akhiri jawapan dengan satu blok kod ```jarvis-analysis berisi JSON:
   {"title": "...", "summary": "1 ayat", "cards": [{"label": "...", "value": "...", "note": "..."}],
    "charts": [{"title": "...", "kind": "bar|line|donut", "items": [{"label": "...", "value": 123, "display": "RM123"}]}],
    "points": [{"text": "1-2 ayat gaya KL untuk dibaca dengan suara", "target": "card:0 | chart:0 | chart:0:2"}],
    "followups": ["soalan susulan pendek"]}
   2-4 kad, 0-2 graf, 3-6 poin. HUD akan paparkan dan bacakan poin satu-satu, jadi teks di luar blok cukup satu ayat.
-- Untuk Gmail atau Google Drive: guna ToolSearch dulu untuk muatkan tool tu (cuba lagi kalau server masih menyambung). Baca sahaja, jangan hantar, padam atau ubah email/fail tanpa Sir setuju.
+- Untuk Gmail atau Google Drive: guna ToolSearch dulu untuk muatkan tool tu (cuba lagi kalau server masih menyambung). Baca sahaja, jangan hantar, padam atau ubah email/fail tanpa Tuan setuju.
 - Kalau mesej bermula dengan [Projek aktif: ...], kamu tengah kerja dalam folder projek tu. Baca struktur projek dulu sebelum ubah code, buat perubahan kecil dan tepat, dan bagitau file mana yang diubah."""
 
 CHAT_PROMPT = PERSONA + """
 
-Dalam mod ni kamu tak boleh access atau run apa-apa dalam PC. Kalau Sir minta buat kerja dengan file, app atau code dalam PC, suruh dia tukar ke mod CLAUDE.
-Tool yang kamu ada: web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Sir guna mod CLAUDE.
-ANALISIS: bila Sir minta analisis, kumpul data secukupnya (maksimum 3-4 langkah tool, baca fail paling penting sahaja seperti README, package.json, data), kira angka penting, kemudian jawab dengan ringkasan padat yang ada angka. HUD akan tukar jawapan kamu jadi dashboard visual.
+Dalam mod ni kamu tak boleh access atau run apa-apa dalam PC. Kalau Tuan minta buat kerja dengan file, app atau code dalam PC, suruh dia tukar ke mod CLAUDE.
+Tool yang kamu ada: web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Tuan guna mod CLAUDE.
+ANALISIS: bila Tuan minta analisis, kumpul data secukupnya (maksimum 3-4 langkah tool, baca fail paling penting sahaja seperti README, package.json, data), kira angka penting, kemudian jawab dengan ringkasan padat yang ada angka. HUD akan tukar jawapan kamu jadi dashboard visual.
 Kamu ADA akses internet melalui tool web_search. Biasanya SATU carian dah cukup; cari lagi hanya kalau hasil pertama memang tak menjawab. Guna bila soalan perlukan maklumat terkini atau fakta yang kamu tak pasti (harga, berita, cuaca, jadual, skor, release terbaru). Jangan cakap kamu takde internet. Lepas cari, jawab ringkas dan sebut sumber secara santai (contoh: "ikut Bernama semalam...")."""
 
 WEB_TOOLS = [{
@@ -115,7 +115,7 @@ def _fn(name, desc, props=None, required=None):
 
 # Tool DeepSeek: semuanya baca sahaja atau selamat (tiada padam/ubah fail)
 CHAT_TOOLS = WEB_TOOLS + [
-    _fn("open_item", "Buka app, folder atau fail dalam PC untuk Sir. HANYA bila Sir minta buka. Untuk tengok isi, guna list_folder/read_file.",
+    _fn("open_item", "Buka app, folder atau fail dalam PC untuk Tuan. HANYA bila Tuan minta buka. Untuk tengok isi, guna list_folder/read_file.",
         {"name": {"type": "string", "description": "Nama app/folder/fail, atau path penuh"}}, ["name"]),
     _fn("system_status", "Status PC sekarang: CPU, RAM, disk C, bateri, internet, berapa lama PC hidup."),
     _fn("list_folder", "Senaraikan isi sesuatu folder.",
@@ -124,7 +124,7 @@ CHAT_TOOLS = WEB_TOOLS + [
         {"keyword": {"type": "string", "description": "Sebahagian nama fail, contoh: laporan, .pdf, surat"}}, ["keyword"]),
     _fn("read_file", "Baca kandungan fail teks, PDF atau Word (.docx) untuk dirumus atau dijawab.",
         {"path": {"type": "string", "description": "Path penuh fail (guna find_files dulu jika tak tahu)"}}, ["path"]),
-    _fn("read_telegram", "Baca Telegram Sir sendiri: senarai chat, kandungan satu chat, ringkasan perbualan, "
+    _fn("read_telegram", "Baca Telegram Tuan sendiri: senarai chat, kandungan satu chat, ringkasan perbualan, "
         "atau cari mesej. Untuk 'apa orang cakap dalam chat X', 'cari mesej pasal Y', "
         "'ringkaskan perbualan Z', 'siapa aktif dalam group tu', 'apa fail orang hantar'.",
         {"action": {"type": "string", "description": "dialogs | thread | digest | search",
@@ -135,7 +135,7 @@ CHAT_TOOLS = WEB_TOOLS + [
          "limit": {"type": "number", "description":
                    "thread: berapa mesej (lalai 40, maks 500). digest: berapa mesej dilombong (lalai 800)"}},
         ["action"]),
-    _fn("telegram_files", "Cari fail atau dokumen dalam Telegram Sir ikut jenis: PDF, gambar, video, audio, link.",
+    _fn("telegram_files", "Cari fail atau dokumen dalam Telegram Tuan ikut jenis: PDF, gambar, video, audio, link.",
         {"kind": {"type": "string", "description": "document | photo | video | audio | link",
                   "enum": ["document", "photo", "video", "audio", "link"]},
          "query": {"type": "string", "description": "Sebahagian nama fail atau kata kunci (pilihan)"},
@@ -144,11 +144,11 @@ CHAT_TOOLS = WEB_TOOLS + [
     _fn("set_reminder", "Set peringatan. Jarvis akan bercakap bila sampai masa.",
         {"minutes": {"type": "number", "description": "Berapa minit dari sekarang"},
          "message": {"type": "string", "description": "Apa yang perlu diingatkan"}}, ["minutes", "message"]),
-    _fn("weather", "Cuaca semasa dan ramalan hari ini di lokasi Sir (suhu, hujan, kelembapan)."),
-    _fn("prayer_times", "Waktu solat hari ini (JAKIM) di lokasi Sir, dan solat seterusnya."),
-    _fn("check_email", "Semak Gmail Sir (baca sahaja): email belum dibaca, cari email ikut topik/pengirim.",
+    _fn("weather", "Cuaca semasa dan ramalan hari ini di lokasi Tuan (suhu, hujan, kelembapan)."),
+    _fn("prayer_times", "Waktu solat hari ini (JAKIM) di lokasi Tuan, dan solat seterusnya."),
+    _fn("check_email", "Semak Gmail Tuan (baca sahaja): email belum dibaca, cari email ikut topik/pengirim.",
         {"request": {"type": "string", "description": "Apa yang nak disemak, contoh: email penting hari ini, email dari PPD"}}, ["request"]),
-    _fn("search_drive", "Cari atau baca fail dalam Google Drive Sir (baca sahaja).",
+    _fn("search_drive", "Cari atau baca fail dalam Google Drive Tuan (baca sahaja).",
         {"request": {"type": "string", "description": "Contoh: fail RPH minggu lepas, dokumen PIBG terbaru"}}, ["request"]),
     _fn("look_at_screen", "Tengok apa yang ada atas skrin laptop sekarang (screenshot) dan jawab soalan pasal skrin.",
         {"question": {"type": "string", "description": "Soalan pasal skrin, contoh: apa error ni?"}}, ["question"]),
@@ -166,11 +166,11 @@ CHAT_TOOLS = WEB_TOOLS + [
         ["title", "points"]),
     _fn("repo_stats", "Kira statistik sebenar setiap repo git dalam Desktop, Documents, Downloads dan home "
                       "(commit, bahasa, saiz, fail, hari sejak commit terakhir), kemudian papar sebagai dashboard "
-                      "bergerak. Guna bila Sir tanya tentang repo/projek/code dia, atau minta laporan atau "
+                      "bergerak. Guna bila Tuan tanya tentang repo/projek/code dia, atau minta laporan atau "
                       "statistik kerja dia. Tiada argumen diperlukan; `limit` hadkan bilangan repo.",
         {"limit": {"type": "number", "description": "Bilangan repo maksimum (lalai 12)"}}),
     _fn("analyse_path", "Ukur apa yang ada dalam satu fail atau folder pada mesin ini — bilangan fail, saiz, jenis, "
-                        "umur, fail terbesar, fail berganda — dan papar sebagai laporan bergerak. Guna bila Sir "
+                        "umur, fail terbesar, fail berganda — dan papar sebagai laporan bergerak. Guna bila Tuan "
                         "beri laluan atau nama folder/fail dan minta analisis, laporan, atau tanya apa di dalamnya. "
                         "Laluan mesti di bawah home, Desktop, Documents, Downloads atau workdir.",
         {"path": {"type": "string", "description": "Laluan penuh fail atau folder untuk dianalisis"}}),
@@ -180,9 +180,9 @@ CHAT_TOOLS = WEB_TOOLS + [
                                                "scroll_down", "scroll_up", "show_desktop", "switch_window", "snip"]}}, ["action"]),
     _fn("system", "Kawal Windows dengan nilai tepat: set volume/kecerahan ke peratus, fokus atau tutup app, "
                   "kunci/sleep/restart/shutdown laptop, baca dan tulis clipboard, senarai tetingkap dan proses, "
-                  "taip teks, buka app atau URL. Guna ini bila Sir beri arahan bertindih dengan PC. "
+                  "taip teks, buka app atau URL. Guna ini bila Tuan beri arahan bertindih dengan PC. "
                   "Untuk tindakan yang susah diundur (kill, close_window, recycle, sleep, shutdown, restart) "
-                  "tool akan pulangkan need_confirm + token; masa itu TANYA Sir dan jangan ulang panggilan "
+                  "tool akan pulangkan need_confirm + token; masa itu TANYA Tuan dan jangan ulang panggilan "
                   "sehingga dia setuju.",
         {"action": {"type": "string", "enum": ["status", "volume", "mute", "brightness", "focus", "minimize",
                                                "maximize", "launch", "url", "clip_read", "clip_write", "type",
@@ -264,7 +264,7 @@ def clean_yt_title(raw, wanted=""):
     t = re.sub(r"\s{2,}", " ", t).strip(" -–|")
     return t
 
-# Sir's rule: if the answer carries data, it gets drawn. So the gate is not
+# Tuan's rule: if the answer carries data, it gets drawn. So the gate is not
 # only the question's wording — the reply is measured too. Two or more distinct
 # numeric signals, or one number that is plainly a figure (a percentage, a
 # currency amount, a thousand-separated count), is enough. A single bare number
@@ -397,22 +397,85 @@ CURRENT_LANG = None      # diisi semasa main(); lang_note baca ini, bukan cakera
 
 
 def lang_note():
-    """Jika reply_language = en: jawab dalam English penuh walaupun Sir tanya dalam BM."""
+    """Jika reply_language = en: jawab dalam English penuh walaupun Tuan tanya dalam BM."""
     if (CURRENT_LANG or load_json(CONFIG, {}).get("reply_language", "ms")) != "en":
         return ""
     return ("\n\nLANGUAGE OVERRIDE (highest priority): He may speak or type in Malay, but you must ALWAYS reply "
             "ONLY in natural, fluent English, like JARVIS from Iron Man: calm, polite, slightly witty. Do not mix in any "
-            "Malay words or Malay slang. Call him Sir. Ignore the earlier Malay-style and pronoun rules.")
+            "Malay words or Malay slang. Address him as 'Tuan' (never 'Sir'). Ignore the earlier Malay-style and pronoun rules.")
+
+
+LIVE_LOC_TTL = 20 * 60      # semak semula lokasi Windows setiap 20 minit
+LIVE_LOC_MOVE_KM = 2.0      # gerak kurang dari ni = tempat sama, tak perlu tanya OSM/JAKIM lagi
+_live_loc_busy = threading.Lock()
+
+
+def _km(a, b):
+    import math
+    la1, lo1, la2, lo2 = map(math.radians, (a[0], a[1], b[0], b[1]))
+    h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
+    return 12742 * math.asin(math.sqrt(h))
+
+
+def _refresh_live_loc():
+    if not _live_loc_busy.acquire(blocking=False):
+        return
+    try:
+        fix = sv.windows_location()
+        old = sv.cache_get("live_loc") or {}
+        if not fix:   # lokasi Windows dimatikan: kekal yang lama, cuba lagi kemudian
+            sv.cache_set("live_loc", {**old, "checked": int(time.time()), "fail": "windows"})
+            return
+        lat, lon, acc = fix
+        ent = {**old, "lat": lat, "lon": lon, "acc": acc, "at": int(time.time()),
+               "checked": int(time.time()), "fail": ""}
+        if not (old.get("name") and old.get("zone") and "lat" in old
+                and _km((lat, lon), (old["lat"], old["lon"])) < LIVE_LOC_MOVE_KM):
+            # Gagal rangkaian: nama jadi koordinat (bukan nama lama yang mungkin 300 km jauh),
+            # dan "checked" diundur supaya cubaan seterusnya ~2 minit lagi, bukan 20.
+            try:
+                ent["name"] = sv.reverse_place(lat, lon)
+            except Exception:
+                ent["name"], ent["fail"] = f"{lat:.4f}, {lon:.4f}", "osm"
+            try:
+                ent["zone"] = sv.prayer_zone_at(lat, lon) or ""
+            except Exception:
+                ent["zone"], ent["fail"] = "", "zone"
+            if ent["fail"]:
+                ent["checked"] = int(time.time()) - LIVE_LOC_TTL + 120
+        sv.cache_set("live_loc", ent)
+    finally:
+        _live_loc_busy.release()
+
+
+def current_place():
+    """Lokasi semasa: Windows Location kalau ada, kalau tidak config.json. Tak pernah block.
+
+    Pulang {"name", "lat", "lon", "zone", "source"}. Data lama dipulangkan serta-merta dan
+    disegarkan di thread latar, supaya widget/laporan tak tunggu PowerShell (~2 s)."""
+    cfg = load_json(CONFIG, {})
+    fixed = {"name": cfg.get("location", ""), "lat": float(cfg.get("latitude", 4.5975)),
+             "lon": float(cfg.get("longitude", 101.0901)), "zone": cfg.get("prayer_zone", "PRK02"),
+             "source": "config"}
+    if not cfg.get("location_auto", True):
+        return fixed
+    live = sv.cache_get("live_loc") or {}
+    if time.time() - live.get("checked", 0) > LIVE_LOC_TTL:
+        threading.Thread(target=_refresh_live_loc, daemon=True).start()
+    if "lat" not in live:
+        return fixed
+    return {"name": live.get("name") or fixed["name"], "lat": live["lat"], "lon": live["lon"],
+            "zone": live.get("zone") or fixed["zone"], "source": "windows"}
 
 
 def location_note():
-    """Lokasi lalai Sir (config.json "location") untuk soalan berkaitan tempat."""
-    loc = load_json(CONFIG, {}).get("location")
+    """Lokasi semasa Tuan (Windows Location, atau config.json) untuk soalan berkaitan tempat."""
+    loc = current_place()["name"]
     if not loc:
         return ""
-    return (f"\nLokasi Sir: {loc}. Untuk soalan berkaitan tempat (IPU/kualiti udara, cuaca, hujan, waktu solat, "
+    return (f"\nLokasi Tuan: {loc}. Untuk soalan berkaitan tempat (IPU/kualiti udara, cuaca, hujan, waktu solat, "
             f"trafik, kedai/restoran berdekatan, berita tempatan), guna lokasi ini secara default dan masukkan nama "
-            f"tempat dalam carian. Guna tempat lain hanya kalau Sir sebut.")
+            f"tempat dalam carian. Guna tempat lain hanya kalau Tuan sebut.")
 
 
 def load_json(path, default):
@@ -526,7 +589,7 @@ class Api:
         self._web_url = ""
         self._stage_rect = None   # browse-body rect in screen px, set by JS
         self._sys = sysctl.System()  # satu instance: token pengesahan hidup di sini
-        self._pending_cmd = None     # ayat penuh yang menunggu pengesahan Sir
+        self._pending_cmd = None     # ayat penuh yang menunggu pengesahan Tuan
         self._pending_token = None   # token terakhir yang belum dijawab
         self._app_rect = None        # rect stage untuk app yang di-embed
         psutil.cpu_percent(None)  # panggilan pertama sentiasa 0, jadi panaskan dulu
@@ -633,9 +696,9 @@ class Api:
     def _safe_path(self, raw):
         """Hadkan capaian panel fail kepada tempat kerja yang dibenarkan.
 
-        Folder shortcut Sir (shortcuts.json) masuk senarai akar juga —
+        Folder shortcut Tuan (shortcuts.json) masuk senarai akar juga —
         tanpanya, klik "Pictures" pada dock memaparkan "Folder luar kawasan
-        kerja", yang bukan jawapan yang berguna untuk folder yang Sir
+        kerja", yang bukan jawapan yang berguna untuk folder yang Tuan
         sendiri letak dalam dock.
         """
         cfg = load_json(CONFIG, {})
@@ -1129,7 +1192,7 @@ class Api:
                     body.append(txt)
             slides.append({"n": i + 1, "title": title or ("Slide %d" % (i + 1)), "body": body})
         # `page` is the slide the deck is showing right now. The doc pane marks
-        # it and scrolls to it, so when Sir says "next slide" the text pane
+        # it and scrolls to it, so when Tuan says "next slide" the text pane
         # and the projector agree instead of drifting apart.
         cur = None
         try:
@@ -1183,12 +1246,12 @@ class Api:
     def fs_write(self, path, text, expected_size=None):
         """Simpan teks ke fail. Gated oleh _safe_path + semakan konflik.
 
-        Tiga pagar, sebab satu-satunya fungsi yang mengubah fail Sir:
+        Tiga pagar, sebab satu-satunya fungsi yang mengubah fail Tuan:
 
         1. _safe_path — skop sama seperti fs_list/fs_read. Luar kawasan kerja tolak.
         2. expected_size — saiz fail semasa masa ianya dibuka. Kalau berubah di
            antara, fail telah disentuh di luar editor, jadi tulis ditolak dan
-           editor boleh tanya Sir nak timpa atau tidak. Ini yang menghalang
+           editor boleh tanya Tuan nak timpa atau tidak. Ini yang menghalang
            tab lama memadam kerja yang lebih baru.
         3. simpanan .bak sekali — bukan versioning, cuma jaring untuk satu
            pusingan salah. Ditulis sebelum tulis baru, ditimpa setiap simpan.
@@ -1560,7 +1623,7 @@ class Api:
         s = load_json(SECRETS, {})
         return {"ok": bool(self._claude), "model": cfg.get("model", "default"),
                 "chat": bool(s.get("api_key")), "chat_model": self._chat_model(s), "home": str(HOME),
-                "location": cfg.get("location", "")}
+                "location": current_place()["name"]}
 
     def ask(self, text, engine="claude"):
         if self._proc or self._chat_busy:
@@ -1912,7 +1975,7 @@ class Api:
         req = urllib.request.Request(
             "https://google.serper.dev/search", method="POST",
             data=json.dumps({"q": query, "gl": "my", "hl": "ms", "num": 8,
-                             **({"location": loc} if (loc := load_json(CONFIG, {}).get("location")) else {})}).encode("utf-8"),
+                             **({"location": loc} if (loc := current_place()["name"]) else {})}).encode("utf-8"),
             headers={"X-API-KEY": key, "Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=20) as r:
@@ -1974,7 +2037,7 @@ class Api:
         p = subprocess.run(
             [self._claude, "-p", "--output-format", "json", "--model", model,
              "--allowedTools", ",".join(tools), "--max-turns", "14"],
-            input=(prompt + ("\n\nReply in natural English only." if load_json(CONFIG, {}).get("reply_language") == "en" else "\n\nJawab dalam Bahasa Melayu MALAYSIA (bukan Bahasa Indonesia), guna \"saya\" dan panggil dia \"Sir\".")).encode("utf-8"),
+            input=(prompt + ("\n\nReply in natural English only." if load_json(CONFIG, {}).get("reply_language") == "en" else "\n\nJawab dalam Bahasa Melayu MALAYSIA (bukan Bahasa Indonesia), guna \"saya\" dan panggil dia \"Tuan\".")).encode("utf-8"),
             capture_output=True, timeout=timeout, cwd=HOME, creationflags=NO_WINDOW,
         )
         try:
@@ -1984,15 +2047,13 @@ class Api:
 
     # ---------- Info harian: cuaca, solat, laporan pagi ----------
     def _cfg_place(self):
-        cfg = load_json(CONFIG, {})
-        return (float(cfg.get("latitude", 4.5975)), float(cfg.get("longitude", 101.0901)),
-                cfg.get("prayer_zone", "PRK02"))
+        pl = current_place()
+        return pl["lat"], pl["lon"], pl["zone"]
 
     def today_info(self):
         """Widget 'Hari ini' di panel kanan: cuaca + solat seterusnya."""
         lat, lon, zone = self._cfg_place()
-        cfg = load_json(CONFIG, {})
-        out = {"place": str(cfg.get("location", "")).split(",")[0]}
+        out = {"place": str(current_place()["name"]).split(",")[0]}
         try:
             out["weather"] = sv.weather(lat, lon)
         except Exception:
@@ -2145,7 +2206,7 @@ class Api:
         if not facts:
             return ""
         s = load_json(SECRETS, {})
-        prompt = ("Buat laporan harian untuk dibaca dengan SUARA bila Sir baru buka laptop. 4-6 ayat pendek, "
+        prompt = ("Buat laporan harian untuk dibaca dengan SUARA bila Tuan baru buka laptop. 4-6 ayat pendek, "
                   "gaya KL santai, mula dengan sapaan ikut waktu sekarang. Sebut cuaca (dan kalau nak hujan), "
                   "waktu solat seterusnya, dan email penting jika ada. Kalau ada repo yang belum commit sebut "
                   "sekali sahaja. Kalau bateri rendah dan tak bercas, suruh plug in. Jangan guna senarai, "
@@ -2455,7 +2516,7 @@ class Api:
                     "that is YouTube error 150 — call again without a mode to play it as a "
                     "downloaded file instead." % (res.get("title"), res.get("id")))
         if name == "weather":
-            self._emit("tool", {"name": label, "detail": load_json(CONFIG, {}).get("location", ""), "full": ""})
+            self._emit("tool", {"name": label, "detail": current_place()["name"], "full": ""})
             return sv.weather_text(sv.weather(lat, lon))
         if name == "prayer_times":
             self._emit("tool", {"name": label, "detail": f"JAKIM {zone}", "full": ""})
@@ -2474,7 +2535,7 @@ class Api:
             shot = Path(os.environ.get("TEMP", str(HOME))) / f"jarvis-screen-{int(time.time())}.png"
             try:
                 sv.screenshot(str(shot))
-                return self._claude_quick(f"Baca imej {shot} (screenshot skrin laptop Sir). Soalan: {q}\n"
+                return self._claude_quick(f"Baca imej {shot} (screenshot skrin laptop Tuan). Soalan: {q}\n"
                                           "Jawab dalam BM santai, ringkas dan tepat.", ["Read"], model="sonnet")
             finally:
                 shot.unlink(missing_ok=True)
@@ -2496,14 +2557,14 @@ class Api:
             res = self.analyse_path(args.get("path"))
             if not res.get("ok"):
                 return "Could not analyse it: " + (res.get("msg") or "unknown reason")
-            return ("Report drawn and narrated to Sir, titled %r. Exact measured facts:\n%s\n"
+            return ("Report drawn and narrated to Tuan, titled %r. Exact measured facts:\n%s\n"
                     "Reply with ONE short closing sentence. Do not invent or restate numbers."
                     % (res.get("title", ""), res.get("spoken", "")))
         if name == "present_analysis":
             self._analysis_shown = True
             self._emit("tool", {"name": "Analysis", "detail": args.get("title", ""), "full": ""})
             self._emit("analysis", args)
-            return ("Analisis sedang dipaparkan dan dibacakan satu-satu kepada Sir. Balas dengan SATU ayat penutup "
+            return ("Analisis sedang dipaparkan dan dibacakan satu-satu kepada Tuan. Balas dengan SATU ayat penutup "
                     "yang sangat pendek sahaja (jangan ulang angka).")
         if name == "control_pc":
             act = args.get("action", "")
@@ -2521,12 +2582,12 @@ class Api:
                 return r.get("label", "Tried to open it.")
             res = self._sys.do(act, **rest)
             if res.get("need_confirm"):
-                # Token disimpan supaya "ya" dari Sir menyambung kerja yang sama
+                # Token disimpan supaya "ya" dari Tuan menyambung kerja yang sama
                 self._pending_token = res["token"]
                 self._pending_cmd = act
                 self._push(f"window.jarvisConfirm && window.jarvisConfirm({json.dumps(res)})")
-                return (f"Perlu pengesahan Sir: {res['ask']} JANGAN panggil tool ini lagi. "
-                        f"Tanya Sir dalam satu ayat pendek dan berhenti.")
+                return (f"Perlu pengesahan Tuan: {res['ask']} JANGAN panggil tool ini lagi. "
+                        f"Tanya Tuan dalam satu ayat pendek dan berhenti.")
             return res.get("msg") or ("Done." if res.get("ok") else "Failed.")
         detail = str(next(iter(args.values()), "")) if args else ""
         if name == "set_reminder":
@@ -2746,7 +2807,7 @@ class Api:
 
         The left rail already carries CPU, RAM, disk, battery. The right column
         was carrying four canned prompt buttons and a static panel map, which
-        told Sir nothing about his own machine. This replaces it with the one
+        told Tuan nothing about his own machine. This replaces it with the one
         live number that actually changes: what is waiting for him.
 
         Cached for 45s because the column polls, and dialogs() is a real network
@@ -2876,7 +2937,7 @@ class Api:
     def _tg_resolve(self, acc, name):
         """Chat name -> id. Exact id passes through; a name is matched against
         the dialog list, because Telegram's own resolver needs a username and
-        Sir will say 'chat PIBG', not '@pibg_2024'."""
+        Tuan will say 'chat PIBG', not '@pibg_2024'."""
         s = str(name or "").strip()
         if not s:
             return None
@@ -2911,7 +2972,7 @@ class Api:
                + (" (had dicapai — mungkin ada lagi di belakang)"
                   if v.get("truncated") else ""),
                f"Purata: {v.get('per_day', 0)}/hari · {v.get('avg_chars', 0)} aksara/mesej",
-               f"Daripada Sir: {v.get('mine', 0)} · daripada orang lain: {v.get('others', 0)}"]
+               f"Daripada Tuan: {v.get('mine', 0)} · daripada orang lain: {v.get('others', 0)}"]
 
         ppl = d.get("people") or []
         if ppl:
@@ -3022,7 +3083,7 @@ class Api:
                     return "Chat tu kosong."
                 out = [f"Chat: {t['chat']['name']} · {len(t['msgs'])} mesej terakhir"]
                 for m in t["msgs"]:
-                    who = "Sir" if m["out"] else t["chat"]["name"]
+                    who = "Tuan" if m["out"] else t["chat"]["name"]
                     when = datetime.fromtimestamp(m["at"]).strftime("%d %b %H:%M")
                     body = (m["text"] or "").replace("\n", " ")[:220]
                     if m.get("file"):
@@ -3267,16 +3328,16 @@ class Api:
 
     def _make_analysis(self, s, question, answer, collected):
         """Tukar jawapan analisis jadi dashboard (JSON) dalam panggilan berasingan tanpa tool. Berfungsi untuk semua model."""
-        prompt = (f"Soalan Sir: {question}\n\nJawapan analisis:\n{answer}\n\nData mentah (rujukan):\n" + "\n\n".join(collected)[-8000:] +
+        prompt = (f"Soalan Tuan: {question}\n\nJawapan analisis:\n{answer}\n\nData mentah (rujukan):\n" + "\n\n".join(collected)[-8000:] +
                   "\n\nTukar analisis ini kepada SATU objek JSON sahaja (tiada teks lain) dengan format:\n"
                   '{"title": "...", "summary": "1 ayat", "cards": [{"label": "...", "value": "...", "note": "..."}], '
                   '"charts": [{"title": "...", "kind": "bar|line|donut", "items": '
                   '[{"label": "...", "value": 123, "display": "123"}]}], '
-                  '"points": [{"text": "1-2 ayat untuk dibaca dengan suara, guna saya dan panggil Sir", "target": "card:0"}], '
+                  '"points": [{"text": "1-2 ayat untuk dibaca dengan suara, guna saya dan panggil Tuan", "target": "card:0"}], '
                   '"followups": ["soalan susulan pendek"]}\n'
                   "2-4 kad, 0-3 graf (value mesti nombor; kind: bar untuk perbandingan, line untuk trend "
                   "mengikut masa, donut untuk pecahan), 3-6 poin. target: card:N, chart:N atau chart:N:M (bar ke-M). "
-                  + ("In natural English." if load_json(CONFIG, {}).get("reply_language") == "en" else "Bahasa Melayu Malaysia santai, panggil dia Sir."))
+                  + ("In natural English." if load_json(CONFIG, {}).get("reply_language") == "en" else "Bahasa Melayu Malaysia santai, panggil dia Tuan."))
         key = self._dash_key(question, answer, collected)
         hit = self._dash_cache_get(key)
         if hit:
@@ -3331,9 +3392,9 @@ class Api:
                 # Model tak berhenti menyiasat: jawab dalam perbualan bersih berdasarkan data yang dah dikumpul
                 reply = strip_tool_markup(self._chat_call(s, [
                     {"role": "system", "content": PERSONA + location_note() + lang_note()},
-                    {"role": "user", "content": f"Soalan Sir: {text}\n\nData yang dah dikumpul:\n" +
+                    {"role": "user", "content": f"Soalan Tuan: {text}\n\nData yang dah dikumpul:\n" +
                                                 "\n\n".join(collected)[-24000:] + "\n\nJawab sekarang berdasarkan data ini, ringkas."}])["content"] or "")
-            reply = reply or "Okay Sir, dah siap."
+            reply = reply or "Okay Tuan, dah siap."
             self._chat_history.append({"role": "assistant", "content": reply})
             self._chat_history = self._chat_history[-40:]
             self._save_session()
@@ -3375,7 +3436,7 @@ class Api:
         never sees that. So the step is counted here, optimistically, and the
         pane re-renders at the new slide. Anything that would desync — pressing
         Home, clicking the thumbnail strip, jumping to slide 12 by hand — is
-        corrected the moment Sir says a slide number ("slide 12", "pergi
+        corrected the moment Tuan says a slide number ("slide 12", "pergi
         slide lapan"), because that path re-opens the deck at an explicit page
         instead of stepping from a guess.
         """
@@ -3730,7 +3791,7 @@ class Api:
         """Hidup/matikan pendengar "Hey Jarvis" tanpa memulakan semula Jarvis.
 
         Bila dimatikan, gelung mic tidak membuka aliran langsung, jadi Jarvis
-        tidak mendengar apa-apa sehingga butang mic ditekan. Ini yang Sir
+        tidak mendengar apa-apa sehingga butang mic ditekan. Ini yang Tuan
         minta: bunyi latar yang menyerupai suara tidak lagi menangkap arahan.
         """
         on = bool(on)
@@ -3936,7 +3997,7 @@ class Api:
     def resolve_system(self, text):
         """Padan ayat dengan satu tindakan sistem. Pulangkan {"handled","label"}.
 
-        Ini bukan AI dan sengaja bukan AI: bila Sir cakap "volume 30", dia
+        Ini bukan AI dan sengaja bukan AI: bila Tuan cakap "volume 30", dia
         mahu 30, bukan model yang berfikir dan mungkin memberi 40. Corak di
         bawah tertib dari spesifik ke longgar, dan yang tidak padan langsung
         jatuh ke false — ayat itu terus ke Claude seperti biasa.
@@ -3944,7 +4005,7 @@ class Api:
         Pengesahan: kalau tindakan itu tingkat 'pukal' (bunuh proses, tutup
         tetingkap, recycle, kuasa), token disimpan dalam self._pending_token
         dan ayat asal dalam self._pending_cmd, supaya "ya" selepas itu
-        menyambung kerja yang sama tanpa Sir perlu ulang ayat penuh.
+        menyambung kerja yang sama tanpa Tuan perlu ulang ayat penuh.
         """
         raw = str(text or "").strip()
         t = sv.clean_command(raw)
@@ -4061,7 +4122,7 @@ class Api:
         m = re.search(r"\b(?:tutup|close|kill)\s+(.+)$", low)
         if m:
             target = m.group(1).strip()
-            # kalau tajuk tetingkap wujud, itu yang Sir maksudkan; kalau tidak,
+            # kalau tajuk tetingkap wujud, itu yang Tuan maksudkan; kalau tidak,
             # mungkin dia sebut nama proses ("tutup chrome")
             if sysctl.find_window(target):
                 return "close_window", {"title": target}
@@ -4279,7 +4340,7 @@ class Api:
                 sv.beep()
                 return sysr
         # "pergi slide 8" — the deck pane jumps straight there. This path exists
-        # because stepping is a guess: eight keypresses desync the instant Sir
+        # because stepping is a guess: eight keypresses desync the instant Tuan
         # clicks a thumbnail or presses Home on the projector. A spoken number
         # is ground truth, so it re-opens the deck at that page instead.
         m_sl = re.match(r"^(?:(?:pergi|pig|gi|ke|to|jump|go)\s+)?slide\s*(\d{1,3})$|"
@@ -4352,10 +4413,10 @@ class Api:
         desk = known_folder("Desktop")
         names = [p.name for p in desk.iterdir() if p.is_dir()][:30] if desk else []
         apps = [a.get("name", "") for a in load_json(SHORTCUTS, {}).get("apps", [])]
-        return ["Jarvis", "Sir"] + names + apps
+        return ["Jarvis", "Tuan"] + names + apps
 
     def _stt_hint(self):
-        # Contoh gaya cakap Sir (BM KL campur English) supaya Whisper tak tukar ke ejaan Indonesia
+        # Contoh gaya cakap Tuan (BM KL campur English) supaya Whisper tak tukar ke ejaan Indonesia
         return ("Hey Jarvis, tolong check email aku. Buka folder Pengakap. Analisis fail sipeng kat desktop. "
                 "Next slide, volume naik. Cuaca hari ni macam mana? Okay, settle. " + ", ".join(self._stt_names()))
 

@@ -372,7 +372,7 @@ class TgAccount:
             files, links = [], {}
             scored = []           # (length, ts, who, text) for the longest lines
             total_len = 0
-            mine = 0              # how many are Sir's own
+            mine = 0              # how many are Tuan's own
 
             async for m in self._client.iter_messages(ent, limit=cap):
                 ts = int(m.date.timestamp()) if m.date else 0
@@ -391,7 +391,7 @@ class TgAccount:
 
                 # sender — a forwarded message still names who said it here,
                 # because what matters is who is talking in THIS chat
-                who = "Sir" if m.out else ""
+                who = "Tuan" if m.out else ""
                 if not who:
                     try:
                         s = m.sender
