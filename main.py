@@ -2149,6 +2149,8 @@ class Api:
                 ph._reply(ph.owner(), f"✉ {ask}\nBalas «ya» untuk hantar, «tak» untuk batal.")
         except Exception:
             pass
+        if auto:
+            self._phone_notify(f"Draft reply · {name}", text, "tgdraft")
 
     # ════════ pembantu mesyuarat ════════
     def meeting_start(self):
@@ -2193,6 +2195,7 @@ class Api:
         self._save_session()
         self._push(f"window.jarvisSay && window.jarvisSay({json.dumps(notes)})")
         self._emit("note", {"text": f"✔ Nota mesyuarat disimpan: {d / 'notes.md'}"})
+        self._phone_notify("Meeting notes ready", notes.split("## Ringkasan")[-1].strip()[:200], "meeting")
 
     # ════════ cap suara "Hey Jarvis" ════════
     def _enroll_start(self):
@@ -2261,6 +2264,36 @@ class Api:
         return {"ok": True, "url": url, "svg": svg}
 
     # ════════ projek: diff + commit ════════
+    def web_roots(self):
+        """Folder yang app fon boleh layari (BACA SAHAJA): folder pengguna + projek."""
+        out, seen = [], set()
+        for label in ("Desktop", "Documents", "Downloads"):
+            p = known_folder(label)
+            if p:
+                out.append((label, str(p)))
+        od = os.environ.get("OneDrive")
+        if od:
+            out.append(("OneDrive", od))
+        try:
+            for pr in self.list_projects():
+                out.append(("📁 " + pr["name"], pr["path"]))
+        except Exception:
+            pass
+        uniq = []
+        for n, p in out:
+            k = str(Path(p).resolve()).lower()
+            if k not in seen:
+                seen.add(k)
+                uniq.append((n, p))
+        return uniq
+
+    def upload_dir(self):
+        return Path(known_folder("Downloads") or HOME / "Downloads") / "Jarvis Uploads"
+
+    def _phone_notify(self, title, body, tag="jarvis"):
+        if self._web:
+            threading.Thread(target=self._web.notify, args=(title, body, tag), daemon=True).start()
+
     def _pgit(self, *args, timeout=25):
         p = self._project
         return subprocess.run(["git", "-C", str(p), *args], capture_output=True, text=True, encoding="utf-8",
@@ -2892,6 +2925,7 @@ class Api:
                     self._prayer_done.add((today, nxt[0]))
                     self._window.evaluate_js(
                         f"window.onPrayer && window.onPrayer({json.dumps({'name': nxt[0], 'time': nxt[1], 'mins': nxt[2] + 1})})")
+                    self._phone_notify(f"{nxt[0]} · {nxt[1]}", f"{nxt[2] + 1} min lagi masuk waktu {nxt[0]}", "prayer")
             except Exception:
                 pass
 
