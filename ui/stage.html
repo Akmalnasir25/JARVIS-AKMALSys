@@ -772,54 +772,144 @@ main.stage-wrap {
    ───────────────────────────────────────────────────────────── */
 .orb-tasks {
   position: absolute;
-  left: calc(50% + 108px); top: 50%;
-  transform: translateY(-50%);
-  width: min(300px, calc(50% - 118px));
-  min-width: 168px;
+  left: calc(50% + 108px); top: 0; bottom: 0;
+  justify-content: safe center; overflow: hidden;
+  width: calc(min(300px, calc(50% - 118px)) + 80px);
+  min-width: 248px;
   margin: 0; padding: 0;
   list-style: none;
   display: flex; flex-direction: column; gap: 5px;
   pointer-events: none;
+  padding-left: 80px; margin-left: -80px;   /* ruang untuk pancaran dari orb (overflow:hidden) */
 }
 .orb-tasks:empty { display: none; }
 .orbt {
+  /* warna kad ikut jenis kerja; --k ialah hue */
+  --k: 190;
+  position: relative;
   display: grid;
-  grid-template-columns: 14px minmax(0,1fr);
-  align-items: start; gap: 7px;
-  padding: 6px 8px 7px;
-  background: rgba(9, 4, 20, .80);
-  border: 1px solid var(--line-soft);
-  border-left: 2px solid hsl(var(--hue) 100% 74% / .55);
-  animation: orbtIn .18s ease-out;
-  transition: opacity .3s, border-left-color .3s;
+  grid-template-columns: 26px minmax(0,1fr);
+  align-items: start; gap: 9px;
+  padding: 8px 10px 9px 9px;
+  background:
+    linear-gradient(100deg, hsl(var(--k) 90% 55% / .16), hsl(var(--k) 90% 40% / .04) 55%, rgba(8, 4, 18, .55)),
+    rgba(8, 4, 18, .78);
+  border: 1px solid hsl(var(--k) 90% 70% / .22);
+  box-shadow: inset 0 0 18px hsl(var(--k) 100% 60% / .08);
+  animation: orbtIn .32s cubic-bezier(.2,.9,.25,1.15);
+  transition: opacity .35s, filter .35s;
 }
-@keyframes orbtIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
-.orbt.done {
-  opacity: .42;
-  border-left-color: var(--ok);
+.orbt.k-search { --k: 190; }
+.orbt.k-file   { --k: 268; }
+.orbt.k-code   { --k: 36; }
+.orbt.k-app    { --k: 150; }
+.orbt.k-gauge  { --k: 320; }
+.orbt.k-folder { --k: 210; }
+.orbt.k-web    { --k: 190; }
+/* baris laman: ikon sebenar + domain, supaya nampak laman mana yang dibuka */
+.orbt-site { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; max-height: 38px; overflow: hidden; }
+/* kad lama yang siap: ringkas, supaya kad semasa tak ditolak keluar */
+.orbt.done ~ .orbt.done .orbt-items,
+.orbt.done ~ .orbt.done .orbt-sub { display: none; }
+.orbt.done ~ .orbt.done .orbt-site { max-height: 17px; }
+.orbt-site:empty { display: none; }
+.orbt-site .chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  padding: 2px 7px 2px 3px; border-radius: 10px;
+  font: 500 8.5px/1.4 var(--font-mono); color: hsl(var(--k) 90% 88%);
+  text-transform: none; letter-spacing: .02em;
+  background: hsl(var(--k) 90% 60% / .12);
+  box-shadow: inset 0 0 0 1px hsl(var(--k) 90% 70% / .28);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  animation: chipIn .3s ease-out;
 }
-.orbt.failed { border-left-color: var(--bad); }
-.orbt.done .orbt-main { color: var(--ink-faint); }
+.orbt-site .chip img { width: 12px; height: 12px; border-radius: 3px; flex: none; background: #fff1; }
+@keyframes chipIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.orb-ico.site { background: radial-gradient(circle, #ffffff 0 9px, hsl(var(--k) 100% 60% / .25) 10px, transparent 70%); }
+.orb-ico.site img { width: 15px; height: 15px; }
+/* kurungan sudut HUD */
+.orbt::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(hsl(var(--k) 100% 75%), hsl(var(--k) 100% 75%)) left top / 9px 1.5px no-repeat,
+    linear-gradient(hsl(var(--k) 100% 75%), hsl(var(--k) 100% 75%)) left top / 1.5px 9px no-repeat,
+    linear-gradient(hsl(var(--k) 100% 75%), hsl(var(--k) 100% 75%)) right bottom / 9px 1.5px no-repeat,
+    linear-gradient(hsl(var(--k) 100% 75%), hsl(var(--k) 100% 75%)) right bottom / 1.5px 9px no-repeat;
+  opacity: .85;
+}
+@keyframes orbtIn {
+  from { opacity: 0; transform: translateX(-18px) scale(.96); filter: brightness(2.2); }
+  to   { opacity: 1; transform: none; filter: none; }
+}
+/* pancaran dari orb ke kad yang aktif: garis + titik yang mengalir */
+.orbt-beam {
+  position: absolute; right: 100%; top: 50%; width: 74px; height: 1px; margin-right: 1px;
+  background: linear-gradient(90deg, transparent, hsl(var(--k) 100% 70% / .75));
+  pointer-events: none;
+}
+.orbt-beam::after {
+  content: ""; position: absolute; top: -2px; left: 0; width: 5px; height: 5px; border-radius: 50%;
+  background: hsl(var(--k) 100% 80%); box-shadow: 0 0 8px hsl(var(--k) 100% 65%);
+  animation: beamRun 1.1s linear infinite;
+}
+@keyframes beamRun { from { left: 0; opacity: 0; } 20% { opacity: 1; } to { left: 100%; opacity: .2; } }
+.orbt.done .orbt-beam { display: none; }
+/* bar imbasan di kaki kad semasa kerja berjalan */
+.orbt-scan {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2px; overflow: hidden;
+  background: hsl(var(--k) 100% 70% / .10);
+}
+.orbt-scan::before {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 40%;
+  background: linear-gradient(90deg, transparent, hsl(var(--k) 100% 72%), transparent);
+  animation: scanRun 1.25s ease-in-out infinite;
+}
+@keyframes scanRun { from { left: -40%; } to { left: 100%; } }
+.orbt.done .orbt-scan { display: none; }
+.orbt.done { opacity: .5; filter: saturate(.55); }
+.orbt.done .orbt-main { color: var(--ink-dim); }
+.orbt.failed { --k: 0; opacity: .75; filter: none; }
+/* lencana ikon */
 .orb-ico {
-  width: 14px; height: 14px; margin-top: 1px;
+  position: relative;
+  width: 26px; height: 26px; border-radius: 50%;
   display: grid; place-items: center;
-  color: var(--cyan);
+  color: hsl(var(--k) 100% 78%);
+  background: radial-gradient(circle, hsl(var(--k) 100% 60% / .28), hsl(var(--k) 100% 40% / .06) 70%);
+  box-shadow: 0 0 0 1px hsl(var(--k) 100% 70% / .35), 0 0 12px hsl(var(--k) 100% 60% / .30);
 }
-.orb-ico svg { width: 100%; height: 100%; }
-.orb-ico img { width: 13px; height: 13px; object-fit: contain; }
-.orbt.done .orb-ico { position: relative; }
-/* titik status di sudut ikon: favicon laman itu kekal, jadi baris yang siap
-   masih boleh dikenali sebagai "carian web tadi", bukan baris kosong */
+.orb-ico svg { width: 13px; height: 13px; }
+.orb-ico img { width: 14px; height: 14px; object-fit: contain; border-radius: 3px; }
+/* cincin berputar semasa aktif */
+.orb-ico::before {
+  content: ""; position: absolute; inset: -4px; border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: hsl(var(--k) 100% 75%);
+  border-right-color: hsl(var(--k) 100% 75% / .35);
+  animation: spSpin .9s linear infinite;
+}
+.orbt.done .orb-ico::before { display: none; }
+/* tanda siap / gagal di sudut ikon: ikon (favicon) kekal supaya baris
+   yang siap masih boleh dikenali sebagai "carian web tadi" */
 .orbt.done .orb-ico::after {
-  content: ""; position: absolute; right: -3px; bottom: -3px;
-  width: 6px; height: 6px; border-radius: 50%;
+  content: "✓"; position: absolute; right: -4px; bottom: -4px;
+  width: 12px; height: 12px; border-radius: 50%;
+  display: grid; place-items: center;
+  font: 700 8px/1 var(--font-mono); color: #04140c;
   background: var(--ok); box-shadow: 0 0 6px hsl(150 90% 60% / .75);
 }
-.orbt.failed .orb-ico::after { background: var(--bad); box-shadow: 0 0 6px hsl(0 90% 62% / .75); }
+.orbt.failed .orb-ico::after { content: "✕"; background: var(--bad); color: #1a0404; box-shadow: 0 0 6px hsl(0 90% 62% / .75); }
+.orbt-head { display: flex; align-items: center; gap: 6px; }
+.orbt-step { font: 600 7px/1 var(--font-mono); color: hsl(var(--k) 100% 75%); letter-spacing: .08em; }
+.orbt-time {
+  margin-left: auto; font: 500 8px/1 var(--font-mono); color: hsl(var(--k) 100% 82%);
+  font-variant-numeric: tabular-nums;
+}
+.orbt.done .orbt-time { color: var(--ink-faint); }
 .orbt-body { min-width: 0; }
 .orbt-kind {
   font: 600 6.8px/1 var(--font-mono); letter-spacing: .26em;
-  text-transform: uppercase; color: var(--ink-faint);
+  text-transform: uppercase; color: hsl(var(--k) 60% 78% / .8);
 }
 .orbt-main {
   margin-top: 3px;
@@ -838,25 +928,31 @@ main.stage-wrap {
   font: 400 8.5px/1.55 var(--font-mono); color: var(--ink-faint);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.orbt-items .it::before { content: "· "; opacity: .6; }
+.orbt-items { counter-reset: it; }
+.orbt-items .it { counter-increment: it; }
+.orbt-items .it::before { content: counter(it, decimal-leading-zero) " "; color: hsl(var(--k) 100% 72% / .7); }
 .orbt-items .it.dir::before { content: "▸ "; color: hsl(var(--alt) 80% 72% / .85); }
 /* a result with somewhere to go reads as a link, not a label */
 .orbt-items .it.link {
-  cursor: pointer; color: hsl(var(--hue) 90% 82%);
+  cursor: pointer; color: hsl(var(--k) 90% 84%);
   border-radius: 3px; padding: 0 3px; margin: 0 -3px;
   transition: background .14s ease-out, color .14s ease-out;
 }
 .orbt-items .it.link:hover,
 .orbt-items .it.link:focus-visible {
-  background: hsl(var(--hue) 100% 70% / .16);
-  color: hsl(var(--hue) 100% 92%); outline: none;
+  background: hsl(var(--k) 100% 70% / .16);
+  color: hsl(var(--k) 100% 92%); outline: none;
 }
-.orbt-items .it.link::before { content: "▾ "; color: hsl(var(--alt) 90% 74% / .9); }
+.orbt-items .it.link::before { content: counter(it, decimal-leading-zero) " "; color: hsl(var(--k) 100% 75%); }
+.orbt-items .it img { width: 10px; height: 10px; margin-right: 4px; vertical-align: -1px; border-radius: 2px; }
 
 /* satu orb sahaja pada satu masa — bila senarai wujud, orb bergeser kiri
    supaya dua-dua dapat ruang, bukan bertindih */
 .orb-box.has-tasks #orb { transform: translateX(-72px); }
 #orb { transition: transform .3s ease-out; }
+/* label STANDBY/THINKING di bawah orb ikut anjakan yang sama, supaya kekal di tengah orb */
+.core-state { transition: transform .3s ease-out; }
+.core-body:has(> .orb-box.has-tasks:not(.has-trace)) > .core-state { transform: translateX(-72px); }
 
 /* ── TETAPAN: satu sheet, bukan modal terapung ──
    Tiada backdrop-filter: ia menelan GPU pada panel 1080p dan menjadikan
@@ -1015,7 +1111,7 @@ main.stage-wrap {
 /* Bila trace ada, orb kekal di tengah (tiada anjakan .has-tasks) dan kedua-dua senarai duduk
    di luar gelang luar orb (~135px dari tengah), satu di kiri, satu di kanan. */
 .orb-box.has-trace #orb { transform: none; }
-.orb-box.has-trace .orb-tasks { left: calc(50% + 142px); width: min(300px, calc(50% - 150px)); }
+.orb-box.has-trace .orb-tasks { left: calc(50% + 142px); width: calc(min(300px, calc(50% - 150px)) + 80px); }
 .orb-box > .trace {
   position: absolute; z-index: 2;
   right: calc(50% + 142px); top: 50%;
@@ -2374,9 +2470,119 @@ nav.rail {
 }
 .ib-toggle input:checked { background: hsl(var(--hue) 100% 74% / .30); border-color: var(--line-hard); }
 .ib-toggle input:checked::after { transform: translateX(11px); background: var(--accent-2); }
+
+/* ── SKRIN PERMULAAN: akmalsys.com ──────────────────────────────────
+   Muncul pada cat pertama, sebelum jambatan Python sedia. Bar kemajuan
+   ikut langkah boot() yang sebenar, bukan pemasa palsu. Hilang sendiri
+   bila semua siap (atau selepas 15 s, supaya tak pernah menghalang). */
+#splash {
+  position: fixed; inset: 0; z-index: 9999;
+  display: grid; place-items: center;
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(120, 60, 200, .28), transparent 60%),
+    radial-gradient(ellipse at 50% 100%, rgba(255, 150, 40, .10), transparent 55%),
+    #07040f;
+  transition: opacity .6s ease, visibility .6s;
+  font-family: var(--font-display);
+}
+#splash.out { opacity: 0; visibility: hidden; pointer-events: none; }
+.sp-box { display: flex; flex-direction: column; align-items: center; width: min(440px, 86vw); }
+.sp-mark { position: relative; width: 150px; height: 150px; display: grid; place-items: center; margin-bottom: 22px; }
+.sp-mark img { width: 84px; height: auto; position: relative; z-index: 2;
+  filter: drop-shadow(0 0 18px rgba(80, 170, 255, .55)); animation: spPulse 2.4s ease-in-out infinite; }
+.sp-ring { position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 55%, rgba(255, 179, 64, .9) 75%, rgba(120, 220, 255, .95) 92%, transparent);
+  -webkit-mask: radial-gradient(circle, transparent 66px, #000 67px, #000 70px, transparent 71px);
+          mask: radial-gradient(circle, transparent 66px, #000 67px, #000 70px, transparent 71px);
+  animation: spSpin 1.4s linear infinite; }
+.sp-ring.r2 { inset: 14px; animation-duration: 2.6s; animation-direction: reverse;
+  background: conic-gradient(from 90deg, transparent 0 60%, rgba(190, 120, 255, .85) 85%, transparent);
+  -webkit-mask: radial-gradient(circle, transparent 52px, #000 53px, #000 55px, transparent 56px);
+          mask: radial-gradient(circle, transparent 52px, #000 53px, #000 55px, transparent 56px); }
+.sp-ticks { position: absolute; inset: -8px; border-radius: 50%;
+  background: repeating-conic-gradient(rgba(170, 225, 250, .35) 0 1deg, transparent 1deg 6deg);
+  -webkit-mask: radial-gradient(circle, transparent 78px, #000 79px, #000 83px, transparent 84px);
+          mask: radial-gradient(circle, transparent 78px, #000 79px, #000 83px, transparent 84px);
+  animation: spSpin 20s linear infinite; }
+.sp-title { font-weight: 600; font-size: 26px; letter-spacing: .55em; padding-left: .55em; color: #e2f4fb;
+  text-shadow: 0 0 22px rgba(120, 210, 255, .6); }
+.sp-sub { margin-top: 8px; font-size: 10.5px; letter-spacing: .38em; padding-left: .38em; text-transform: uppercase;
+  background: linear-gradient(90deg, #7fd8ff, #c79bff, #ffb340); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sp-bar { position: relative; width: 100%; height: 6px; margin-top: 34px; border-radius: 6px; overflow: hidden;
+  background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 1px rgba(150, 210, 240, .14); }
+.sp-fill { position: absolute; inset: 0 auto 0 0; width: 0%; border-radius: 6px;
+  background: linear-gradient(90deg, #39c6ff, #a46bff 55%, #ffb340);
+  box-shadow: 0 0 14px rgba(164, 107, 255, .7), 0 0 26px rgba(255, 179, 64, .35);
+  transition: width .45s cubic-bezier(.2, .8, .2, 1); }
+.sp-fill::after { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .55), transparent);
+  transform: translateX(-100%); animation: spSheen 1.3s ease-in-out infinite; }
+.sp-row { display: flex; justify-content: space-between; width: 100%; margin-top: 10px;
+  font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: #85a3b1; }
+.sp-row b { color: #ffb340; font-weight: 600; letter-spacing: .1em; }
+.sp-log { width: 100%; margin-top: 14px; height: 48px; overflow: hidden; font-family: Consolas, monospace;
+  font-size: 10.5px; line-height: 16px; color: rgba(160, 200, 220, .55); }
+.sp-log div::before { content: "› "; color: #a46bff; }
+.sp-log div:last-child { color: rgba(220, 240, 250, .85); }
+@keyframes spSpin { to { transform: rotate(360deg); } }
+@keyframes spPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+@keyframes spSheen { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .sp-ring, .sp-ticks, .sp-mark img, .sp-fill::after { animation: none; } }
 </style>
 </head>
 <body>
+
+<div id="splash" role="progressbar" aria-label="Jarvis sedang dimulakan" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+  <div class="sp-box">
+    <div class="sp-mark">
+      <div class="sp-ticks"></div>
+      <div class="sp-ring"></div>
+      <div class="sp-ring r2"></div>
+      <img src="ui/logo.png" alt="Akmal Systems">
+    </div>
+    <div class="sp-title">J.A.R.V.I.S</div>
+    <div class="sp-sub">Akmal Systems · akmalsys.com</div>
+    <div class="sp-bar"><div class="sp-fill" id="spFill"></div></div>
+    <div class="sp-row"><span id="spStep">Memulakan antara muka</span><b id="spPct">0%</b></div>
+    <div class="sp-log" id="spLog"></div>
+  </div>
+</div>
+<script>
+/* bootStep(pct, teks): dipanggil oleh boot() pada setiap langkah sebenar.
+   Bar tak pernah undur. 100 = siap -> pudar keluar selepas sekurang-kurangnya
+   1.2 s di skrin, supaya ia tak sekadar berkelip. */
+(function () {
+  const t0 = Date.now();
+  let cur = 0, done = false;
+  const $ = (id) => document.getElementById(id);
+  window.bootStep = function (pct, text) {
+    if (done) return;
+    cur = Math.max(cur, Math.min(100, pct));
+    const f = $('spFill'), p = $('spPct'), st = $('spStep'), lg = $('spLog'), sp = $('splash');
+    if (!sp) return;
+    f.style.width = cur + '%';
+    p.textContent = Math.round(cur) + '%';
+    sp.setAttribute('aria-valuenow', String(Math.round(cur)));
+    if (text) {
+      st.textContent = text;
+      const d = document.createElement('div');
+      d.textContent = text;
+      lg.appendChild(d);
+      while (lg.children.length > 3) lg.removeChild(lg.firstChild);
+    }
+    if (cur >= 100) {
+      done = true;
+      setTimeout(() => {
+        sp.classList.add('out');
+        setTimeout(() => sp.remove(), 700);
+      }, Math.max(350, 1200 - (Date.now() - t0)));
+    }
+  };
+  bootStep(8, 'Memulakan antara muka');
+  // jaring keselamatan: jangan sesekali halang HUD
+  setTimeout(() => window.bootStep(100, 'Sedia'), 15000);
+})();
+</script>
 
 <canvas id="bg" aria-hidden="true"></canvas>
 <div class="floor" aria-hidden="true"></div>
@@ -3759,7 +3965,7 @@ nav.rail {
          fast enough to see, roughly four times the idle rate, so the state is
          legible from movement alone even before the colour shift. Speaking
          slows right down — it is talking, not scanning. */
-      const spin = thinking ? 0.070 : speaking ? 0.004 : listening ? 0.008 : 0.006;
+      const spin = thinking ? 0.120 : speaking ? 0.004 : listening ? 0.008 : 0.006;
       t += spin;
 
       // level smoothing, faster attack than release
@@ -3770,6 +3976,11 @@ nav.rail {
       // thinking: 0..1 sweep, climbs and repeats
       SP.hot += thinking ? 0.014 : -0.03;
       SP.hot = Math.max(0, Math.min(1, SP.hot));
+
+      /* thinking: geometri luar mengembang dan berpecah sambil pusing; selepas
+         siap ia bercantum semula. Pecah cepat (~1 s), cantum perlahan (~1.5 s). */
+      SP.ox = (SP.ox || 0) + ((thinking ? 1 : 0) - (SP.ox || 0)) * (thinking ? 0.045 : 0.03);
+      const OX = SP.ox * SP.ox * (3 - 2 * SP.ox);
 
       g.clearRect(0, 0, w, h);
 
@@ -3922,7 +4133,7 @@ nav.rail {
             raised to a power. That is what a machined collar does: it throws a
             bright band where the facets face the light and goes dark a quarter
             turn later. */
-      const bezIn = R * 0.795, bezOut = R * 0.845;
+      const bezIn = R * 0.795 * (1 + OX * 0.10), bezOut = R * 0.845 * (1 + OX * 0.10);
       const bezSeg = 96;
       for (let i = 0; i < bezSeg; i++) {
         const a0 = (i / bezSeg) * TAU;
@@ -3967,7 +4178,7 @@ nav.rail {
       /* ── 4 · the channel and the scale band ───────────────────────────
             A real groove: a dark well, then the band standing in it, then a
             bright lip on the lamp side and shadow on the far side. */
-      const scaleR = R * 0.537;
+      const scaleR = R * 0.537 * (1 + OX * 0.06);
       const wellR = scaleR * 1.075;
       const well = g.createRadialGradient(cx, cy, scaleR * 0.94, cx, cy, wellR * 1.03);
       well.addColorStop(0,   'rgba(0,4,8,0.90)');
@@ -4043,7 +4254,7 @@ nav.rail {
       /* ── 5 · the amber arc ─────────────────────────────────────────────
             One warm marking, the only non-cyan thing on the face. Lit along
             the lamp edge, shadowed on the far edge. */
-      const amberR = R * 0.575;
+      const amberR = R * 0.575 * (1 + OX * 0.09);
       const amberA0 = Math.PI * (150 / 180);
       const amberSpan = Math.PI * (56 / 180);
       const creep = speaking ? SP.rms * 0.30 : 0;
@@ -4089,17 +4300,20 @@ nav.rail {
       /* ── 6 · the crown ─────────────────────────────────────────────────
             The outer tick ring, tallest thing on the face: a batched shadow
             pass under a batched lit pass, then the two rims. */
-      const cIn = R * 0.900, cOut = R * 0.988;
+      const cIn = R * 0.900 * (1 + OX * 0.15), cOut = R * 0.988 * (1 + OX * 0.15);
       const crownN = 90;
-      const crownRot = t * 0.24;
+      const crownRot = t * 0.24 + OX * 0.9;
+      // segmen crown berselang-seli keluar/masuk semasa berpecah
+      const crownOff = (i) => OX * R * 0.045 * ((Math.floor(i / 9) % 2) ? 1 : -0.6);
       g.beginPath();
       for (let i = 0; i < crownN; i++) {
         const a = (i / crownN) * TAU + crownRot;
         const long = i % 5 === 0;
         const ca = Math.cos(a), sa = Math.sin(a);
-        const r1 = long ? cIn : cIn + (cOut - cIn) * 0.50;
+        const co = crownOff(i);
+        const r1 = (long ? cIn : cIn + (cOut - cIn) * 0.50) + co;
         g.moveTo(cx + ca * r1 + 0.55, cy + sa * r1 + 0.55);
-        g.lineTo(cx + ca * cOut + 0.55, cy + sa * cOut + 0.55);
+        g.lineTo(cx + ca * (cOut + co) + 0.55, cy + sa * (cOut + co) + 0.55);
       }
       g.strokeStyle = 'rgba(0,6,11,0.52)';
       g.lineWidth = 1.2; g.stroke();
@@ -4108,7 +4322,8 @@ nav.rail {
         const a = (i / crownN) * TAU + crownRot;
         const long = i % 5 === 0;
         const ca = Math.cos(a), sa = Math.sin(a);
-        const r1 = long ? cIn : cIn + (cOut - cIn) * 0.50;
+        const co = crownOff(i);
+        const r1 = (long ? cIn : cIn + (cOut - cIn) * 0.50) + co;
         const fa = facing(a);
         const band4 = speaking ? barAt(a) : 0;
         const lum = ((long ? 0.86 : 0.44) + band4 * 0.56 + SP.rms * 0.16
@@ -4116,17 +4331,17 @@ nav.rail {
                   * (0.55 + 0.45 * (0.5 + 0.5 * fa));
         g.beginPath();
         g.moveTo(cx + ca * r1 - 0.30, cy + sa * r1 - 0.30);
-        g.lineTo(cx + ca * cOut - 0.30, cy + sa * cOut - 0.30);
+        g.lineTo(cx + ca * (cOut + co) - 0.30, cy + sa * (cOut + co) - 0.30);
         g.strokeStyle = 'rgba(200,246,255,' + Math.min(0.96, lum) + ')';
         g.lineWidth = long ? 1.45 : 0.8;
         g.stroke();
       }
       g.beginPath(); g.arc(cx - clx * 0.7, cy - cly * 0.7, cIn, 0, TAU);
-      g.strokeStyle = 'rgba(210,246,255,0.34)'; g.lineWidth = 0.9; g.stroke();
+      g.strokeStyle = 'rgba(210,246,255,' + (0.34 * (1 - OX * 0.8)) + ')'; g.lineWidth = 0.9; g.stroke();
       g.beginPath(); g.arc(cx + clx * 0.7, cy + cly * 0.7, cOut, 0, TAU);
       g.strokeStyle = 'rgba(0,6,11,0.46)'; g.lineWidth = 1.1; g.stroke();
       g.beginPath(); g.arc(cx - clx * 0.7, cy - cly * 0.7, cOut, 0, TAU);
-      g.strokeStyle = 'rgba(220,250,255,0.30)'; g.lineWidth = 0.8; g.stroke();
+      g.strokeStyle = 'rgba(220,250,255,' + (0.30 * (1 - OX * 0.8)) + ')'; g.lineWidth = 0.8; g.stroke();
 
       /* ── 7 · speaking: the spectrum ────────────────────────────────────
             Each bar runs from a dim root to a bright tip. Nothing added over
@@ -4251,6 +4466,136 @@ nav.rail {
       seat.addColorStop(1,    'rgba(88,168,198,0)');
       g.fillStyle = seat;
       g.beginPath(); g.arc(cx, cy, seatR, 0, TAU); g.fill();
+
+      /* ── 10b · sfera minda JARVIS (ala Age of Ultron) ────────────────────
+             Sfera emas 3D daripada jalur cahaya melengkung pada paksi rawak,
+             garis data pendek di permukaan, dan pusaran terang di tengah.
+             Berputar dalam 3D; depan terang, belakang malap. Dilukis 'lighter'
+             supaya jalur yang bertindih menyala. Tenang semasa standby, laju
+             dan marak semasa thinking, berdenyut ikut suara semasa speaking. */
+      {
+        const SR = R * 0.39;
+        const heat = thinking ? 0.55 + 0.45 * TINT
+                   : speaking ? 0.42 + Math.min(0.58, SP.rms * 2.2)
+                   : listening ? 0.36 + lvl * 0.5 : 0.26;
+        let U = SP._uni;
+        if (!U) {
+          const rnd = Math.random, strands = [], dash = [];
+          const unit = () => { const z = rnd() * 2 - 1, a = rnd() * TAU, r = Math.sqrt(1 - z * z);
+                               return [Math.cos(a) * r, Math.sin(a) * r, z]; };
+          const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+          const norm = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+          for (let i = 0; i < 150; i++) {
+            const n = unit();
+            const e1 = norm(cross(n, Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]));
+            const e2 = cross(n, e1);
+            // kebanyakan bulatan besar, sesetengah bulatan kecil (lapisan dalam)
+            const c = rnd() < 0.6 ? (rnd() - 0.5) * 0.5 : (rnd() - 0.5) * 1.6;
+            strands.push({ n, e1, e2, c, r: Math.sqrt(Math.max(0.05, 1 - c * c)),
+              rad: 0.55 + Math.pow(rnd(), 0.5) * 0.52,        // ada yang di dalam, ada yang terkeluar sedikit
+              u0: rnd() * TAU, len: 0.25 + rnd() * 1.3, spd: (rnd() - 0.5) * 0.03,
+              w: 0.4 + rnd() * 1.3, b: 0.35 + rnd() * 0.65, ph: rnd() * TAU,
+              burst: 0.15 + rnd() * 0.55,                       // sejauh mana jalur ini terpelanting semasa thinking
+              tw: (rnd() - 0.5) * 2.4 });                       // pusingan sendiri semasa terpecah
+          }
+          for (let i = 0; i < 260; i++) {
+            dash.push({ p: unit(), burst: 0.2 + rnd() * 0.6, rad: 0.7 + rnd() * 0.38, l: 0.04 + rnd() * 0.10, ph: rnd() * TAU, f: 1 + rnd() * 4 });
+          }
+          U = SP._uni = { strands, dash, yaw: 0, tm: 0, exp: 0 };
+        }
+        U.yaw += thinking ? 0.090 : 0.004 + heat * 0.030;   // thinking: sfera pusing laju
+        U.tm += 0.016 + heat * 0.03;
+        // thinking: sfera berpecah dan kembang; selepas itu bercantum semula ke bentuk asal
+        U.exp += ((thinking ? 1 : 0) - U.exp) * (thinking ? 0.045 : 0.03);
+        const EX = U.exp * U.exp * (3 - 2 * U.exp);              // smoothstep
+        const pitch = 0.38 + Math.sin(U.tm * 0.21) * 0.10;
+        const cyw = Math.cos(U.yaw), syw = Math.sin(U.yaw), cp = Math.cos(pitch), spp = Math.sin(pitch);
+        const P = (x, y, z, rad) => {        // putar (yaw lalu pitch), unjur ortografik
+          const x1 = x * cyw + z * syw, z1 = -x * syw + z * cyw;
+          const y2 = y * cp - z1 * spp, z2 = y * spp + z1 * cp;
+          return [cx + x1 * SR * rad, cy + y2 * SR * rad, z2];
+        };
+        const breathe = 1 + (speaking ? SP.rms * 0.18 : 0) + Math.sin(U.tm * 1.3) * 0.012;
+
+        g.save();
+        g.globalCompositeOperation = 'lighter';
+        g.lineCap = 'round';
+
+        // jerebu emas di dalam sfera
+        const haze = g.createRadialGradient(cx, cy, 0, cx, cy, SR * (1.15 + EX * 0.45));
+        haze.addColorStop(0,    'rgba(255,196,90,' + (0.16 + heat * 0.20) + ')');
+        haze.addColorStop(0.45, 'rgba(255,150,40,' + (0.06 + heat * 0.08) + ')');
+        haze.addColorStop(1,    'rgba(255,120,20,0)');
+        g.fillStyle = haze;
+        g.beginPath(); g.arc(cx, cy, SR * (1.15 + EX * 0.45), 0, TAU); g.fill();
+
+        // jalur cahaya
+        for (const s of U.strands) {
+          s.u0 += s.spd * (thinking ? 4 : 0.5 + heat * 1.5);
+          const flick = 0.65 + 0.35 * Math.sin(U.tm * 2.2 + s.ph);
+          const segs = Math.max(4, Math.round(s.len * 9));
+          const rad = s.rad * breathe * (1 + EX * s.burst);
+          const uOff = EX * s.tw * (1 + 0.3 * Math.sin(U.tm * 1.7 + s.ph));
+          const lenK = 1 - EX * 0.35;                               // jalur jadi serpihan lebih pendek
+          let zsum = 0;
+          g.beginPath();
+          for (let j = 0; j <= segs; j++) {
+            const u = s.u0 + uOff + (j / segs) * s.len * lenK, cu = Math.cos(u) * s.r, su = Math.sin(u) * s.r;
+            const x = s.n[0] * s.c + s.e1[0] * cu + s.e2[0] * su;
+            const y = s.n[1] * s.c + s.e1[1] * cu + s.e2[1] * su;
+            const z = s.n[2] * s.c + s.e1[2] * cu + s.e2[2] * su;
+            const q = P(x, y, z, rad);
+            zsum += q[2];
+            if (j) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]);
+          }
+          const depth = 0.5 + 0.5 * (zsum / (segs + 1));            // 0 belakang .. 1 depan
+          const a = s.b * flick * (0.12 + depth * 0.88) * (0.45 + heat * 0.75);
+          g.strokeStyle = 'rgba(255,150,36,' + (a * 0.28) + ')';     // cahaya lebar
+          g.lineWidth = s.w * 3.6;
+          g.stroke();
+          g.strokeStyle = depth > 0.72 && s.b > 0.75
+            ? 'rgba(255,236,170,' + Math.min(1, a * 1.1) + ')'        // jalur paling depan hampir putih
+            : 'rgba(255,190,72,' + Math.min(1, a) + ')';
+          g.lineWidth = s.w;
+          g.stroke();
+        }
+
+        // garis data pendek di permukaan, mengalir mendatar ikut putaran
+        g.lineWidth = 1;
+        for (const d of U.dash) {
+          const on = 0.5 + 0.5 * Math.sin(U.tm * d.f + d.ph);
+          if (on < 0.25) continue;
+          const dr = d.rad * breathe * (1 + EX * d.burst);
+          const a1 = P(d.p[0], d.p[1], d.p[2], dr);
+          const tx = -d.p[2], tz = d.p[0], tl = Math.hypot(tx, tz) || 1;
+          const a2 = P(d.p[0] + tx / tl * d.l, d.p[1], d.p[2] + tz / tl * d.l, dr);
+          const depth = 0.5 + 0.5 * a1[2];
+          g.strokeStyle = 'rgba(255,214,120,' + (on * (0.10 + depth * 0.75) * (0.5 + heat * 0.6)) + ')';
+          g.beginPath(); g.moveTo(a1[0], a1[1]); g.lineTo(a2[0], a2[1]); g.stroke();
+        }
+
+        // pusaran di tengah: beberapa lingkaran berpilin
+        for (let k = 0; k < 4; k++) {
+          const base = -U.yaw * 2.4 + k * (TAU / 4);
+          g.beginPath();
+          for (let j = 0; j <= 26; j++) {
+            const f = j / 26, ang = base + f * 3.4, rr = SR * (0.08 + f * 0.36);
+            const px = cx + Math.cos(ang) * rr, py = cy + Math.sin(ang) * rr * 0.86;
+            if (j) g.lineTo(px, py); else g.moveTo(px, py);
+          }
+          g.strokeStyle = 'rgba(255,200,90,' + (0.10 + heat * 0.30) + ')';
+          g.lineWidth = 1.1 + heat * 0.9;
+          g.stroke();
+        }
+        const knot = g.createRadialGradient(cx, cy, 0, cx, cy, SR * 0.26);
+        knot.addColorStop(0,   'rgba(255,244,200,' + (0.30 + heat * 0.40) + ')');
+        knot.addColorStop(0.5, 'rgba(255,176,60,'  + (0.12 + heat * 0.18) + ')');
+        knot.addColorStop(1,   'rgba(255,140,30,0)');
+        g.fillStyle = knot;
+        g.beginPath(); g.arc(cx, cy, SR * 0.26, 0, TAU); g.fill();
+
+        g.restore();
+      }
 
       /* the mark itself. Its rim is cold and its body is blue, so it reads as
          part of the instrument; the warm states lift it only slightly, because
@@ -6301,8 +6646,15 @@ nav.rail {
     Control: 'controlling system', System: 'controlling system',
     Media: 'checking media', Prayer: 'checking prayer times', Weather: 'checking weather',
     Gmail: 'reading mail', Drive: 'checking drive', Reminder: 'checking reminders',
-    Memory: 'saving note', Note: 'saving note'
+    Memory: 'saving note', Note: 'saving note',
+    YouTube: 'opening YouTube', Chrome: 'controlling Chrome', Browser: 'browsing in Chrome',
+    Telegram: 'reading Telegram', 'TG Files': 'searching Telegram', 'TG Send': 'drafting message'
   };
+  /* tool MCP (Claude dalam Chrome, Drive, Gmail) datang dengan nama panjang */
+  const toolLabel = (n) => TOOL_LABEL[n] ||
+    (/claude-in-chrome/.test(n) ? (/navigate/.test(n) ? 'opening page' : /computer|form|click/.test(n) ? 'clicking in page'
+       : /read_page|get_page_text|find/.test(n) ? 'reading page' : 'browsing in Chrome')
+     : /Google_Drive/.test(n) ? 'checking drive' : /Gmail/.test(n) ? 'reading mail' : null);
 
   const orbTasks = (() => {
     const el = document.getElementById('orbTasks');
@@ -6332,8 +6684,94 @@ nav.rail {
       Open: 'app', Launch: 'app', Focus: 'app', Screen: 'app',
       Status: 'gauge', Control: 'gauge', System: 'gauge',
       Media: 'file', Prayer: 'gauge', Weather: 'gauge',
-      Gmail: 'file', Drive: 'folder', Reminder: 'gauge'
+      Gmail: 'file', Drive: 'folder', Reminder: 'gauge',
+      YouTube: 'web', Chrome: 'web', Browser: 'web', WebFetch: 'web',
+      Telegram: 'web', 'TG Files': 'web', 'TG Send': 'web'
     };
+
+    const KIND_LABEL = { search: 'search', folder: 'folder', file: 'file', app: 'app', gauge: 'system', code: 'code', web: 'web' };
+
+    /* Laman sebenar di sebalik satu tool: ikon jenama + domain + warna kad.
+       Dari nama tool (YouTube, Drive, Gmail, Telegram, MCP Chrome/Drive) atau
+       dari URL/domain dalam butiran. Carian web tiada laman sehingga hasil
+       sampai — waktu itu kad tunjuk domain sumber sebenar (lihat items()). */
+    const BRAND = {
+      'youtube.com': { name: 'YouTube', hue: 0 },
+      'drive.google.com': { name: 'Google Drive', hue: 45, icon: 'https://ssl.gstatic.com/images/branding/product/1x/drive_2020q4_32dp.png' },
+      'docs.google.com': { name: 'Google Docs', hue: 215, icon: 'https://ssl.gstatic.com/images/branding/product/1x/docs_2020q4_32dp.png' },
+      'mail.google.com': { name: 'Gmail', hue: 4, icon: 'https://ssl.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png' },
+      'telegram.org': { name: 'Telegram', hue: 200 },
+      'web.telegram.org': { name: 'Telegram', hue: 200 },
+      'google.com': { name: 'Google', hue: 215 },
+      'www.google.com': { name: 'Google', hue: 215 },
+      'github.com': { name: 'GitHub', hue: 260 },
+      'facebook.com': { name: 'Facebook', hue: 220 },
+      'instagram.com': { name: 'Instagram', hue: 330 },
+      'tiktok.com': { name: 'TikTok', hue: 340 },
+      'x.com': { name: 'X', hue: 210 },
+      'wikipedia.org': { name: 'Wikipedia', hue: 0 },
+      'shopee.com.my': { name: 'Shopee', hue: 16 },
+      'chatgpt.com': { name: 'ChatGPT', hue: 160 }
+    };
+    const NAME_SITE = {
+      YouTube: 'youtube.com', play_youtube: 'youtube.com',
+      Drive: 'drive.google.com', search_drive: 'drive.google.com',
+      Gmail: 'mail.google.com', check_email: 'mail.google.com',
+      Telegram: 'telegram.org', 'TG Files': 'telegram.org', 'TG Send': 'telegram.org',
+      read_telegram: 'telegram.org', telegram_send: 'telegram.org'
+    };
+    function siteOf(name, detail) {
+      const n = String(name || ''), d = String(detail || '');
+      const m = d.match(/https?:\/\/[^\s"')]+/i) || d.match(/\b((?:[a-z0-9-]+\.)+(?:com|net|org|my|io|gov|edu|app|dev|co|ai|tv)(?:\.[a-z]{2})?)(?:\/[^\s]*)?/i);
+      if (m && n !== 'Read' && n !== 'Edit' && n !== 'Write' && n !== 'Glob' && n !== 'Grep') {
+        return host(/^https?:/i.test(m[0]) ? m[0] : 'https://' + m[0]).replace(/^www\.(?!google\.)/, '');
+      }
+      if (NAME_SITE[n]) return NAME_SITE[n];
+      if (/Google_Drive/i.test(n)) return 'drive.google.com';
+      if (/Gmail/i.test(n)) return 'mail.google.com';
+      if (/claude-in-chrome|^Chrome$|^Browser$|browser_task|^chrome$/i.test(n)) {
+        return /youtube|lagu|video/i.test(d) ? 'youtube.com' : /drive/i.test(d) ? 'drive.google.com' : 'www.google.com';
+      }
+      return '';
+    }
+    const brandOf = (h) => BRAND[h] || BRAND[h.replace(/^www\./, '')] ||
+      BRAND[h.split('.').slice(-2).join('.')] || null;
+    function chip(h) {
+      const c = document.createElement('span');
+      c.className = 'chip';
+      const im = document.createElement('img');
+      im.alt = '';
+      const b = brandOf(h);
+      im.src = (b && b.icon) || favicon('https://' + h);
+      im.onerror = () => im.remove();
+      c.append(im, document.createTextNode(b ? b.name : h.replace(/^www\./, '')));
+      return c;
+    }
+    function paintSite(li, hosts) {
+      if (!li || !hosts.length) return;
+      const row = li.querySelector('.orbt-site');
+      if (!row) return;
+      row.textContent = '';
+      hosts.slice(0, 3).forEach(h => row.appendChild(chip(h)));
+      const first = hosts[0], b = brandOf(first);
+      li.classList.remove('k-search', 'k-code', 'k-app', 'k-gauge', 'k-file', 'k-folder');
+      li.classList.add('k-web');
+      if (b) li.style.setProperty('--k', b.hue);
+      const ic = li.querySelector('.orb-ico');
+      if (ic) {
+        ic.classList.add('site');
+        ic.innerHTML = '<img alt="" src="' + ((b && b.icon) || favicon('https://' + first)) + '">';
+      }
+      const kl = li.querySelector('.orbt-kind');
+      if (kl) kl.textContent = 'web';
+    }
+    // pemasa langsung untuk kad yang masih berjalan
+    setInterval(() => {
+      el.querySelectorAll('.orbt:not(.done)').forEach(li => {
+        const t = li.querySelector('.orbt-time');
+        if (t && li._t0) t.textContent = ((Date.now() - li._t0) / 1000).toFixed(1) + 's';
+      });
+    }, 100);
 
     const host = node => (node || '').replace(/^[a-z]+:\/\//i, '').split('/')[0];
 
@@ -6342,7 +6780,7 @@ nav.rail {
       // It costs one request per row and the row is short-lived, so it is
       // cheaper than shipping a favicon cache.
       const h = host(url);
-      return h ? 'https://www.google.com/s2/favicons?sz=32&domain=' + encodeURIComponent(h) : '';
+      return h ? 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(h) : '';
     }
 
     function trim() {
@@ -6355,16 +6793,30 @@ nav.rail {
 
     function make(kind, main, sub) {
       const li = document.createElement('li');
-      li.className = 'orbt';
+      li.className = 'orbt k-' + kind;
       li.dataset.id = 't' + (++seq);
+      li._t0 = Date.now();
+      const beam = document.createElement('i');
+      beam.className = 'orbt-beam';
+      const scan = document.createElement('i');
+      scan.className = 'orbt-scan';
       const ic = document.createElement('span');
       ic.className = 'orb-ico';
       ic.innerHTML = SVG[kind] || SVG.code;
       const body = document.createElement('div');
       body.className = 'orbt-body';
-      const k = document.createElement('div');
+      const head = document.createElement('div');
+      head.className = 'orbt-head';
+      const stp = document.createElement('span');
+      stp.className = 'orbt-step';
+      stp.textContent = String(seq).padStart(2, '0');
+      const k = document.createElement('span');
       k.className = 'orbt-kind';
-      k.textContent = kind;
+      k.textContent = KIND_LABEL[kind] || kind;
+      const tm = document.createElement('span');
+      tm.className = 'orbt-time';
+      tm.textContent = '0.0s';
+      head.append(stp, k, tm);
       const m = document.createElement('div');
       m.className = 'orbt-main';
       m.textContent = main || '';
@@ -6373,8 +6825,10 @@ nav.rail {
       s2.textContent = sub || '';
       const items = document.createElement('div');
       items.className = 'orbt-items';
-      body.append(k, m, s2, items);
-      li.append(ic, body);
+      const site = document.createElement('div');
+      site.className = 'orbt-site';
+      body.append(head, m, s2, site, items);
+      li.append(beam, ic, body, scan);
       el.prepend(li);
       trim();
       mount();
@@ -6393,11 +6847,8 @@ nav.rail {
           const sub = li.querySelector('.orbt-sub');
           if (sub && detail) sub.textContent = detail;
         }
-        if (kind === 'search' && detail) {
-          const ic = li.querySelector('.orb-ico');
-          const url = favicon(/^https?:/.test(detail) ? detail : 'https://' + detail);
-          if (url && ic) ic.innerHTML = '<img alt="" src="' + url + '">';
-        }
+        const h = siteOf(name, detail);
+        if (h) paintSite(li, [h]);
         return li;
       },
       /* lengkapkan baris teratas yang belum selesai */
@@ -6406,6 +6857,8 @@ nav.rail {
         if (!li) return;
         li.classList.add('done');
         if (!ok) li.classList.add('failed');
+        const t = li.querySelector('.orbt-time');
+        if (t && li._t0) t.textContent = ((Date.now() - li._t0) / 1000).toFixed(1) + 's';
         // ikon TIDAK ditukar: favicon laman itu yang memberitahu "ini carian
         // web tadi". Status siap dibawa oleh opacity dan titik sudut, bukan
         // dengan memadam satu-satunya penanda jenis kerja.
@@ -6416,6 +6869,8 @@ nav.rail {
         if (!li || !list || !list.length) return;
         const box2 = li.querySelector('.orbt-items');
         if (!box2) return;
+        const hosts = [...new Set(list.filter(o => o && o.url).map(o => host(o.url).replace(/^www\./, '')))];
+        if (hosts.length) paintSite(li, hosts);
         box2.textContent = '';
         list.slice(0, opts.max || 4).forEach(t => {
           const row = document.createElement('div');
@@ -6458,7 +6913,7 @@ nav.rail {
           box2.appendChild(more);
         }
       },
-      clear() { el.textContent = ''; mount(); },
+      clear() { el.textContent = ''; seq = 0; mount(); },
       count() { return el.children.length; }
     };
   })();
@@ -6477,7 +6932,7 @@ nav.rail {
     }
     traceEl.classList.remove('gone');
     if (traceEl.parentElement) traceEl.parentElement.classList.add('has-trace');
-    const nm = TOOL_LABEL[d.name] || d.name;
+    const nm = toolLabel(d.name) || d.name;
     const s = document.createElement('span');
     s.textContent = nm + (d.detail ? ' · ' + d.detail : '');
     traceEl.appendChild(s);
@@ -6553,6 +7008,7 @@ nav.rail {
 
   function stopSpeaking() {
     speakSeq++;
+    takeMouth();      // Esc/stop juga batalkan suara yang masih disintesis atau narasi analisis
     if (audioEl) { try { audioEl.pause(); } catch (e) {} audioEl = null; }
     analyser = null;
   }
@@ -6716,19 +7172,32 @@ nav.rail {
       return false;
     }
 
-    if (dead) { try { a.pause(); } catch (e) {} return true; }
+    if (dead) { try { a.pause(); } catch (e) {} return !stillMine(claim); }
     analyser = wireAudio(a);
     api && api.set_speaking(true);
     window.jarvisState('speaking');
     pumpLevel();
-    await a.play().catch(() => {});
     return new Promise(res => {
       a.onended = () => { if (stillMine(claim)) { window.jarvisState(busy ? 'thinking' : 'idle'); api && api.set_speaking(false); } res(true); };
       a.onerror = a.onended;
+      a.play().catch(a.onended);
     });
   }
 
+  let voiceWork = 0;          // speak() yang sedang berjalan; watchdog orb tak kacau semasa ini
   async function speak(text) {
+    voiceWork++;
+    let ok = false;
+    try { ok = await speakInner(text); }
+    finally { voiceWork--; }
+    if (!ok && !busy && voiceWork === 0 && /thinking|speaking/.test(document.body.dataset.orb || '')) {
+      window.jarvisState('idle');
+      api && api.set_speaking(false);
+    }
+    return ok;
+  }
+
+  async function speakInner(text) {
     stopSpeaking();
     /* claiming here is what silences anything else mid-sentence, including a
        dashboard narration that has more points left to read */
@@ -6748,24 +7217,24 @@ nav.rail {
       /* streaming first: it starts talking on clause one instead of clause all */
       if (api.tts_stream) {
         const jr = await api.tts_stream(text);
-        if (my !== speakSeq || !stillMine(my)) return true;
+        if (!stillMine(my)) return true;
         if (jr && jr.ok && jr.stream) {
           const played = await playStream(jr.job, my);
           if (played) return true;
         }
       }
       const r = await api.tts(text);
-      if (my !== speakSeq || !stillMine(my)) return true;
+      if (!stillMine(my)) return true;
       if (r && r.ok && r.src) {
         const a = new Audio(r.src);
         audioEl = a;
         analyser = wireAudio(a);
-        a.onended = () => { if (my === speakSeq) { window.jarvisState(busy ? 'thinking' : 'idle'); api && api.set_speaking(false); } };
+        a.onended = () => { if (stillMine(my)) { window.jarvisState(busy ? 'thinking' : 'idle'); api && api.set_speaking(false); } };
         a.onerror = a.onended;
         api.set_speaking(true);
         window.jarvisState('speaking');
         pumpLevel();
-        await a.play();
+        try { await a.play(); } catch (e) { a.onended(); }
         return true;
       }
       if (r && r.note) sysNote('TTS: ' + r.note);
@@ -7138,9 +7607,9 @@ nav.rail {
       }
     } else if (kind === 'tool') {
       trace(d);
-      act('⚙ ' + (TOOL_LABEL[d.name] || d.name) + (d.detail ? ' · ' + d.detail : ''));
+      act('⚙ ' + (toolLabel(d.name) || d.name) + (d.detail ? ' · ' + d.detail : ''));
       // label reads as the work being done, not the API call
-      const lab = TOOL_LABEL[d.name] || 'working';
+      const lab = toolLabel(d.name) || 'working';
       orbTasks.upsert(d.name, lab, d.detail || '');
       if (d.items && d.items.length) orbTasks.items(d.items, { max: 4 });
     } else if (kind === 'result') {
@@ -7237,13 +7706,25 @@ nav.rail {
     }
   };
 
+  /* Jaring keselamatan: orb tak boleh kekal 'thinking'/'speaking' bila tiada
+     giliran AI, tiada suara sedang disintesis/dimainkan dan mic tak memproses. */
+  let hearing = false, orbStale = 0;
+  setInterval(() => {
+    const st = document.body.dataset.orb || '';
+    const playing = audioEl && !audioEl.paused && !audioEl.ended;
+    if (/thinking|speaking/.test(st) && !busy && !voiceWork && !playing && !hearing) {
+      if (++orbStale >= 2) { orbStale = 0; window.jarvisState('idle'); api && api.set_speaking(false); }
+    } else orbStale = 0;
+  }, 1500);
+
   /* ── voice events ── */
   let listenMode = false;
 
   window.onVoice = function (kind, d) {
+    if (kind !== 'level' && kind !== 'status' && kind !== 'transcribing') hearing = false;
     if (kind === 'level') { if (listenMode) window.jarvisLevel(Math.min(1, .12 + d * 1.2)); }
     else if (kind === 'status') { act('◆ ' + d); }
-    else if (kind === 'transcribing') { act('◆ Processing speech…'); window.jarvisState('thinking'); }
+    else if (kind === 'transcribing') { hearing = true; act('◆ Processing speech…'); window.jarvisState('thinking'); }
     else if (kind === 'text') { listenMode = false; act('◆ Heard: "' + d + '"'); send(d, true); }
     else if (kind === 'none') {
       listenMode = false; window.jarvisState('idle');
@@ -7717,6 +8198,11 @@ nav.rail {
     modeBtns.forEach(b => b.setAttribute('aria-pressed', String(b === el)));
   };
   modeBtns.forEach(b => b.addEventListener('click', () => setEngine(b.textContent.trim().toLowerCase(), b)));
+  // Python ("tukar ke mod claude") menukar enjin melalui ini
+  window.jarvisEngine = (val) => {
+    const b = modeBtns.find(x => x.textContent.trim().toLowerCase() === val);
+    if (b) setEngine(val, b);
+  };
 
   document.querySelector('.capsule').addEventListener('submit', e => {
     e.preventDefault();
@@ -7948,6 +8434,8 @@ nav.rail {
   }
 
   async function boot() {
+    const step = (p, t) => { try { window.bootStep && window.bootStep(p, t); } catch (e) {} };
+    step(22, 'Jambatan Python bersambung');
     bridgeUp();
     // The LED has to show the truth on first paint. `on` is false while the
     // wake loop has not opened the stream yet, so a plain "on" default would
@@ -7956,18 +8444,24 @@ nav.rail {
       const w = await api.wake_status();
       paintWake(!!(w && w.on));
     } catch (e) { paintWake(false); }
+    step(36, 'Mikrofon & wake word');
     try {
       const cfg = await api.get_settings_core();
       window.stageSettings(cfg);
       restoreTalk(cfg && cfg.history);
     } catch (e) {}
+    step(52, 'Tetapan & sejarah perbualan');
     try { window.jarvisProject(await api.get_project()); } catch (e) {}
+    step(64, 'Mod projek');
     try { await stageDock.load(); } catch (e) {}
-    tickStats();
+    step(76, 'Desktop & aplikasi');
+    try { await tickStats(); } catch (e) {}
+    step(88, 'Telemetri sistem');
     tickToday();
     tickWork();
     if (window.stageMedia) window.stageMedia.refresh();
     paintDaily();
+    step(100, 'Sedia, Tuan');
   }
 
   /* The report at login. Three states and they are genuinely different:

@@ -94,7 +94,7 @@ Kamu berjalan dalam HUD desktop Windows 11 dan boleh buat kerja dalam PC.
 
 CHAT_PROMPT = PERSONA + """
 
-Dalam mod ni kamu tak boleh access atau run apa-apa dalam PC. Kalau Tuan minta buat kerja dengan file, app atau code dalam PC, suruh dia tukar ke mod CLAUDE.
+Dalam mod ni kamu BOLEH cari, senarai, baca dan buka fail serta folder dalam PC Tuan melalui tool find_files, list_folder, read_file dan open_item — guna terus, jangan sesekali cakap kamu tak boleh akses fail atau suruh tukar mod untuk benda ni. Untuk cari fail, guna find_files dengan 1-3 kata kunci utama (cth "survey rambu"), bukan ayat penuh; kalau tiada hasil, cuba kata kunci lain atau search_drive kalau mungkin dalam Google Drive. Hanya untuk UBAH, TULIS, PADAM fail atau jalankan/edit kod, cadangkan mod CLAUDE.
 Arahan Tuan selalunya datang dari suara (transkripsi), jadi nama dan perkataan Inggeris mungkin tersalah dengar: tafsir ikut maksud dan bunyi, cth "ppt Hafiz" = "PPKIU Hafiz", "bukan youtube" selepas pilih profile = "buka new tab", "sihat chrome" = "chrome". Kalau nama masih tak pasti, tanya Tuan dalam satu ayat.
 Tool yang kamu ada: web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), chrome (buka Chrome ikut profil, url, carian Google), browser_task (klik, isi borang dan baca dalam laman web — lambat, guna bila perlu sahaja), telegram_send (draf mesej Telegram, Tuan sahkan dengan "ya"), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Tuan guna mod CLAUDE.
 ANALISIS: bila Tuan minta analisis, kumpul data secukupnya (maksimum 3-4 langkah tool, baca fail paling penting sahaja seperti README, package.json, data), kira angka penting, kemudian jawab dengan ringkasan padat yang ada angka. HUD akan tukar jawapan kamu jadi dashboard visual.
@@ -123,8 +123,10 @@ CHAT_TOOLS = WEB_TOOLS + [
     _fn("system_status", "Status PC sekarang: CPU, RAM, disk C, bateri, internet, berapa lama PC hidup."),
     _fn("list_folder", "Senaraikan isi sesuatu folder.",
         {"folder": {"type": "string", "description": "Nama folder (contoh: Pengakap, Downloads) atau path penuh"}}, ["folder"]),
-    _fn("find_files", "Cari fail ikut nama dalam Desktop, Documents dan Downloads.",
-        {"keyword": {"type": "string", "description": "Sebahagian nama fail, contoh: laporan, .pdf, surat"}}, ["keyword"]),
+    _fn("find_files", "Cari fail DAN folder ikut nama dalam Desktop, Documents, Downloads dan OneDrive. "
+                      "Kata kunci dipadan perkataan demi perkataan tanpa ikut susunan, jadi 'survey rambu' jumpa "
+                      "'Survey Kehadiran Majlis Anugerah Rambu.xlsx'.",
+        {"keyword": {"type": "string", "description": "1-3 kata kunci utama nama fail, contoh: survey rambu, laporan .pdf, surat"}}, ["keyword"]),
     _fn("read_file", "Baca kandungan fail teks, PDF atau Word (.docx) untuk dirumus atau dijawab.",
         {"path": {"type": "string", "description": "Path penuh fail (guna find_files dulu jika tak tahu)"}}, ["path"]),
     _fn("read_telegram", "Baca Telegram Tuan sendiri: senarai chat, kandungan satu chat, ringkasan perbualan, "
@@ -1885,6 +1887,41 @@ class Api:
         except Exception:
             pass
 
+    def _yt_command(self, low):
+        """'main lagu siti nurhaliza cindai' -> 'siti nurhaliza cindai'. None = bukan arahan main lagu.
+
+        Kata kerja mesti di awal ayat. 'main'/'pasang' sahaja tak cukup (main bola, pasang
+        lampu): perlu 'lagu/video/muzik' atau 'youtube' dalam ayat, atau kata kerja 'play/putar'.
+        'lagi' diterima sebagai salah taip 'lagu' bila diikuti sekurang-kurangnya dua perkataan.
+        Rujukan ('lagu tu', 'yang pertama') dibiar kepada AI kerana ia perlukan konteks."""
+        m = re.match(r"^(?P<v>main(?:kan)?|play|pasang(?:kan)?|putar(?:kan)?|buka(?:kan)?)\s+"
+                     r"(?:(?P<k>lagu|lagi|video|muzik|music|klip)\s+)?(?P<q>.+?)"
+                     r"(?:\s+(?:dalam|di|kat|dekat|from|on|guna)\s+(?:youtube|yt|jarvis|media))?$", low)
+        if not m:
+            return None
+        v, k, q = m.group("v"), m.group("k"), m.group("q").strip(" ,.")
+        yt = bool(re.search(r"\b(youtube|yt)\b", low))
+        if not (k or yt or v in ("play", "putar", "putarkan")):
+            return None
+        if v.startswith("buka") and not (k in ("lagu", "video", "muzik", "music") or yt):
+            return None
+        if k == "lagi" and len(q.split()) < 2:
+            return None
+        if k in ("lagu", "video") and q and len(q.split()) == 1:
+            q = f"{k} {q}"                   # "pasang lagu raya" -> cari "lagu raya", bukan "raya"
+        if not q or len(q.split()) > 9 or re.fullmatch(
+                r"(tu|itu|ni|ini|tadi|yang tadi|yang (pertama|kedua|ketiga|tu|ni)|nombor \d+|semula|balik)", q):
+            return None
+        return q
+
+    def _yt_quick(self, q):
+        try:
+            res = self.play_youtube(q, mode="local")
+            if not res.get("ok"):
+                self._push(f"window.onClaude && window.onClaude('note', {json.dumps({'text': 'YouTube: ' + (res.get('msg') or 'gagal')})})")
+        except Exception as e:
+            self._push(f"window.onClaude && window.onClaude('note', {json.dumps({'text': 'YouTube: ' + str(e)[:120]})})")
+
     def _project_command(self, low, orig=None):
         """Arahan mod projek tanpa AI. None = bukan arahan projek.
 
@@ -2749,20 +2786,54 @@ class Api:
         return [{"text": e.name, "dir": e.is_dir()} for e in entries[:limit]]
 
     def _tool_find(self, keyword):
-        kw, hits, deadline = keyword.lower().strip(), [], time.time() + 6
-        for base in filter(None, (known_folder("Desktop"), known_folder("Documents"), known_folder("Downloads"))):
+        """Padan perkataan demi perkataan, bukan satu potongan teks: dulu "survey anugerah rambu"
+        tak jumpa "Survey Kehadiran Majlis Anugerah Rambu ..." kerana ada perkataan di tengah.
+        Skor = bilangan kata kunci yang ada dalam nama; semua kata = padanan penuh. Folder juga dicari."""
+        norm = lambda x: re.sub(r"[_\-.()\[\]]+", " ", x.lower())
+        stop = {"fail", "file", "folder", "dalam", "yang", "the", "dan", "di", "cari", "tentang", "pasal"}
+        raw = keyword.lower().strip()
+        ext = re.findall(r"\.[a-z0-9]{2,5}\b", raw)
+        toks = [t for t in norm(re.sub(r"\.[a-z0-9]{2,5}\b", " ", raw)).split() if len(t) > 1 and t not in stop]
+        if not toks and not ext:
+            return "Empty keyword.", "", []
+        need = len(toks) if len(toks) <= 2 else max(2, (len(toks) * 2 + 2) // 3)   # 3 kata -> 2, 4 -> 3
+        scored, deadline = [], time.time() + 8
+        bases = [known_folder("Desktop"), known_folder("Documents"), known_folder("Downloads"),
+                 os.environ.get("OneDrive")]
+        seen = set()
+        for base in filter(None, bases):
+            if base in seen or not os.path.isdir(base):
+                continue
+            seen.add(base)
             for root, dirs, files in os.walk(base):
-                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("node_modules", "vendor", ".git", "__pycache__")]
-                for f in files:
-                    if kw in f.lower():
-                        hits.append(os.path.join(root, f))
-                if len(hits) >= 30 or time.time() > deadline:
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in
+                           ("node_modules", "vendor", ".git", "__pycache__", "venv", ".venv", "AppData")]
+                for name, is_dir in [(d, True) for d in dirs] + [(f, False) for f in files]:
+                    nl = norm(name)
+                    if ext and not is_dir and not any(name.lower().endswith(e) for e in ext):
+                        continue
+                    ws = nl.split()
+                    # perkataan penuh (atau diikuti nombor: survey2026) = 1; awalan sahaja (rambu~rambut) = 0.6
+                    sc = sum(1 if any(w == t or (w.startswith(t) and w[len(t):].isdigit()) for w in ws)
+                             else 0.6 if any(w.startswith(t) for w in ws) else 0 for t in toks)
+                    if sc >= need - 0.25 and (toks or ext):
+                        full = os.path.join(root, name)
+                        try:
+                            mt = os.path.getmtime(full)
+                        except OSError:
+                            mt = 0
+                        scored.append((sc, mt, full, is_dir))
+                if time.time() > deadline or len(scored) >= 400:
                     break
-        if not hits:
-            return f'No files named "{keyword}".', "", []
-        return (f"Found {len(hits)} files:\n" + "\n".join(hits[:30]),
-                "\n".join(hits[:12]),
-                [{"text": os.path.basename(h), "dir": False} for h in hits[:6]])
+        if not scored:
+            return (f'No files or folders matching "{keyword}" in Desktop/Documents/Downloads/OneDrive. '
+                    "Try fewer or different keywords, or search_drive if it may be in Google Drive."), "", []
+        scored.sort(key=lambda x: (-x[0], -x[1]))
+        hits = scored[:30]
+        lines = [("[folder] " if d else "") + f for _, _, f, d in hits]
+        return (f"Found {len(scored)} matches (best first):\n" + "\n".join(lines),
+                "\n".join(f for _, _, f, _ in hits[:12]),
+                [{"text": os.path.basename(f), "dir": d} for _, _, f, d in hits[:6]])
 
     def _tool_read(self, path):
         p = self._resolve_place(path)
@@ -4489,6 +4560,22 @@ class Api:
         if pr is not None:
             return pr
 
+        yq = self._yt_command(low)
+        if yq:
+            # Terus ke MEDIA tanpa model: model chat kadang-kadang memilih tool chrome dan hanya
+            # membuka halaman carian YouTube ("tekan video pertama"), bukan memainkan lagu.
+            threading.Thread(target=self._yt_quick, args=(yq,), daemon=True).start()
+            return {"handled": True, "label": f"▶ YouTube: {yq} — dimainkan dalam MEDIA"}
+
+        em = re.match(r"^(?:(?:tukar|tukarkan|guna|pakai|switch|tukar balik)\s+)?(?:ke\s+|to\s+)?"
+                      r"(?:mod|mode|enjin|engine)\s+(claude(?:\s+code)?|chat|deepseek|auto)\b", low)
+        if em and len(low.split()) <= 6:
+            eng = {"deepseek": "chat"}.get(em.group(1).split()[0], em.group(1).split()[0])
+            self._push(f"window.jarvisEngine && window.jarvisEngine({json.dumps(eng)})")
+            return {"handled": True, "label": f"✔ Mod {eng.upper()}" +
+                    {"claude": " — Claude Code untuk semua arahan", "chat": " — DeepSeek chat",
+                     "auto": " — Jarvis pilih sendiri"}[eng]}
+
         m = self._match_system(low)
         if m is None:
             return {"handled": False}
@@ -4570,19 +4657,22 @@ class Api:
             if m:
                 return "clip_write", {"text": m.group(1).strip()}
 
-        # -- tetingkap
-        m = re.search(r"\b(?:fokus|focus|pergi ke|tukar ke|switch to|depan kan|depankan)\s+(.+)$", low)
+        # -- tetingkap. Mesti di AWAL ayat dan sasaran pendek (<= 4 perkataan, tiada koma):
+        # dulu "tukar ke"/"tutup" di tengah ayat panjang ditangkap, jadi "... tukar ke mod
+        # claude, nanti saya cari dalam drive" dicari sebagai nama tetingkap.
+        WT = r"\s+(?P<t>[^,.;:!?]+?(?:\s+[^,.;:!?\s]+){0,3})$"
+        m = re.match(r"^(?:fokus|focus|pergi ke|tukar ke|switch to|depan kan|depankan)" + WT, low)
         if m:
-            return "focus", {"title": m.group(1).strip()}
-        m = re.search(r"\b(?:minimi[sz]e|kecilkan)\s+(.+)$", low)
+            return "focus", {"title": m.group("t").strip()}
+        m = re.match(r"^(?:minimi[sz]e|kecilkan)" + WT, low)
         if m:
-            return "minimize", {"title": m.group(1).strip()}
-        m = re.search(r"\b(?:maximi[sz]e|besarkan|penuhkan)\s+(.+)$", low)
+            return "minimize", {"title": m.group("t").strip()}
+        m = re.match(r"^(?:maximi[sz]e|besarkan|penuhkan)" + WT, low)
         if m:
-            return "maximize", {"title": m.group(1).strip()}
-        m = re.search(r"\b(?:tutup|close|kill)\s+(.+)$", low)
+            return "maximize", {"title": m.group("t").strip()}
+        m = re.match(r"^(?:tutup|close|kill)" + WT, low)
         if m:
-            target = m.group(1).strip()
+            target = m.group("t").strip()
             # kalau tajuk tetingkap wujud, itu yang Tuan maksudkan; kalau tidak,
             # mungkin dia sebut nama proses ("tutup chrome")
             if sysctl.find_window(target):
@@ -5405,8 +5495,64 @@ def main():
         _note("exit")
 
 
+def _taskbar_identity():
+    """Taskbar menunjukkan ikon python kerana Windows menganggap tetingkap ini milik
+    pythonw.exe. AppUserModelID sendiri memisahkan Jarvis daripada kumpulan Python,
+    dan mesti ditetapkan SEBELUM tetingkap pertama dicipta."""
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("AkmalSys.Jarvis")
+    except Exception:
+        pass
+
+
+def _apply_window_icon(title="Jarvis", tries=40):
+    """Pasang logo.ico pada tetingkap Jarvis (taskbar + Alt+Tab) melalui WM_SETICON.
+    pywebview hanya menyokong ikon untuk GTK/QT, jadi pada Windows ia dibuat terus."""
+    import ctypes
+    from ctypes import wintypes
+    ico = ROOT / "logo.ico"
+    if not ico.exists():
+        return
+    u32 = ctypes.windll.user32
+    u32.LoadImageW.restype = wintypes.HANDLE
+    u32.LoadImageW.argtypes = [wintypes.HINSTANCE, wintypes.LPCWSTR, wintypes.UINT,
+                               ctypes.c_int, ctypes.c_int, wintypes.UINT]
+    u32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    u32.SetClassLongPtrW.restype = ctypes.c_void_p
+    u32.SetClassLongPtrW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_void_p]
+    IMAGE_ICON, LR_LOADFROMFILE, WM_SETICON = 1, 0x10, 0x80
+    big = u32.LoadImageW(None, str(ico), IMAGE_ICON, 256, 256, LR_LOADFROMFILE)
+    small = u32.LoadImageW(None, str(ico), IMAGE_ICON, 32, 32, LR_LOADFROMFILE)
+    pid = os.getpid()
+    EnumProc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    for _ in range(tries):
+        found = []
+
+        def cb(hwnd, _l):
+            wpid = wintypes.DWORD()
+            u32.GetWindowThreadProcessId(hwnd, ctypes.byref(wpid))
+            if wpid.value == pid and u32.IsWindowVisible(hwnd):
+                buf = ctypes.create_unicode_buffer(256)
+                u32.GetWindowTextW(hwnd, buf, 256)
+                if buf.value == title:
+                    found.append(hwnd)
+            return True
+        u32.EnumWindows(EnumProc(cb), 0)
+        if found:
+            for h in found:
+                u32.SendMessageW(h, WM_SETICON, 1, big or small)      # ICON_BIG: taskbar, Alt+Tab
+                u32.SendMessageW(h, WM_SETICON, 0, small or big)      # ICON_SMALL: bar tajuk
+                u32.SetClassLongPtrW(h, -14, big or small)            # GCLP_HICON
+                u32.SetClassLongPtrW(h, -34, small or big)            # GCLP_HICONSM
+            _note("window icon set")
+            return
+        time.sleep(0.5)
+
+
 def _run():
     global CURRENT_LANG
+    _taskbar_identity()
     CURRENT_LANG = load_json(CONFIG, {}).get("reply_language", "ms")
     # benarkan suara Jarvis dimainkan tanpa perlu klik dulu
     os.environ.setdefault("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--autoplay-policy=no-user-gesture-required")
@@ -5441,6 +5587,7 @@ def _run():
     threading.Thread(target=api._brief_watch, daemon=True).start()    # laporan harian bila tarikh tukar
     threading.Thread(target=api._phone_start, daemon=True).start()    # bot Telegram: cakap dari fon
     sv.prayer_today(api._cfg_place()[2])                               # ambil waktu solat sebulan jika belum ada
+    threading.Thread(target=_apply_window_icon, daemon=True).start()  # logo Jarvis di taskbar
     _note("webview.start")
     webview.start(api._wire_drop, api._window)
     # Pulangkan di sini bermakna GUI loop sudah berhenti. Tanpa baris
