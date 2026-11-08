@@ -172,6 +172,12 @@ class PhoneWeb:
                     ok_service = bool(c and c.get("common_name"))
                     if not (ok_user or ok_service):
                         return False, ""
+                    # E-mel Tuan disahkan oleh Cloudflare (JWT bertandatangan, disemak dengan kunci awam
+                    # pasukan): itu sudah log masuk sebenar (PIN e-mel). Token kedua tak diminta lagi —
+                    # dulu pelayar baru / ikon Home Screen baru mendapat "not found" tanpa pautan QR.
+                    # Service Token (Shortcuts) masih perlu X-Jarvis-Key.
+                    if c and ok_user:
+                        return True, ""
                 tok = web.token()
                 q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
                 got = (q.get("k") or [""])[0] or self.headers.get("X-Jarvis-Key", "")
@@ -185,7 +191,8 @@ class PhoneWeb:
                 self.send_response(code)
                 self.send_header("Content-Type", ctype)
                 self.send_header("Content-Length", str(len(body)))
-                self.send_header("Cache-Control", "no-store")
+                if "Cache-Control" not in (extra or {}):
+                    self.send_header("Cache-Control", "no-store")
                 self.send_header("X-Content-Type-Options", "nosniff")
                 for k, v in (extra or {}).items():
                     self.send_header(k, v)
@@ -244,7 +251,10 @@ class PhoneWeb:
                     import base64
                     ico = "data:image/png;base64," + base64.b64encode(icon_png(192, web.ui_dir)).decode()
                     page = PAGE.replace("__ICON__", ico).replace("/*__ORB__*/", orb_js(web.ui_dir))
-                    return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
+                    return self._send(200, page.encode("utf-8"), "text/html; charset=utf-8",
+                                      {"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                                       "Pragma": "no-cache", "Expires": "0",
+                                       "CDN-Cache-Control": "no-store", "Cloudflare-CDN-Cache-Control": "no-store"})
                 if path == "/manifest.json":
                     return self._send(200, json.dumps(manifest(web.ui_dir)).encode(), "application/manifest+json")
                 if path == "/ui/logo.png":                    # logo di tengah orb
@@ -310,6 +320,8 @@ class PhoneWeb:
                     return self._json(web.ask(str(body.get("text") or "")[:2000]))
                 if path == "/api/open":
                     return self._json(web.open_on_laptop(str(body.get("path") or "")))
+                if path == "/api/input":
+                    return self._json(web.remote_input(body))
                 if path == "/api/control":
                     return self._json(web.control(str(body.get("action") or "")))
                 if path == "/api/push/sub":
@@ -519,19 +531,98 @@ class PhoneWeb:
             self.push("error", {"text": f"Could not read image: {e}"})
 
     # ════════ skrin laptop ════════
+    _shot = {"at": 0.0, "jpg": b""}
+    _shot_lock = threading.Lock()
+
     def screen(self) -> bytes:
+        """Tangkapan skrin untuk fon. Jarvis TIDAK disembunyikan (lihat services.screenshot), dan
+        satu tangkapan dikongsi 1.5 s supaya permintaan bertindih tak membebankan laptop."""
         import io
-        import tempfile
-        import services as sv
-        from PIL import Image
-        f = Path(tempfile.gettempdir()) / "jarvis-phone-screen.png"
-        sv.screenshot(str(f))
-        im = Image.open(f).convert("RGB")
-        if im.width > 1400:
-            im = im.resize((1400, int(im.height * 1400 / im.width)))
-        buf = io.BytesIO()
-        im.save(buf, "JPEG", quality=68)
-        return buf.getvalue()
+        from PIL import ImageGrab
+        with self._shot_lock:
+            if time.time() - self._shot["at"] < 1.5 and self._shot["jpg"]:
+                return self._shot["jpg"]
+            im = ImageGrab.grab(all_screens=True).convert("RGB")
+            if im.width > 1400:
+                im = im.resize((1400, int(im.height * 1400 / im.width)))
+            buf = io.BytesIO()
+            im.save(buf, "JPEG", quality=68)
+            self._shot.update(at=time.time(), jpg=buf.getvalue())
+            return self._shot["jpg"]
+
+    # ════════ kawal skrin laptop dari fon (tetikus + papan kekunci) ════════
+    KEYS = {"enter": 0x0D, "backspace": 0x08, "tab": 0x09, "esc": 0x1B, "win": 0x5B, "delete": 0x2E,
+            "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27, "home": 0x24, "end": 0x23,
+            "ctrl": 0x11, "shift": 0x10, "alt": 0x12, "space": 0x20, "f5": 0x74,
+            **{c: ord(c.upper()) for c in "abcdefghijklmnopqrstuvwxyz"}}
+
+    def remote_input(self, d):
+        """Ketukan fon -> klik sebenar. fx/fy ialah kedudukan 0..1 pada gambar skrin, dan gambar itu
+        ialah keseluruhan desktop maya (semua skrin), jadi ia dipeta terus ke koordinat desktop maya."""
+        import ctypes
+        from ctypes import wintypes
+        u = ctypes.windll.user32
+        try:   # koordinat fizikal pada skrin berskala (125%/150%), sama seperti ImageGrab
+            u.SetThreadDpiAwarenessContext(ctypes.c_void_p(-4))
+        except Exception:
+            pass
+
+        class MI(ctypes.Structure):
+            _fields_ = [("dx", wintypes.LONG), ("dy", wintypes.LONG), ("mouseData", wintypes.DWORD),
+                        ("dwFlags", wintypes.DWORD), ("time", wintypes.DWORD), ("extra", ctypes.c_size_t)]
+
+        class KI(ctypes.Structure):
+            _fields_ = [("wVk", wintypes.WORD), ("wScan", wintypes.WORD), ("dwFlags", wintypes.DWORD),
+                        ("time", wintypes.DWORD), ("extra", ctypes.c_size_t)]
+
+        class U(ctypes.Union):
+            _fields_ = [("mi", MI), ("ki", KI)]
+
+        class INPUT(ctypes.Structure):
+            _fields_ = [("type", wintypes.DWORD), ("u", U)]
+
+        def mouse(flags, data=0):
+            i = INPUT(type=0)
+            i.u.mi = MI(0, 0, data & 0xFFFFFFFF, flags, 0, 0)
+            u.SendInput(1, ctypes.byref(i), ctypes.sizeof(INPUT))
+
+        def key(vk=0, scan=0, flags=0):
+            i = INPUT(type=1)
+            i.u.ki = KI(vk, scan, flags, 0, 0)
+            u.SendInput(1, ctypes.byref(i), ctypes.sizeof(INPUT))
+
+        t = str(d.get("type") or "")
+        if t in ("click", "dbl", "right", "scroll", "move"):
+            vx, vy, vw, vh = (u.GetSystemMetrics(n) for n in (76, 77, 78, 79))
+            fx = min(1.0, max(0.0, float(d.get("fx", 0))))
+            fy = min(1.0, max(0.0, float(d.get("fy", 0))))
+            u.SetCursorPos(int(vx + fx * (vw - 1)), int(vy + fy * (vh - 1)))
+            time.sleep(0.03)
+        if t == "click":
+            mouse(0x2); mouse(0x4)
+        elif t == "dbl":
+            mouse(0x2); mouse(0x4); time.sleep(0.07); mouse(0x2); mouse(0x4)
+        elif t == "right":
+            mouse(0x8); mouse(0x10)
+        elif t == "scroll":
+            mouse(0x800, int(d.get("dy", -3)) * 120)
+        elif t == "text":
+            raw = str(d.get("text") or "")[:500].encode("utf-16-le")
+            for n in range(0, len(raw), 2):          # UTF-16: emoji/aksara luar BMP dihantar sebagai pasangan
+                code = int.from_bytes(raw[n:n + 2], "little")
+                key(0, code, 0x4); key(0, code, 0x4 | 0x2)
+        elif t == "key":
+            combo = [self.KEYS.get(k.strip().lower()) for k in str(d.get("key") or "").split("+")]
+            if not combo or None in combo:
+                return {"ok": False, "msg": "Unknown key"}
+            for vk in combo:
+                key(vk)
+            for vk in reversed(combo):
+                key(vk, 0, 0x2)
+        elif t != "move":
+            return {"ok": False, "msg": "Unknown input"}
+        self._shot["at"] = 0.0                       # tangkapan seterusnya tunjuk hasilnya, bukan cache lama
+        return {"ok": True}
 
     # ════════ kawalan pantas ════════
     CONTROLS = {"vol_up": "volume naik", "vol_down": "volume turun", "mute": "mute", "unmute": "unmute",
@@ -691,7 +782,7 @@ class PhoneWeb:
             theme = json.loads(Path(__file__).with_name("config.json").read_text(encoding="utf-8")).get("theme", "asal")
         except Exception:
             pass
-        return {"seq": self.seq, "events": ev, "busy": busy, "theme": theme}
+        return {"seq": self.seq, "events": ev, "busy": busy, "theme": theme, "ver": page_version(self.ui_dir)}
 
     def say(self, text):
         text = text.strip()
@@ -714,6 +805,18 @@ class PhoneWeb:
 
 _ICON_CACHE = {}
 _ORB = {"mt": 0, "js": ""}
+
+
+def page_version(ui_dir: Path) -> str:
+    """Cap versi halaman fon: berubah bila phone_web.py (halaman) atau stage.html (orb) berubah.
+    Fon membandingkannya setiap tinjauan dan memuat semula sendiri — tiada 'Add to Home Screen' semula."""
+    import hashlib
+    h = hashlib.sha1(PAGE.encode("utf-8"))
+    try:
+        h.update(str((ui_dir / "stage.html").stat().st_mtime).encode())
+    except Exception:
+        pass
+    return h.hexdigest()[:12]
 
 
 def orb_js(ui_dir: Path) -> str:
@@ -856,7 +959,30 @@ header span{margin-left:auto;font-size:11px;color:var(--dim)}
 .vrow{display:flex;gap:8px;margin-top:10px}.vrow a,.vrow button{flex:1;text-align:center;text-decoration:none;border:0;border-radius:22px;
  padding:11px;font-size:13px;font-weight:600;color:#fff;background:linear-gradient(135deg,hsl(var(--a) 90% 50%),hsl(var(--b) 90% 50%))}
 .vrow .ghost{background:rgba(255,255,255,.08);color:var(--ink)}
-#simg{width:100%;border-radius:8px;display:block}
+#sbox{position:relative;overflow:hidden;border-radius:8px;background:#000}
+#simg{width:100%;display:block}
+#shint{font-size:11px;color:var(--dim);margin-top:6px}
+/* paparan penuh untuk kawalan: gambar mengisi skrin, cubit untuk zum, leret untuk gerak */
+#rfull{position:fixed;inset:0;z-index:90;background:#000;display:none;touch-action:none;overscroll-behavior:none}
+#rfull.on{display:block}
+#rstage{position:absolute;inset:0;overflow:hidden}
+#rimg{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;user-select:none;-webkit-user-select:none;
+ -webkit-user-drag:none;-webkit-touch-callout:none;pointer-events:none}
+#rtop{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:8px;
+ padding:calc(6px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) 6px calc(8px + env(safe-area-inset-left));
+ background:linear-gradient(rgba(0,0,0,.7),transparent);pointer-events:none}
+#rtop button{pointer-events:auto;width:38px;height:38px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:17px}
+#rhint{flex:1;font-size:11px;color:#bbb;text-align:center}
+#rbar{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(8px + env(safe-area-inset-bottom));display:flex;gap:5px;
+ padding:5px;border-radius:16px;background:rgba(10,8,20,.78);max-width:calc(100vw - 16px);overflow-x:auto}
+#rbar button{flex:none;min-width:40px;height:38px;border-radius:11px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.08);color:#fff;font-size:14px}
+#rfull.hidebar #rbar,#rfull.hidebar #rtype{display:none}
+#rtype{position:absolute;left:8px;right:8px;bottom:calc(58px + env(safe-area-inset-bottom));display:none;gap:6px}
+#rfull.kb #rtype{display:flex}
+#rtype input{flex:1;min-width:0;padding:10px 12px;font-size:16px}
+#rtype button{border:0;border-radius:20px;padding:0 16px;font-weight:600;color:#fff;background:#c8101e}
+.tapdot{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;pointer-events:none;z-index:2;
+ border:2px solid #ffc93a;animation:tap .5s ease-out forwards}@keyframes tap{to{transform:scale(2.2);opacity:0}}
 .ctl{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .ctl button{padding:16px 4px;border-radius:14px;font-size:22px;background:rgba(255,255,255,.05);color:var(--ink);
  border:1px solid hsl(var(--a) 80% 70%/.25)}.ctl button small{display:block;font-size:10px;margin-top:4px;color:var(--dim)}
@@ -900,7 +1026,7 @@ form button{flex:none;border:0;border-radius:22px;padding:0 14px;min-width:44px;
 #mic.rec{background:#c8101e;animation:pu 1s ease-in-out infinite}
 </style></head><body>
 <header><img src="__ICON__" alt=""><b>J.A.R.V.I.S</b><span id="net">…</span><button type="button" id="proj">📁 —</button><button type="button" id="delta">Δ</button><button type="button" id="hist">☰</button><button type="button" id="new">＋ New</button></header>
-<div class="sheet" id="msheet"><div><h3>Jarvis<button type="button" data-x>✕</button></h3>
+<div class="sheet" id="msheet"><div><h3>Jarvis <small id="mver" style="margin-left:8px;font-size:9px;letter-spacing:.1em;color:var(--dim)"></small><button type="button" data-x>✕</button></h3>
 <div class="tiles">
 <button type="button" data-open="hist"><i>🕘</i>History</button>
 <button type="button" data-open="files"><i>📂</i>Files</button>
@@ -909,13 +1035,24 @@ form button{flex:none;border:0;border-radius:22px;padding:0 14px;min-width:44px;
 <button type="button" data-open="up"><i>📤</i>Send file</button>
 <button type="button" data-open="brief"><i>☀</i>Daily brief</button>
 <button type="button" id="notif"><i>🔔</i>Notifications</button>
+<button type="button" id="reload"><i>⟳</i>Reload app</button>
 </div></div></div>
 <div class="sheet" id="fsheet"><div><h3>Files<button type="button" id="fref" class="fref">↻</button><button type="button" data-x>✕</button></h3>
 <div class="crumb" id="fcrumb"></div><div class="flist" id="flist"></div></div></div>
 <div class="sheet" id="vsheet"><div><h3 id="vtitle">File<button type="button" data-x>✕</button></h3><div id="vbody"></div>
 <div class="vrow"><a id="vdl" class="ghost" href="#">⬇ Download</a><button type="button" id="vopen">🖥 Open on laptop</button></div></div></div>
-<div class="sheet" id="ssheet"><div><h3>Laptop screen<button type="button" data-x>✕</button></h3><img id="simg" alt="">
-<div class="vrow"><button type="button" class="ghost" id="sref">↻ Refresh</button></div></div></div>
+<div class="sheet" id="ssheet"><div><h3>Laptop screen<button type="button" data-x>✕</button></h3>
+<div id="sbox"><img id="simg" alt=""></div>
+<div class="vrow"><button type="button" id="sctl">👆 Control (full screen)</button><button type="button" class="ghost" id="sref">↻</button></div>
+<div id="shint">View only here. Control opens the laptop screen full screen: tap = click · double-tap = open · hold = right-click · pinch = zoom.</div></div></div>
+<div id="rfull"><div id="rstage"><img id="rimg" alt=""></div>
+<div id="rtop"><button type="button" id="rexit">✕</button><span id="rhint">Rotate phone for a bigger view · pinch to zoom</span>
+<button type="button" id="rfit">⤢</button><button type="button" id="rtools">☰</button></div>
+<div id="rbar"><button type="button" data-k="enter">⏎</button><button type="button" data-k="backspace">⌫</button>
+<button type="button" data-k="esc">Esc</button><button type="button" data-k="tab">Tab</button><button type="button" data-k="win">⊞</button>
+<button type="button" data-k="ctrl+c">⌃C</button><button type="button" data-k="ctrl+v">⌃V</button>
+<button type="button" data-k="scroll:3">▲</button><button type="button" data-k="scroll:-3">▼</button><button type="button" id="rkb">⌨</button></div>
+<div id="rtype"><input id="rtext" placeholder="Type on the laptop…" autocomplete="off" autocapitalize="off"><button type="button" id="rsend">Type</button></div></div>
 <div class="sheet" id="csheet"><div><h3>Controls<button type="button" data-x>✕</button></h3><div class="ctl">
 <button type="button" data-c="vol_down">🔉<small>Vol −</small></button><button type="button" data-c="mute">🔇<small>Mute</small></button>
 <button type="button" data-c="vol_up">🔊<small>Vol +</small></button>
@@ -956,6 +1093,9 @@ const add=(kind,text)=>{const d=document.createElement('div');d.className='m '+k
 async function poll(){if(inflight)return;inflight=true;clearTimeout(timer);try{const r=await(await fetch('/api/state?since='+seq)).json();
  document.getElementById('net').textContent='● online';
  if(r.theme&&r.theme!=='asal')document.documentElement.dataset.theme=r.theme;else delete document.documentElement.dataset.theme;
+ // versi baru di laptop: muat semula sendiri, tapi bukan semasa merakam atau menaip
+ if(r.ver){if(window.__ver&&r.ver!==window.__ver&&!rec&&!document.getElementById('q').value&&!document.querySelector('.sheet.on')){location.reload();return}
+  window.__ver=window.__ver||r.ver}
  for(const e of r.events){if(e.kind==='reset'){log.textContent='';continue}if(e.kind==='done'){projRefresh();continue}add(e.kind,e.text)}seq=r.seq;busy=r.busy;document.body.classList.toggle('busy',busy);
  if(!rec){document.getElementById('st').textContent=busy?'Thinking':'Standby';if(!speakingNow)orbSt(busy?'thinking':'idle')}}
  catch(e){document.getElementById('net').textContent='○ offline'}
@@ -1040,7 +1180,9 @@ async function histLoad(){const l=$('hlist');l.textContent='';let r={};try{r=awa
 
 // ── menu & alat ──
 const sheet=id=>$(id).classList.add('on'),unsheet=id=>$(id).classList.remove('on');
-$('hist').onclick=()=>sheet('msheet');
+$('hist').onclick=()=>{$('mver').textContent='v '+(window.__ver||'?');sheet('msheet')};
+// app di Home Screen tiada butang reload pelayar: muat semula dengan URL baru supaya cache iPhone dilangkau
+$('reload').onclick=()=>location.replace('/?r='+Date.now());
 document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{unsheet('msheet');const k=b.dataset.open;
  if(k==='hist'){sheet('hsheet');histLoad()}else if(k==='files'){sheet('fsheet');fopen(fcur);fauto()}
  else if(k==='screen'){sheet('ssheet');shot()}else if(k==='ctl')sheet('csheet');
@@ -1089,6 +1231,54 @@ $('vopen').onclick=async()=>{if(!vcur)return;const r=await post('/api/open',{pat
 let stimer=0;function shot(){clearTimeout(stimer);if(!$('ssheet').classList.contains('on'))return;
  const im=$('simg');im.onload=()=>{stimer=setTimeout(shot,2500)};im.onerror=()=>{stimer=setTimeout(shot,5000)};im.src='/api/screen?t='+Date.now()}
 $('sref').onclick=shot;
+// ── kawal skrin, paparan penuh: ketuk = klik, ketuk dua kali = buka, tahan = klik kanan,
+//    cubit = zum, leret satu jari = gerak (bila dizum) ──
+const R={s:1,fit:1,tx:0,ty:0},ptr=new Map();let rT=0,lastXY=[.5,.5],tapT=0,tapTimer=0,holdT=0,gest=null;
+const rimg=$('rimg'),rfull=$('rfull');
+const rapply=()=>{rimg.style.transform=`translate(${R.tx}px,${R.ty}px) scale(${R.s})`};
+function rfitNow(){const W=innerWidth,H=innerHeight,iw=rimg.naturalWidth||1920,ih=rimg.naturalHeight||1080;
+ R.fit=Math.min(W/iw,H/ih);R.s=R.fit;R.tx=(W-iw*R.s)/2;R.ty=(H-ih*R.s)/2;rapply()}
+function rclamp(){const W=innerWidth,H=innerHeight,iw=rimg.naturalWidth*R.s,ih=rimg.naturalHeight*R.s;
+ R.tx=iw<=W?(W-iw)/2:Math.min(0,Math.max(W-iw,R.tx));R.ty=ih<=H?(H-ih)/2:Math.min(0,Math.max(H-ih,R.ty))}
+function rshot(){clearTimeout(rT);if(!rfull.classList.contains('on'))return;
+ const nx=new Image();nx.onload=()=>{const first=!rimg.naturalWidth;if(first)rimg.onload=()=>{rfitNow();rimg.onload=null};rimg.src=nx.src;rT=setTimeout(rshot,1100)};
+ nx.onerror=()=>{rT=setTimeout(rshot,3000)};nx.src='/api/screen?t='+Date.now()}
+const inp=d=>post('/api/input',d).then(r=>{if(!r.ok)add('error',r.msg||'input failed');clearTimeout(rT);rT=setTimeout(rshot,300)});
+function frac(x,y){const r=rimg.getBoundingClientRect();return [(x-r.left)/r.width,(y-r.top)/r.height]}
+function dot(x,y){const d=document.createElement('div');d.className='tapdot';d.style.left=x+'px';d.style.top=y+'px';rfull.appendChild(d);setTimeout(()=>d.remove(),600)}
+$('sctl').onclick=()=>{unsheet('ssheet');rfull.classList.add('on');rimg.removeAttribute('src');rshot();
+ try{document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen()}catch(e){}};
+$('rexit').onclick=()=>{rfull.classList.remove('on','kb');clearTimeout(rT);try{document.fullscreenElement&&document.exitFullscreen()}catch(e){}};
+$('rfit').onclick=rfitNow;
+$('rtools').onclick=()=>rfull.classList.toggle('hidebar');
+$('rkb').onclick=()=>{rfull.classList.toggle('kb');if(rfull.classList.contains('kb'))$('rtext').focus()};
+addEventListener('resize',()=>{if(rfull.classList.contains('on'))setTimeout(rfitNow,250)});
+rfull.addEventListener('contextmenu',e=>e.preventDefault());
+const onUi=e=>e.target.closest('#rtop button,#rbar,#rtype');
+rfull.addEventListener('pointerdown',e=>{if(onUi(e))return;ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ if(ptr.size===2){clearTimeout(holdT);const [p,q]=[...ptr.values()];
+  gest={pinch:true,d0:Math.hypot(p.x-q.x,p.y-q.y),s0:R.s,mx:(p.x+q.x)/2,my:(p.y+q.y)/2,tx0:R.tx,ty0:R.ty};return}
+ gest={pinch:false,x0:e.clientX,y0:e.clientY,tx0:R.tx,ty0:R.ty,moved:false,held:false};
+ holdT=setTimeout(()=>{if(!gest||gest.moved||gest.pinch)return;gest.held=true;const f=frac(e.clientX,e.clientY);lastXY=f;
+  dot(e.clientX,e.clientY);if(navigator.vibrate)navigator.vibrate(30);inp({type:'right',fx:f[0],fy:f[1]})},600)});
+rfull.addEventListener('pointermove',e=>{if(!ptr.has(e.pointerId)||!gest)return;ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ if(gest.pinch&&ptr.size>=2){const [p,q]=[...ptr.values()];const d=Math.hypot(p.x-q.x,p.y-q.y),mx=(p.x+q.x)/2,my=(p.y+q.y)/2;
+  const ns=Math.min(R.fit*5,Math.max(R.fit,gest.s0*d/gest.d0));const ix=(gest.mx-gest.tx0)/gest.s0,iy=(gest.my-gest.ty0)/gest.s0;
+  R.s=ns;R.tx=mx-ix*ns;R.ty=my-iy*ns;rclamp();rapply();return}
+ const dx=e.clientX-gest.x0,dy=e.clientY-gest.y0;if(Math.hypot(dx,dy)>10){gest.moved=true;clearTimeout(holdT)}
+ if(gest.moved&&R.s>R.fit*1.01){R.tx=gest.tx0+dx;R.ty=gest.ty0+dy;rclamp();rapply()}});
+const pend=e=>{if(!ptr.has(e.pointerId))return;ptr.delete(e.pointerId);clearTimeout(holdT);
+ if(!gest||ptr.size>0){if(gest&&gest.pinch&&ptr.size===0)gest=null;return}
+ const g=gest;gest=null;if(g.pinch||g.moved||g.held)return;
+ const x=e.clientX,y=e.clientY,f=frac(x,y);if(f[0]<0||f[0]>1||f[1]<0||f[1]>1)return;lastXY=f;dot(x,y);const now=Date.now();
+ if(now-tapT<330){clearTimeout(tapTimer);tapT=0;inp({type:'dbl',fx:f[0],fy:f[1]});return}
+ tapT=now;tapTimer=setTimeout(()=>inp({type:'click',fx:f[0],fy:f[1]}),300)};
+rfull.addEventListener('pointerup',pend);rfull.addEventListener('pointercancel',e=>{ptr.delete(e.pointerId);clearTimeout(holdT);gest=null});
+document.querySelectorAll('#rbar [data-k]').forEach(b=>b.onclick=()=>{const k=b.dataset.k;if(navigator.vibrate)navigator.vibrate(10);
+ if(k.startsWith('scroll:'))inp({type:'scroll',fx:lastXY[0],fy:lastXY[1],dy:+k.split(':')[1]});else inp({type:'key',key:k})});
+$('rsend').onclick=()=>{const t=$('rtext').value;if(!t)return;inp({type:'text',text:t});$('rtext').value=''};
+$('rtext').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('rsend').click()}});
+
 // Controls (lock/sleep perlu pengesahan di fon)
 document.querySelectorAll('[data-c]').forEach(b=>b.onclick=async()=>{const a=b.dataset.c;
  if((a==='lock'||a==='sleep')&&!confirm(a==='lock'?'Lock the laptop?':'Put the laptop to sleep? Jarvis on the phone will go offline.'))return;

@@ -366,10 +366,15 @@ def to_ssml(text):
 
 
 # ---------- Tangkap skrin ----------
-def screenshot(path):
-    """Tangkap skrin tanpa Jarvis di depan, simpan PNG (maks 1600px lebar)."""
+def screenshot(path, hide=True):
+    """Tangkap skrin, simpan PNG (maks 1600px lebar).
+
+    hide=True: sembunyikan Jarvis sekejap supaya AI nampak apa di bawahnya (tool
+    "tengok skrin", sekali tangkap). App fon guna hide=False — ia meminta tangkapan
+    setiap beberapa saat, dan sembunyi/papar tetingkap WebView2 berulang kali dari
+    thread lain membuat HUD berkelip lalu tertutup (gui loop returned)."""
     from PIL import ImageGrab
-    hidden = hide_jarvis_if_front()
+    hidden = hide_jarvis_if_front() if hide else False
     if hidden:
         time.sleep(0.4)
     img = ImageGrab.grab(all_screens=True)
