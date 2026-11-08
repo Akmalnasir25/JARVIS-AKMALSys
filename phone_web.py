@@ -343,6 +343,11 @@ class PhoneWeb:
                                        if k != "history"})
                 if path == "/api/session/delete":
                     return self._json(web.api.delete_session(str(body.get("id") or "")))
+                if path == "/api/brain":
+                    for k in ("model", "effort"):
+                        if k in body:
+                            web.api.set_setting(k, str(body[k]))
+                    return self._json(web.api.brain())
                 if path == "/api/new":
                     web.api.new_session()
                     return self._json({"ok": True})
@@ -987,6 +992,8 @@ header span{margin-left:auto;font-size:11px;color:var(--dim)}
 .ctl button{padding:16px 4px;border-radius:14px;font-size:22px;background:rgba(255,255,255,.05);color:var(--ink);
  border:1px solid hsl(var(--a) 80% 70%/.25)}.ctl button small{display:block;font-size:10px;margin-top:4px;color:var(--dim)}
 .ctl .warn{border-color:rgba(255,95,112,.5)}
+.ctl button.sel{background:linear-gradient(135deg,hsl(var(--a) 90% 45%),hsl(var(--b) 90% 45%));border-color:transparent;color:#fff}
+#brm button,#bre button{font-size:13px;padding:13px 4px}
 #brieft{white-space:pre-wrap;font-size:14px;line-height:1.6;overflow-y:auto}
 .uprow{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:13px}
 #new{background:none;border:1px solid hsl(var(--a) 80% 70%/.4);color:var(--ink);border-radius:14px;
@@ -1035,6 +1042,7 @@ form button{flex:none;border:0;border-radius:22px;padding:0 14px;min-width:44px;
 <button type="button" data-open="up"><i>📤</i>Send file</button>
 <button type="button" data-open="brief"><i>☀</i>Daily brief</button>
 <button type="button" id="notif"><i>🔔</i>Notifications</button>
+<button type="button" data-open="brain"><i>🧠</i>Model</button>
 <button type="button" id="reload"><i>⟳</i>Reload app</button>
 </div></div></div>
 <div class="sheet" id="fsheet"><div><h3>Files<button type="button" id="fref" class="fref">↻</button><button type="button" data-x>✕</button></h3>
@@ -1066,6 +1074,10 @@ form button{flex:none;border:0;border-radius:22px;padding:0 14px;min-width:44px;
 <div class="uprow"><input type="checkbox" id="uask" checked><label for="uask">Ask Jarvis about it (summarise / read the photo)</label></div>
 <div class="vrow"><button type="button" id="upick">📷 Choose photo or file</button></div>
 <input type="file" id="ufile" hidden><div class="crumb" id="ustat" style="margin-top:10px"></div></div></div>
+<div class="sheet" id="brsheet"><div><h3>Claude Code<button type="button" data-x>✕</button></h3>
+<div class="crumb">Model and effort for coding & PC work. Higher = more careful, slower, uses more quota.</div>
+<div class="crumb" style="margin-top:8px">MODEL</div><div class="ctl" id="brm"></div>
+<div class="crumb" style="margin-top:12px">EFFORT</div><div class="ctl" id="bre"></div></div></div>
 <div class="sheet" id="bsheet"><div><h3>Daily brief<button type="button" data-x>✕</button></h3><div id="brieft">…</div></div></div>
 <div class="sheet" id="hsheet"><div><h3>History<button type="button" data-x>✕</button></h3><div class="hlist" id="hlist"></div></div></div>
 <div class="sheet" id="psheet"><div><h3>Projects<button type="button" data-x>✕</button></h3><div class="plist" id="plist"></div></div></div>
@@ -1186,7 +1198,7 @@ $('reload').onclick=()=>location.replace('/?r='+Date.now());
 document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>{unsheet('msheet');const k=b.dataset.open;
  if(k==='hist'){sheet('hsheet');histLoad()}else if(k==='files'){sheet('fsheet');fopen(fcur);fauto()}
  else if(k==='screen'){sheet('ssheet');shot()}else if(k==='ctl')sheet('csheet');
- else if(k==='up')sheet('usheet');else if(k==='brief'){sheet('bsheet');brief(true)}});
+ else if(k==='up')sheet('usheet');else if(k==='brain'){sheet('brsheet');brainLoad()}else if(k==='brief'){sheet('bsheet');brief(true)}});
 // Files: layar folder laptop (baca sahaja)
 const icon=n=>/\.(jpe?g|png|gif|webp|heic)$/i.test(n)?'🖼':/\.(mp4|mov|mkv|webm|avi)$/i.test(n)?'🎬':/\.(mp3|m4a|wav|flac|ogg)$/i.test(n)?'🎵':
  /\.pdf$/i.test(n)?'📕':/\.(docx?|odt)$/i.test(n)?'📘':/\.(xlsx?|csv)$/i.test(n)?'📗':/\.(pptx?)$/i.test(n)?'📙':/\.(zip|rar|7z)$/i.test(n)?'🗜':'📄';
@@ -1289,6 +1301,13 @@ $('ufile').onchange=async()=>{const f=$('ufile').files[0];if(!f)return;$('ustat'
  try{const r=await(await fetch('/api/upload?name='+encodeURIComponent(f.name)+'&ask='+($('uask').checked?'1':''),{method:'POST',body:f})).json();
   $('ustat').textContent=r.ok?'✓ Saved: '+r.path:'✕ '+(r.msg||'failed');if(r.ok&&$('uask').checked)setTimeout(()=>unsheet('usheet'),900)}
  catch(e){$('ustat').textContent='✕ Upload failed'}$('ufile').value='';clearTimeout(timer);timer=setTimeout(poll,500)};
+// Model & effort Claude Code (sama dengan Settings di laptop)
+async function brainLoad(set){const b=await post('/api/brain',set||{});
+ const row=(id,list,cur,key)=>{const el=$(id);el.textContent='';for(const o of list){const bt=document.createElement('button');
+  bt.type='button';bt.textContent=o.label.split(' · ')[0];if((o.id||'')===(cur||''))bt.className='sel';
+  bt.onclick=()=>{if(navigator.vibrate)navigator.vibrate(10);brainLoad({[key]:o.id})};el.appendChild(bt)}};
+ row('brm',b.models||[],b.model,'model');row('bre',b.efforts||[],b.effort,'effort');
+ if(set)add('note','🧠 Claude Code: '+b.model+(b.effort?' · effort '+b.effort:''))}
 // Daily brief: sekali sehari bila app dibuka, dan bila diminta
 async function brief(force){try{const r=await(await fetch('/api/brief')).json();const t=(r&&r.text)||'';
  $('brieft').textContent=t||'No brief yet today.';const day=new Date().toDateString();let seen='';try{seen=localStorage.getItem('briefDay')||''}catch(e){}

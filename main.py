@@ -95,8 +95,8 @@ Kamu berjalan dalam HUD desktop Windows 11 dan boleh buat kerja dalam PC.
 CHAT_PROMPT = PERSONA + """
 
 Dalam mod ni kamu BOLEH cari, senarai, baca dan buka fail serta folder dalam PC Tuan melalui tool find_files, list_folder, read_file dan open_item — guna terus, jangan sesekali cakap kamu tak boleh akses fail atau suruh tukar mod untuk benda ni. Untuk cari fail, guna find_files dengan 1-3 kata kunci utama (cth "survey rambu"), bukan ayat penuh; kalau tiada hasil, cuba kata kunci lain atau search_drive kalau mungkin dalam Google Drive. Hanya untuk UBAH, TULIS, PADAM fail atau jalankan/edit kod, cadangkan mod CLAUDE.
-Arahan Tuan selalunya datang dari suara (transkripsi), jadi nama dan perkataan Inggeris mungkin tersalah dengar: tafsir ikut maksud dan bunyi, cth "ppt Hafiz" = "PPKIU Hafiz", "bukan youtube" selepas pilih profile = "buka new tab", "sihat chrome" = "chrome". Kalau nama masih tak pasti, tanya Tuan dalam satu ayat.
-Tool tambahan: check_scam (Malwarebytes: pautan/nombor/e-mel selamat atau scam), canva_design (poster/slaid/kad/banner dalam Canva + eksport), remember (simpan fakta kekal), calendar (Google Calendar: lihat/cipta acara), email_draft (DRAF Gmail sahaja, tak hantar), make_document (surat/memo/minit/laporan rasmi -> Word+PDF), make_certificates (sijil berkelompok dari Excel + templat), add_routine (arahan berulang ikut hari & masa).
+Arahan Tuan selalunya datang dari suara (transkripsi), jadi nama dan perkataan Inggeris mungkin tersalah dengar: tafsir ikut maksud dan bunyi, cth "ppt Hafiz" = "PPKIU Hafiz", "akmasis"/"akmal sis" = "akmalsys" (domain Tuan akmalsys.com), "bukan youtube" selepas pilih profile = "buka new tab", "sihat chrome" = "chrome". Kalau nama masih tak pasti, tanya Tuan dalam satu ayat.
+Tool tambahan: website_status (semak laman web hidup/down sekarang), monitor_site (tambah/buang laman dalam pemantauan 24 jam), check_scam (Malwarebytes: pautan/nombor/e-mel selamat atau scam), canva_design (poster/slaid/kad/banner dalam Canva + eksport), remember (simpan fakta kekal), calendar (Google Calendar: lihat/cipta acara), email_draft (DRAF Gmail sahaja, tak hantar), make_document (surat/memo/minit/laporan rasmi -> Word+PDF), make_certificates (sijil berkelompok dari Excel + templat), add_routine (arahan berulang ikut hari & masa).
 Tool yang kamu ada: find_anywhere (cari fail dalam PC DAN Google Drive serentak — guna ini untuk "cari fail X" bila lokasi tak disebut), web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), chrome (buka Chrome ikut profil, url, carian Google), browser_task (klik, isi borang dan baca dalam laman web — lambat, guna bila perlu sahaja), telegram_send (draf mesej Telegram, Tuan sahkan dengan "ya"), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Tuan guna mod CLAUDE.
 DATA JADUAL: bila tool pulangkan jadual (Google Form responses, Sheet, Excel, CSV), HUD akan TERUS bina dashboard — dalam jawapan teks beri 3-5 angka/penemuan utama (jumlah, peratus, tertinggi, terendah), bukan senarai baris mentah.
 ANALISIS: bila Tuan minta analisis, kumpul data secukupnya (maksimum 3-4 langkah tool, baca fail paling penting sahaja seperti README, package.json, data), kira angka penting, kemudian jawab dengan ringkasan padat yang ada angka. HUD akan tukar jawapan kamu jadi dashboard visual.
@@ -279,6 +279,13 @@ CHAT_TOOLS = WEB_TOOLS + [
          "time": {"type": "string", "description": "Masa 24 jam HH:MM, cth 16:00"},
          "task": {"type": "string", "description": "Arahan yang akan dijalankan, dalam ayat Tuan sendiri"}},
         ["days", "time", "task"]),
+    _fn("website_status", "Semak SEKARANG sama ada laman web hidup (kod HTTP, masa respons). Tanpa urls = laporan semua "
+                          "laman yang dipantau (*.akmalsys.com). Guna untuk 'status laman', 'website down ke', 'sistem X ok tak'.",
+        {"urls": {"type": "array", "items": {"type": "string"}, "description": "Alamat laman (kosongkan untuk semua yang dipantau)"}}),
+    _fn("monitor_site", "Urus senarai laman yang Jarvis pantau 24 jam (amaran ke fon bila down/pulih).",
+        {"action": {"type": "string", "enum": ["add", "remove", "list"]},
+         "url": {"type": "string", "description": "Alamat laman, cth elawatan.akmalsys.com"}},
+        ["action"]),
     _fn("check_scam", "Semak sama ada pautan, nombor telefon atau e-mel selamat atau scam (Malwarebytes).",
         {"items": {"type": "array", "items": {"type": "string"},
                    "description": "Pautan, e-mel, atau nombor telefon format E.164 (cth +60123456789)"}},
@@ -326,6 +333,8 @@ TOOL_TRIGGERS = {
     "email_draft": r"e-?mel|email|gmail|draf",
     "make_document": r"surat|memo|minit|laporan|dokumen|word\b|pdf|kertas kerja",
     "make_certificates": r"sijil|certificate",
+    "website_status": r"laman|website|web\b|site|\.com|\.my|\.app|down|uptime|status sistem|sistem .*(ok|hidup|jalan)|server|akmalsys",
+    "monitor_site": r"pantau|monitor|laman|website|site|akmalsys",
     "check_scam": r"scam|selamat ke|bahaya|phishing|penipuan|tipu|link ni|pautan ni|nombor ni|malware",
     "canva_design": r"canva|poster|slaid|slide|banner|kad |infografik|flyer|risalah|bunting|reka bentuk|design",
     "add_routine": r"setiap|tiap-tiap|tiap |rutin|routine|every|jadualkan|seminggu sekali",
@@ -464,6 +473,16 @@ CHAT_MODELS = [
     {"id": "space-bunny-mod", "group": "Space Bunny", "note": ""},
 ]
 CHAT_FALLBACK = "minimax-m3.1-flash"
+
+# Tahap usaha Claude Code (`claude --effort`): lebih tinggi = lebih teliti, lebih lambat, lebih banyak kuota
+CLAUDE_EFFORTS = [
+    {"id": "", "label": "Default"},
+    {"id": "low", "label": "Low · laju"},
+    {"id": "medium", "label": "Medium"},
+    {"id": "high", "label": "High · teliti"},
+    {"id": "xhigh", "label": "Extra high"},
+    {"id": "max", "label": "Max · paling teliti"},
+]
 
 CLAUDE_MODELS = [
     {"id": "haiku", "label": "Haiku", "note": "Fastest, saves quota"},
@@ -3499,6 +3518,18 @@ class Api:
                     ". Beritahu Tuan lokasinya; tempat kosong [..] perlu diisi jika ada.")
         if name == "make_certificates":
             return self._certificates(str(args.get("excel", "")), str(args.get("template", "")))
+        if name == "website_status":
+            urls = [str(u) for u in (args.get("urls") or []) if str(u).strip()]
+            self._emit("tool", {"name": "Websites", "detail": ", ".join(urls)[:80] or "semua laman dipantau", "full": ""})
+            return self._x.check_now(urls) if urls else self._x.site_report()
+        if name == "monitor_site":
+            act, url = str(args.get("action", "list")), str(args.get("url", "") or "")
+            self._emit("tool", {"name": "Monitor", "detail": f"{act} {url}".strip(), "full": ""})
+            if act == "add":
+                return self._x.monitor_add(url)
+            if act == "remove":
+                return self._x.monitor_remove(url)
+            return "Dipantau: " + ", ".join(self._x.sites())
         if name == "check_scam":
             items = [str(i) for i in (args.get("items") or [])][:10]
             self._emit("tool", {"name": "Malwarebytes", "detail": ", ".join(items)[:80], "full": ""})
@@ -4628,6 +4659,8 @@ class Api:
                "--append-system-prompt", SYSTEM_PROMPT + location_note() + lang_note() + self._x.memory_note()]
         if cfg.get("model"):
             cmd += ["--model", cfg["model"]]
+        if cfg.get("effort") in {e["id"] for e in CLAUDE_EFFORTS if e["id"]}:
+            cmd += ["--effort", cfg["effort"]]
         if cfg.get("allowed_tools"):
             cmd += ["--allowedTools", ",".join(cfg["allowed_tools"])]
         if cfg.get("disallowed_tools"):
@@ -4880,6 +4913,11 @@ class Api:
             return {"ok": False, "msg": f"Google TTS: {e}"}
 
     # ---------- Settings (panel dalam HUD) ----------
+    def brain(self):
+        cfg = load_json(CONFIG, {})
+        return {"model": cfg.get("model", "sonnet"), "effort": cfg.get("effort", ""),
+                "models": CLAUDE_MODELS, "efforts": CLAUDE_EFFORTS}
+
     def get_settings(self):
         cfg = load_json(CONFIG, {})
         return {"model": cfg.get("model", "sonnet"), "voice": cfg.get("voice", "ms-MY-OsmanNeural"),
@@ -4887,6 +4925,7 @@ class Api:
                 "voice_fx": cfg.get("voice_fx", False), "speak_replies": cfg.get("speak_replies", True), "reply_language": cfg.get("reply_language", "ms"),
                 "voice_en": cfg.get("voice_en", "en-GB-RyanNeural"), "en_voices": EN_VOICES,
                 "voices": all_voices(), "models": CLAUDE_MODELS,
+                "effort": cfg.get("effort", ""), "efforts": CLAUDE_EFFORTS,
                 "chat_model": self._chat_model(load_json(SECRETS, {})), "chat_models": CHAT_MODELS,
                 # rail menulis "google · <id>"; provider dihantar supaya JS tidak
                 # meneka dan tidak perlu tahu nama penyedia suara
@@ -4894,6 +4933,7 @@ class Api:
 
     def set_setting(self, key, value):
         allowed = {"model": lambda v: v in [m["id"] for m in CLAUDE_MODELS],
+                   "effort": lambda v: v in [e["id"] for e in CLAUDE_EFFORTS],
                    "voice": lambda v: v in [x["id"] for x in all_voices()],
                    "voice_rate": lambda v: bool(re.fullmatch(r"[+-]\d{1,2}%", v)),
                    "voice_pitch": lambda v: bool(re.fullmatch(r"[+-]\d{1,2}Hz", v)),
@@ -4908,6 +4948,8 @@ class Api:
         cfg = load_json(CONFIG, {})
         cfg[key] = value
         CONFIG.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+        if key in ("model", "effort"):
+            self._push(f"window.jarvisBrain && window.jarvisBrain({json.dumps(self.brain())})")
         if key == "reply_language":
             # Tanpa ini, tukar bahasa dalam Settings tak berkesan sampai restart:
             # lang_note() dulu baca cakera setiap panggilan, tapi modul ini
@@ -5230,7 +5272,26 @@ class Api:
         mm = re.match(r"^(?:padam|buang|delete) rutin (\d+)$", low)
         if mm:
             return {"handled": True, "label": self._x.routine_delete(int(mm.group(1)))}
-        if re.match(r"^(status|semak|check) (laman|website|web|site)( web)?$", low):
+        bm = re.match(r"^(?:(?:tukar|guna|pakai|switch|set)\s+(?:ke\s+)?)?(?:model\s+|claude\s+)?"
+                      r"(haiku|sonnet|opus)(?:\s+(?:effort\s+)?(low|medium|high|xhigh|extra high|max|default))?$"
+                      r"|^(?:(?:tukar|set)\s+)?effort\s+(low|medium|high|xhigh|extra high|max|default)$", low)
+        if bm:
+            mdl, eff = bm.group(1), (bm.group(2) or bm.group(3) or "")
+            eff = {"extra high": "xhigh", "default": ""}.get(eff, eff)
+            if mdl:
+                self.set_setting("model", mdl)
+            if bm.group(2) or bm.group(3):
+                self.set_setting("effort", eff)
+            b = self.brain()
+            return {"handled": True, "label": f"🧠 Claude Code: {b['model'].title()}"
+                    + (f" · effort {b['effort']}" if b["effort"] else " · effort default")}
+        mm = re.match(r"^(?:pantau|monitor|tambah pantau)\s+(?:laman\s+(?:web\s+)?|website\s+|site\s+)?([\w.-]+\.\w{2,}\S*)$", low)
+        if mm:
+            return {"handled": True, "label": self._x.monitor_add(mm.group(1))}
+        mm = re.match(r"^(?:berhenti pantau|jangan pantau|stop monitor|buang pantau)\s+(\S+)$", low)
+        if mm:
+            return {"handled": True, "label": self._x.monitor_remove(mm.group(1))}
+        if re.match(r"^(status|semak|check) (laman|website|web|site|sistem)( web)?$", low):
             self._push(f"window.jarvisSay && window.jarvisSay({json.dumps(self._x.site_report())})")
             return {"handled": True, "label": "🌐 Status laman dipaparkan"}
         mm = re.match(r"^deploy\s+(.+)$", low)
@@ -5688,7 +5749,8 @@ class Api:
                     self._stt = None
                     gc.collect()
 
-    STT_WORDS = ["new tab", "Google Drive", "Telegram", "Chrome", "profile", "survey", "analisis lengkap",
+    STT_WORDS = ["akmalsys", "akmalsys.com", "eLawatan", "HATRIK", "sipeng", "deploy",
+                 "new tab", "Google Drive", "Telegram", "Chrome", "profile", "survey", "analisis lengkap",
                  "hantar ke Telegram", "pilih profile", "buka drive", "YouTube", "Gmail", "form responses"]
 
     def _stt_tg_names(self):

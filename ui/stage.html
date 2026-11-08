@@ -2981,7 +2981,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
     </div>
     <div class="spacer"></div>
     <div class="chip" title="Claude Code — PC work">
-      <span class="dot on"></span><span>Claude</span>
+      <span class="dot on"></span><span id="brainLbl">Claude</span>
     </div>
     <div class="chip" title="Chat model — rootsys">
       <span class="dot on"></span><span>DeepSeek</span>
@@ -3542,6 +3542,10 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
         <div class="set-row">
           <label for="setModel">Claude model</label>
           <select id="setModel"></select>
+        </div>
+        <div class="set-row">
+          <label for="setEffort">Claude effort</label>
+          <select id="setEffort"></select>
         </div>
         <div class="set-row">
           <label for="setChatModel">Chat model</label>
@@ -8546,7 +8550,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
     const saved = $('sheetSaved');
     const g = id => $(id);
     const F = {
-      model: g('setModel'), chat: g('setChatModel'), voice: g('setVoice'),
+      model: g('setModel'), effort: g('setEffort'), chat: g('setChatModel'), voice: g('setVoice'),
       voiceEn: g('setVoiceEn'), rate: g('setRate'), pitch: g('setPitch'),
       speak: g('setSpeak'), lang: g('setLang')
     };
@@ -8570,6 +8574,11 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
       F.model.textContent = '';
       (s.models || []).forEach(m => opt(F.model, m.id, m.label + ' · ' + m.id));
       keep(F.model, s.model);
+      if (F.effort) {
+        F.effort.textContent = '';
+        (s.efforts || []).forEach(e => opt(F.effort, e.id, e.label));
+        keep(F.effort, s.effort || '');
+      }
 
       F.chat.textContent = '';
       (s.chat_models || []).forEach(m => opt(F.chat, m.id, m.label || m.id));
@@ -8616,6 +8625,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
     }
 
     if (F.model) F.model.addEventListener('change', () => put('model', F.model.value));
+    if (F.effort) F.effort.addEventListener('change', () => put('effort', F.effort.value));
     if (F.chat) F.chat.addEventListener('change', () => put('chat_model', F.chat.value));
     if (F.voice) F.voice.addEventListener('change', () => put('voice', F.voice.value));
     if (F.voiceEn) F.voiceEn.addEventListener('change', () => put('voice_en', F.voiceEn.value));
@@ -8820,6 +8830,12 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
       window.jarvisDiffCheck();
     });
   })();
+
+  /* chip header "CLAUDE · SONNET · HIGH": model & effort Claude Code semasa */
+  window.jarvisBrain = function (b) {
+    const el = $('brainLbl');
+    if (el && b) el.textContent = 'Claude · ' + (b.model || 'default') + (b.effort ? ' · ' + b.effort : '');
+  };
 
   /* ── tema warna ── */
   const THEME_BG = { asal: [272, 318, 200, 44], stark: [196, 38, 210, 24],
@@ -9104,6 +9120,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
     } catch (e) { paintWake(false); }
     step(36, 'Mikrofon & wake word');
     try {
+      try { window.jarvisBrain(await api.brain()); } catch (e) {}
       const cfg = await api.get_settings_core();
       window.jarvisTheme && window.jarvisTheme(cfg && cfg.theme, false);
       window.stageSettings(cfg);

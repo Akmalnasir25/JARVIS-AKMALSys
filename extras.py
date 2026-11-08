@@ -475,6 +475,48 @@ class Extras:
                         self.note(f"⚠ {url} DOWN ({code})")
             time.sleep(int(self.cfg().get("monitor_minutes", 5)) * 60)
 
+    @staticmethod
+    def _norm_url(u):
+        u = str(u or "").strip().rstrip("/")
+        if not u:
+            return ""
+        return u if u.startswith(("http://", "https://")) else "https://" + u
+
+    def monitor_add(self, url):
+        u = self._norm_url(url)
+        if not re.match(r"https?://[\w.-]+\.\w{2,}", u):
+            return f"✖ «{url}» bukan alamat laman yang sah."
+        c = self.cfg()
+        urls = c.get("monitor_urls") or self.sites()
+        if u in urls:
+            return f"{u} memang sudah dipantau."
+        c["monitor_urls"] = urls + [u]
+        _save(self.root / "config.json", c)
+        ok, code, ms = self._check(u)
+        self.site_state[u] = {"up": ok, "fails": 0 if ok else 1, "code": code, "ms": ms, "at": time.strftime("%H:%M")}
+        return f"✔ Dipantau setiap {c.get('monitor_minutes', 5)} minit: {u} — sekarang {'✅ hidup' if ok else '❌ ' + str(code)}"
+
+    def monitor_remove(self, url):
+        q = self._norm_url(url).replace("https://", "").replace("http://", "")
+        c = self.cfg()
+        urls = c.get("monitor_urls") or self.sites()
+        keep = [u for u in urls if q not in u]
+        if len(keep) == len(urls):
+            return f"✖ {url} tiada dalam senarai pantau."
+        c["monitor_urls"] = keep
+        _save(self.root / "config.json", c)
+        for u in list(self.site_state):
+            if u not in keep:
+                self.site_state.pop(u, None)
+        return f"✔ Berhenti pantau: {', '.join(u for u in urls if u not in keep)}"
+
+    def check_now(self, urls):
+        out = []
+        for u in [self._norm_url(x) for x in urls if str(x).strip()][:10]:
+            ok, code, ms = self._check(u)
+            out.append(f"{'✅' if ok else '❌'} {u.replace('https://', '')} · {code}" + (f" · {ms} ms" if ms else ""))
+        return "\n".join(out)
+
     def site_report(self):
         if not self.site_state:
             out = []
