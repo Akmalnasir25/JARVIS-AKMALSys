@@ -1,40 +1,31 @@
 # CLAUDE.md — Jarvis Desktop
 
 > Fail ni untuk sesi seterusnya. Baca ni dulu, baru buka kod.
-> `NEXT_SESSION.md` simpan nota teknikal panjang. Ni yang ringkas: kedudukan sekarang,
-> apa yang dah jalan, apa yang belum, dan perangkap yang dah makan masa.
+> `NEXT_SESSION.md` simpan nota teknikal panjang (sejarah lama). Ni yang ringkas: kedudukan
+> sekarang, apa yang dah jalan, apa yang belum, dan perangkap yang dah makan masa.
 
-**Dikemas kini:** 2026-11-06 · lepas commit `3248c81`
+**Dikemas kini:** 2026-11-08 · lepas commit `cf482d6`
 
 ---
 
 ## 1. Apa benda ni
 
-HUD desktop untuk Akmal. **Jarvis panggil dia "Tuan"** (ditukar daripada "Sir" pada 2026-11-07,
-atas permintaan dia — dalam PERSONA, prompt English, UI dan hotword Whisper). Dokumen ni masih
-sebut "Sir" di tempat lain; itu nota lama, bukan arahan. Python + pywebview (WebView2), satu halaman
-`ui/stage.html` (~322k, satu `<script>` inline), backend `main.py` (~4,500 baris,
-184 method dalam `Api`). Model AI melalui `_run_chat` / `_run_claude`. Suara, Telegram,
-media, editor, sistem — semua dalam satu tetingkap.
+HUD desktop untuk Akmal (guru, pemimpin Pengakap, pembangun projek web *.akmalsys.com).
+**Jarvis panggil dia "Tuan"** — nota lama yang sebut "Sir" ialah sejarah, bukan arahan.
+Python + pywebview (WebView2), satu halaman `ui/stage.html` (~430 KB, satu `<script>` inline
+utama), backend `main.py` (~6,400 baris, ~238 method dalam `Api`). Dua otak:
+- **Chat** (`_run_chat`): model rootsys (DeepSeek) dengan tool OpenAI-style. `tools_for()`
+  tapis tool ikut `TOOL_TRIGGERS` (regex) supaya API tak lambat.
+- **Claude Code** (`_run_claude`): `claude -p` stream-json untuk kerja PC/coding/projek.
+  Model & effort dari config (`model`, `effort` → `--model`, `--effort`).
+- `pickEngine()` di UI: arahan mesej/Telegram **sentiasa** ke chat (`MSG_TASK`), kerja PC
+  (`PC_TASK`) ke Claude, selain itu chat.
 
-**Jalan:** `python main.py` atau `launch.vbs`. Autostart melalui `autostart.vbs`.
-
-**Lokasi ikut Windows Location** (2026-11-07). `current_place()` dalam `main.py`: Windows
-Location (WiFi, ~130 m) → Nominatim OSM (nama) → api.waktusolat.app (zon JAKIM). Tak pernah
-block — pulang cache `live_loc` dan segar di thread latar setiap 20 min; gerak < 2 km tak tanya
-OSM lagi. `config.json` `location`/`latitude`/`prayer_zone` kini **fallback** sahaja;
-`"location_auto": false` untuk kunci ke config. Kalau Location Windows dimatikan, guna yang lama.
-
-**Fon → laptop melalui bot Telegram** (2026-11-07, `phone.py`). Tuan taip atau hantar voice
-note kepada bot; ia masuk sebagai `onVoice('text')`, jalan yang sama dengan mic laptop, jadi
-semua jawapan keluar di HUD. Fon cuma dapat "🖥 di laptop" dan "✓ Siap (N s)" (cangkuk
-`done` dalam `Api._emit`). Kawalan pantas (`quick_control`) jalan terus dan balas label.
-Voice note: `messaging.Telegram.voice_file` → `phone.decode_16k` (PyAV, bukan
-`faster_whisper.decode_audio`) → `_transcribe`. **Kunci:** hanya `telegram_owner_id` dalam
-secrets.json didengar. Belum ada pemilik → HUD papar kod 6 digit, chat yang hantar kod jadi
-pemilik; 5 kod salah = chat itu diabaikan. Orang asing tak dapat balasan langsung. Token:
-`telegram_bot_token` (Tuan isi sendiri, jangan minta dia tampal dalam chat). Ini **bot**,
-berasingan daripada `telegram_session` (akaun Tuan sendiri, untuk inbox).
+**Jalan:** `python main.py`, `launch.vbs`, atau tugas berjadual **Jarvis**
+(log masuk + buka kunci + bangun dari sleep, `main.py --ensure`, restart 3× bila crash).
+`--ensure` keluar senyap jika Jarvis sudah hidup (lock `runtime/jarvis.lock`).
+Restart manual: `Stop-Process` pythonw main.py → `schtasks /run /tn Jarvis`;
+semak `runtime/startup.log`. **Restart hanya bila Tuan minta** (auto-mode menyekat).
 
 ---
 
@@ -42,231 +33,164 @@ berasingan daripada `telegram_session` (akaun Tuan sendiri, untuk inbox).
 
 | Fail | Baris | Apa dia buat |
 |---|---|---|
-| `main.py` | 4,521 | `Api` — jambatan JS↔Python. Semua `window.pywebview.api.*` duduk sini |
-| `ui/stage.html` | ~322k | seluruh UI. Satu `<script>` inline, tiada bundler |
-| `system.py` | 1,036 | kawalan laptop: volume, brightness, tetingkap, proses, shell |
-| `telegram_user.py` | 575 | Telethon atas akaun Sir sendiri — baca, hantar, digest |
-| `messaging.py` | 586 | driver mesej (Telegram Bot, WhatsApp) |
-| `services.py` | 497 | tekan kod media VK sahaja — bukan kawalan sistem penuh |
-| `media_server.py` | 254 | pelayan HTTP tempatan untuk `media/` + `ui/` |
-| `NEXT_SESSION.md` | — | nota teknikal panjang, kenapa setiap keputusan dibuat |
+| `main.py` | ~6,440 | `Api` — jambatan JS↔Python, tool chat, `resolve_system` (arahan tanpa AI), mic/wake, STT |
+| `extras.py` | ~730 | memori, Calendar, draf Gmail, dokumen Word/PDF, sijil, rutin, pantau laman, deploy, backup, Malwarebytes, Canva |
+| `phone_web.py` | ~1,330 | app fon (PWA) di `jarvis.akmalsys.com`: halaman, API, Files, Screen + kawalan, push |
+| `meeting.py` | ~210 | rakam mesyuarat (mic + loopback WASAPI) → Opus → Gemini nota |
+| `voiceprint.py` | ~80 | cap suara "Hey Jarvis" (openWakeWord custom verifier) |
+| `phone.py` | ~210 | bot Telegram @JarvisAkmal_bot (fon → laptop) |
+| `telegram_user.py` | ~580 | Telethon atas akaun Tuan — inbox, hantar, `listen()` mesej masuk |
+| `system.py` | ~1,040 | kawalan laptop: volume, kecerahan, tetingkap, proses, shell senarai putih |
+| `services.py` | ~540 | kekunci media, TTS strim, cuaca/solat, `screenshot(path, hide=True)` |
+| `media_server.py` | ~250 | pelayan HTTP tempatan untuk `media/` + `ui/` (HUD dimuat dari `/stage?theme=`) |
 
-**10 pane:** `comms` `media` `term` `files` `editor` `browse` `docs` `ana` `native` `inbox`.
-Setiap satu ada `--hue` sendiri; `body[data-pane="X"]` yang tukar warna seluruh shell.
-
----
-
-## 3. Di mana kita berhenti
-
-Commit terakhir: **`3248c81`** — panel kanan ditukar daripada senarai chat menunggu
-kepada **Mesin + Repo**, jam jadi 12 jam, `open_in_vscode(path)`.
-
-Sebelum tu `fd053cd` — inbox Telegram boleh baca chat sendiri, ada paging dan digest.
-
-### Yang siap dan disahkan hidup
-
-**Inbox Telegram** (`pane-inbox`)
-- `ib_dialogs()` senarai chat, `ib_thread(id, limit, until_id)` buka thread
-- **Paging:** butang `Lama` panggil `ib_thread(id, 600, oldest)` — `offset_id` ambil
-  mesej *lebih lama* dari id tu. Diukur: page 1 = 60 mesej 0.33s, page 2 = 600 mesej
-  2.50s, **sifar pertindihan id**. 60 → 660 bubble, scroll kekal di tempat sama.
-- **Digest:** butang `Ringkas` → `ib_digest(id, 800)`. Model tak boleh baca 2,000 mesej
-  mentah (~60k token "ok"/"haha"). Digest bagi *bentuk*: pengirim + peratus, kata
-  berulang, jenis fail, domain link, hari paling sibuk, 10 petikan terpanjang.
-  800 mesej → 5,087 aksara. Ini yang Sir guna.
-- `ib_search(query, kind, days, dialog_id)` carian.
-- `ib_send_tg(id, text)` hantar — **ini satu-satunya yang tak boleh dibalikkan.**
-
-**Panel kanan** (`comms`)
-- **Mesin:** CPU / RAM / DSK sebagai meter, kemudian Bateri, Bebas, RAM, Proses,
-  Hidup, Berat (proses paling berat ikut RSS).
-- **Repo:** setiap repo di bawah `~`, branch, kiraan kotor, ahead/behind, jumlah commit.
-  paling kotor dulu. Klik → buka folder repo tu sendiri dalam VS Code.
-- `stage_work()` **tak pernah block.** Panggilan pertama mula scan di thread latar dan
-  cakap "scanning"; panggilan seterusnya dapat jawapan. TTL 300s, data lama ditanda
-  `stale: true` dan tetap dipaparkan.
-
-**Jam 12 jam** — `d.getHours() % 12 || 12` tangani midnight (0→12) *dan* noon.
-
-**Laporan harian + auto-run** (commit `d7b0e1f`)
-- **Autostart dah hidup.** Shortcut dalam Startup folder →
-  `C:\Users\akmal\jarvis-desktop\launch.vbs`. `cscript //nologo autostart.vbs --status`
-  untuk semak. Panel kanan tunjuk keadaan sebenar, bukan nama fail sahaja.
-- `startup_report(cold)` jawab **dua soalan berasingan**: (a) `cold` — ni boot atau
-  reload? (b) `brief.due` — perlu buat laporan baru? Dua-dua dulu dicampur jadi satu
-  panggilan, dan sebab tu laporan hilang.
-- **Bug asal:** `morning_brief` cap `brief_date` **sebelum** kerja dibuat, dan pulangkan
-  `ok:false` pada setiap panggilan selepas yang pertama. Jadi reload pukul 11 pagi
-  ditolak, dan `briefBox` duduk atas placeholder sepanjang hari walaupun teks penuh
-  dah ada dalam `cache.json`. Sekarang `startup_report` pulangkan teks tu.
-- `_brief_facts()` kumpul semua sumber **selari, setiap satu bertimer**: cuaca 0.01–1.4s,
-  solat 0.01s, email 13–49s. Yang paling lambat dinamakan di header laporan (`· email 26s`)
-  supaya Sir tahu apa yang lambat.
-- **Telegram SENGAJA TIDAK dimasukkan.** Sir cakap jangan: *"yang telegram paling ramai
-  dan chat belum dibaca tu tak perlu masukkan"*. Tiada kiraan chat, tiada nama kumpulan,
-  tiada mesej belum dibaca dalam laporan. Prompt pun larang model sebut perkataan
-  "Telegram" langsung. Inbox Telegram kekal sebagai panel sendiri — ia bukan bahan
-  laporan. Kalau sesi lain terasa nak "lengkapkan" laporan dengan nombor unread,
-  **jangan** — itu dibuang atas permintaan.
-- `_brief_compose()` — model tulis 5–7 ayat; kalau model gagal, fakta mentah dihantar.
-  Kotak kosong tak pernah sampai ke skrin.
-- **`_claude_quick` pulangkan prosa untuk kegagalan juga.** `"Failed: ..."` dan
-  `"Claude Code not found."` ialah string, bukan data. Sekarang ia `raise` dan bahagian
-  email dilangkau — laporan yang cakap "tak dapat check" lebih teruk daripada laporan
-  yang tak sebut langsung.
-- `_brief_watch()` — benang yang bangun tiap 5 minit. Laptop yang tak pernah reboot
-  takkan dapat laporan kedua; ia semak sama ada tarikh dah lepas `brief_hour` (default
-  6) sejak laporan terakhir. Senyap, tak hantar apa-apa.
-- `brief_last()` — teks yang dah siap hari ni, kalau pane minta semula.
-- Butang `buat semula` dalam header → `morning_brief(true)`.
-- **Suara sekali sahaja:** `sessionStorage briefSeen` simpan timestamp terakhir yang
-  dibaca. Reload → papar, tak cakap. Sebelum ni reload = laporan dibaca kuat semula
-  setiap kali.
-
-### Probe
-`ui/_work_probe.py` — **24 lulus, 0 gagal** (panel kanan, jam, VS Code, inbox).
-`ui/_daily_probe.py` — **29 lulus, 0 gagal** (laporan, cache, reload, boot, autostart).
-`ui/_launch_test.py` — 27/27.
-
-Jalankan: `python ui/_work_probe.py`. Ia buka WebView2 sebenar, tekan butang sebenar,
-baca DOM sebenar. Output JSON ke `ui/_work_out.json`.
-
-> Fail ni gitignored (`ui/_*_probe*.py`). Kalau nak simpan, kena `-f`.
-> Probe lama yang masih relevan: `_launch_test` 27/27, `_wake_test` 15/15, `_ip_test` 34/34,
-> `_pane_live` 10/10, `_yt_local_live` 13/13.
+**10 pane HUD:** `comms` `media` `term` `files` `editor` `browse` `docs` `ana` `native` `inbox`.
 
 ---
 
-## 4. Belum siap — jangan bina tanpa diminta
+## 3. Yang siap dan hidup (ringkas, ikut kawasan)
+
+**HUD**
+- Orb: 5 lapisan kanvas (`#orb` dail, `.orb-layer.red`/`.gold` cincin Iron Man diwarnakan
+  `tint()` multiply dalam kanvas, `.sph` sfera emas ala JARVIS/Vision ikut `--orb-core`
+  tema, `.top` logo+kaca). Thinking: sfera pecah/kembang, cincin luar kembang & pecah.
+- Tema: Purple (`asal`), Stark, Inferno, Mark — `html[data-theme]`, butang 🎨, arahan
+  "tema …", simpan `config.theme`, dihantar dalam URL supaya skrin permulaan betul.
+- Skrin permulaan akmalsys.com (bar kemajuan ikut langkah `boot()` sebenar).
+- Panel 3D terapung, tiub telemetri kaca, kad tugas dengan ikon laman sebenar.
+- History sesi (`chat_history.json`) + padam (butang tong merah, klik dua kali).
+- Mod projek: chip projek, `Δ` diff overlay + commit setempat (`project_diff/commit`).
+- Mod perbualan: arahan dari suara → selepas jawapan dibaca, mic dibuka ~6 s (`listen_followup`).
+
+**Suara**: STT Gemini (`gemini-3.1-flash-lite`, thinking minimal) dengan pengawal senyap +
+had panjang; Google/Whisper sandaran. `STT_WORDS` = ejaan rujukan (akmalsys, eLawatan…).
+Wake word + cap suara pilihan ("daftar suara"; ambang naik ke 0.6 bila aktif).
+
+**App fon — `https://jarvis.akmalsys.com`** (`phone_web.py`)
+- Cloudflare Tunnel **`jarvis`** (`~/.cloudflared/jarvis.yml`, dimulakan oleh Jarvis;
+  tunnel `sipeng` berasingan, JANGAN sentuh) → `127.0.0.1:8765`.
+- Kunci: Cloudflare Access (nama pasukan dalam `config.phone_web_team`, polisi e-mel Tuan). JWT
+  `Cf-Access-Jwt-Assertion` disahkan RS256 dengan kunci awam pasukan. E-mel Tuan sah →
+  masuk; Service Token (Shortcut iOS) → perlu juga `X-Jarvis-Key`. Tanpa Access = 404.
+- Orb HUD yang sama (kod diambil dari stage.html semasa dihidang), tekan-tahan untuk
+  bercakap, UI Bahasa Inggeris, projek/Δ/commit, History, ＋ New (segerak dua hala).
+- ☰ Menu: Files (baca sahaja, live, auto-refresh 4 s, NEW, Range untuk video),
+  Screen + **kawalan penuh skrin** (ketuk/klik, dua kali, tahan = klik kanan, cubit zum,
+  papan kekunci), Controls, Send file (→ Downloads\Jarvis Uploads), Daily brief,
+  Notifications (Web Push, VAPID dalam `runtime/`), Model (Claude model/effort), Reload.
+- Muat semula sendiri bila versi berubah (`page_version`), kecuali semasa merakam/menaip.
+- Tailscale masih disokong sebagai sandaran (ikat pada IP 100.64/10 sahaja).
+
+**Telegram**: hantar = draf + "ya" (`_pending_tg`, TTL 120 s). Mesej peribadi masuk →
+kad HUD + notifikasi. **Auto-draf** (Inbox, suis per chat, `config.tg_autodraft`): draf
+sahaja, tak pernah hantar tanpa "ya"; 45 s jarak, 6/jam. Pautan dalam mesej masuk →
+Malwarebytes di latar (domain dipercayai dilangkau, cache 24 j, 20/jam) → amaran fon.
+
+**Kerja harian (`extras.py`)**: memori (`memory.json`), Google Calendar (penyambung
+Claude — **perlu Tuan Connect di claude.ai**), draf Gmail (tiada tool send), surat rasmi
+Word+PDF (`Documents\Jarvis Dokumen`), sijil berkelompok Excel+templat `{{Lajur}}`
+(`Documents\Jarvis Sijil`), rutin (`routines.json`), pantau 7 laman *.akmalsys.com
+(5 min, amaran selepas 2 gagal), deploy Firebase (9 projek, perlu "ya"), backup robocopy
+mingguan ke `OneDrive\Jarvis Backup` (tanpa node_modules/.git/rahsia), Canva
+(`Documents\Jarvis Canva`).
+
+**Lain-lain**: pembantu mesyuarat ("mula/tamat rekod mesyuarat"), senarai main YouTube
+("main 5 lagu X", ke MEDIA), carian PC+Drive serentak (`find_anywhere`), dashboard
+automatik bila data jadual dibaca, ikon taskbar (AppUserModelID + WM_SETICON).
+
+---
+
+## 4. Belum siap / perlu tindakan Tuan
 
 | Benda | Status |
 |---|---|
-| **Auto-reply Telegram** | ✅ **DIBINA? TIDAK.** Lihat §5. Suis wujud, enjin tiada. |
-| WhatsApp | berstruktur, tak hidup — tiada Meta token / `phone_number_id` || Multi-tab editor | **ditangguh oleh Sir.** Jangan bina. |
-| Carian seluruh projek | ditangguh |
-| Git diff dalam editor | ditangguh |
-| Item 6 drag-and-drop pengesahan | `ui/_drop_probe.py` tak pernah keluarkan output |
-| Item 5 deck-follow | ditangguh, tunggu keputusan PowerPoint |
-
-`ui/stage.html.bak` masih ada — padam bila Sir puas hati.
-Lab orb (`ui/_orb_lab.html`) tak dipakai tapi kekal.
+| Google Calendar | kod siap; Tuan mesti **Connect** di claude.ai → Settings → Connectors |
+| Kepala surat rasmi | tempat kosong `[Nama]`; tunggu nama/jawatan/sekolah (`config.doc_sender`) |
+| Shortcut iOS | `/api/ask` siap; Tuan memilih PWA sahaja — tak perlu dikejar |
+| Ejen VPS | dibincang, Tuan tiada VPS lagi. Reka bentuk: VPS = pusat, laptop = ejen |
+| WhatsApp | Tuan tolak (item 10). Jangan bina |
+| Multi-tab editor | ditangguh oleh Tuan. Jangan bina |
+| `ui/stage.html.bak`, `ui/_orb_lab.html` | sisa lama, padam bila Tuan setuju |
 
 ---
 
-## 5. Auto-reply — soalan Sir, bukan arahan
+## 5. Garisan yang tak bergerak
 
-Sir tanya *"jarvis akan auto reply macam mana?"* — soalan. Jawapan penuh dah diberi.
+**Fail yang JANGAN sesekali commit** (dalam `.gitignore`): `secrets.json` · `*.key` · `.env` ·
+`cache.json` · `sessions.json` · `chat_history.json` · `memory.json` · `routines.json` ·
+`runtime/` (VAPID, push_subs, startup.log, rakaman) · `media/`.
+**`config.json` jangan di-commit** melainkan diminta — ia ada tetapan peribadi Tuan
+(wake_word, theme, domain, e-mel). Repo **AWAM**: imbas diff untuk rahsia sebelum setiap push.
 
-**Keadaan sebenar:** checkbox `auto-reply` dalam `pane-inbox` wujud, tekan dia panggil
-`api.ib_auto(id, on)`, yang simpan `self._ib_auto[k] = True` (baris ~2628 `main.py`).
-**Tiada satu baris pun baca flag tu.** Hari ni ia suis kosong. Itu jujur.
+**Pengesahan sebelum tindakan luar** — dikuatkuasakan dalam kod, bukan prompt:
+Telegram hantar & auto-draf → "ya"; e-mel → draf sahaja (tool send tak diberi); deploy →
+"ya"; lock/sleep dari fon → confirm di fon; Malwarebytes → semak sahaja (tool report tak diberi).
 
-**Reka bentuk yang dimaksudkan** (kalau Sir bagi kata putus):
-1. Arm satu chat sahaja, bukan semua
-2. Watcher `events.NewMessage(incoming=True)` atas `self._client`, tapis ikut id
-3. Konteks 12 mesej terakhir — bukan 800 macam digest
-4. Model tulis satu-dua ayat; pulangkan `SKIP` kalau tak ada apa nak jawab
-5. Cooldown 45s/chat, siling 6 sejam
-6. Setiap hantar naik dalam HUD
+**App fon:** `_sensitive()` sembunyi & 404 fail rahsia walaupun dalam folder dibenarkan
+(secrets.json, .env, kunci, token/credential, .git/.ssh/.cloudflared/runtime) —
+ujian pertama dulu bocorkan `secrets.json` melalui akar projek jarvis-desktop.
 
-**Kenapa ia tak dibina:** cubaan tulis enjin (`_auto_arm` / `_auto_loop` / `_auto_once`
-dengan `AUTO_BACKLOG=12`, `AUTO_MAX_PER_HOUR=6`, `AUTO_COOLDOWN=45`) **disekat**.
-Sebab: hantar autonomi atas nama Sir ke chat sebenar tanpa pengesahan per-mesej.
-Dan mesej Sir tu soalan, bukan arahan.
-
-**Kalau Sir nak ia dibina, dia kena cakap terus:** satu chat, siapa boleh dibalas,
-dan **hantar sendiri atau draf dulu**. Pilihan draf tak sentuh `send()` — Jarvis tulis,
-Sir tekan. Itu pilihan yang lebih selamat dan tak perlu izin apa-apa.
-
-Jangan pi keliling sekatan ni. Bukan teknikal — ia garisan.
+`telegram_session` = kebenaran penuh akaun; tulis ke `secrets.json` sahaja.
+Jangan minta Tuan tampal kunci dalam chat — dia isi `secrets.json` sendiri. Jangan cetak nilai rahsia.
 
 ---
 
 ## 6. Perangkap yang dah makan masa
 
-**`evaluate_js` pulangkan Promise untuk async IIFE, dan potong pada statement pertama.**
-Setiap blok probe mesti simpan ke `window.__r` dulu, baca dalam panggilan kedua.
-Ni dah kena tiga kali.
+**Heredoc bash + backslash rosak.** `"\n"` jadi baris baru sebenar dan string pecah.
+Untuk tampalan, tulis skrip Python ke scratchpad dengan tool **Write**, atau guna **Edit**.
+Dah kena berkali-kali (termasuk 2026-11-08 dalam `extras.py`).
 
-**`psutil.cpu_percent(None)` dalam thread latar ukur jarak sejak bacaan lepas** — boleh
-jadi beberapa minit, jadi ia lapor **0%** selamanya. Guna `cpu_percent(interval=0.3)`.
-Meter yang sentiasa kosong lebih teruk daripada tiada meter.
+**Konsol Windows cp1252**: `print` emoji/◆ crash skrip → `PYTHONIOENCODING=utf-8`.
 
-**`psutil.cpu_percent` untuk proses baru sentiasa 0.0.** Jadi `_heaviest_process()`
-susun ikut **RSS**, bukan CPU. Kalau ikut CPU ia namakan proses rawak.
+**Chrome headless** tak jalankan rAF/animasi CSS dengan betul, dan tetingkap minimum ~500 px
+lebar. Paksa keadaan akhir dalam salinan ujian; uji susun atur fon pada 500 px.
+Pengawas orb (`setInterval`) set 'thinking' → idle bila `busy=false` — ujian mesti tiru giliran.
 
-**Backslash dalam heredoc `<<'PY'` rosak.** `"\n"` yang lalu jalan tu jadi newline
-sebenar dalam fail yang ditulis, dan string literal pecah. **Guna tool `Edit`** untuk
-apa-apa yang ada escape. Dah kena tiga kali.
+**Laptop pada skala 150%.** Thread tak DPI-aware nampak 1280×720, ImageGrab 1920×1080.
+Input jauh: `SetThreadDpiAwarenessContext(-4)` dulu, baru `GetSystemMetrics/SetCursorPos`.
 
-**`_repo_shape()` = 9 subprocess git setiap repo, 3.87s setiap satu.** 13 repo = 50s.
-Sebab tu ada `_repo_quick()` (3 panggilan) di thread latar, TTL 5 minit.
+**`services.screenshot()` sembunyi Jarvis** — untuk fon guna `ImageGrab` terus.
+Sembunyi/papar WebView2 berulang dari thread lain = HUD berkelip lalu "gui loop returned".
 
-**URL mesti dibuang sebelum tokenise** atau `https` naik #1 (diukur: `https(96)`).
-`_URL_RE.sub(" ", text)` + `https http www com ...` dalam `_STOP`.
+**Penapis CSS tak boleh warnakan garis putih jadi merah** (hasil merah jambu) — warnakan
+dalam kanvas (multiply + destination-in).
 
-**Akaun sintetik (`@2023`, `Remove Deleted Accounts`) rampas slot pengirim teratas.**
-Kena lipat jadi satu baris `"(akaun automatik/deleted)"` di hujung.
+**`--alt` hanya wujud dalam `.stage`.** Elemen di luar (overlay) yang guna `.btn.solid`
+dapat latar lutsinar — isytihar `--alt` pada overlay.
 
-**IPv6 mati pada rangkaian ni.** Handshake IPv4 0.21s, IPv6 timeout 10s. Python cuba
-IPv6 dulu. `main.py` susun `getaddrinfo` IPv4-dahulu semasa import. oEmbed: 96s → 0.26s.
-Ni punca banyak "probe macam hang" dulu.
+**`soundcard` mulakan COM semasa import**; thread lain perlu `CoInitializeEx` SELEPAS import.
 
-**`media_server` root **ialah** `media/`** — URL `/file.mp4`, bukan `/media/file.mp4`.
-Path salah bagi 404 yang media element lapor sebagai **error 4** — sama macam codec
-hilang. Dua jam hilang sebab ni.
+**`cloudflared tunnel route dns` baca `config.yml` lalai (sipeng)** — selalu guna
+`--config jarvis.yml` + UUID tunnel, atau rekod jatuh ke tunnel yang salah.
 
-**Pane yang tak pernah ditunjuk ada kotak sifar saiz** dan painter senyap bail.
-Probe mesti `stageShow(...)` dulu sebelum baca DOM.
+**Nama method bertembung**: `Api._git` sudah wujud (pulang str) — kaedah projek ialah `_pgit`.
 
-**`ROOT / "ui"` mesti raw string** atau `\U` dalam `C:\Users` jadi unicode escape pecah.
+**`quick_control` melangkau `resolve_system` bila ayat ada "lagu/slide"** — laluan pantas
+lagu disemak awal dalam `quick_control`.
 
----
-
-## 7. Garisan yang tak bergerak
-
-**Fail yang JANGAN sesekali commit** (semua dalam `.gitignore`, dokumen projek tulis
-"secrets.json dilindungi"):
-`secrets.json` · `*.key` · `.env` · `cache.json` · `sessions.json` · `runtime/` · `media/`
-
-`telegram_session` ialah **kebenaran penuh akaun** — kalau ia bocor, orang boleh baca
-dan hantar sebagai Sir. Ia tulis ke `secrets.json` sahaja, tak pernah disalin tempat lain.
-Kalau bocor: Telegram → Settings → Devices → terminate.
-
-`config.json` isytihar `disallowed_tools`: `Bash(rm -rf *)`, `Bash(del /s *)`, `Bash(format *)`.
-**Shell ialah senarai putih, bukan senarai hitam** — `system.py` tolak `&& || ; | > <`
-backtick `$(` di pintu masuk. Padam masuk Recycle Bin (`FOF_ALLOWUNDO`).
-Tindakan merosakkan perlu token 90 saat + taip pengesahan.
-
-**Tiga benda yang tak bergerak:**
-1. Kandungan seksual melibatkan bawah 18 — tak pernah, walau apa pun framing
-2. Operasi tak boleh dibalikkan — padam, tulis-ganti, deploy, hantar, push, drop
-3. Sasaran hidup terhadap orang/infrastruktur sebenar yang dinamakan
+Yang lama masih benar: `evaluate_js` + async IIFE (simpan ke `window.__r`); `psutil.cpu_percent`
+perlu `interval`; IPv6 mati pada rangkaian ni (IPv4 dahulu); `media_server` root = `media/`;
+pane tersembunyi berukuran sifar; `ROOT / "ui"` raw string.
 
 ---
 
-## 8. Gaya kerja Sir
+## 7. Gaya kerja Tuan
 
-- Taip laju, separuh perkataan, tukar arah tengah jalan. Ikut, jangan tanya kenapa.
-- **UI mesti gabung warna, jangan satu warna sahaja.** Ni standing ask.
-- Kalau dia tak nak sesuatu, dia cakap terus ("aku tanak chat tu"). Buang, jangan hujah.
-- Dia nak tengok kerja, bukan dipujuk. Depth penuh, bukan rangka.
-- Bahasa: campuran Melayu/English. Balas dalam nada sama.
-- Kalau dia hilang berjam-jam, tunggu. Balik, ANON sama, tiada drama.
-
-**Git commit:** mesej Bahasa Inggeris, huraikan *kenapa* bukan *apa*, akhiri dengan
-`Co-Authored-By: Claude Code <noreply@anthropic.com>`.
+- Taip laju, separuh perkataan, BM santai + English. Balas dalam nada sama.
+- "buat semua" = buat semua; tanya hanya keputusan sebenar (keselamatan/privasi).
+- **UI mesti gabung warna**, nampak 3D/hidup, bukan rata. App fon UI dalam English.
+- Dia nak lihat hasil: uji, ambil gambar, beritahu apa diuji dan apa belum.
+- "commit dan push" = commit fail kod sahaja (bukan config.json), mesej English yang
+  terangkan *kenapa*, akhiri `Co-Authored-By: Claude Code <noreply@anthropic.com>`.
 
 ---
 
-## 9. Mula semula
+## 8. Mula semula
 
 ```bash
 cd ~/jarvis-desktop
-git log --oneline -5          # di mana kita
-python ui/_work_probe.py      # panel kanan masih hidup?
-python main.py                # jalankan
+git log --oneline -8          # di mana kita
+tail -20 runtime/startup.log  # Jarvis hidup? tunnel? telegram watch?
+python -m py_compile main.py extras.py phone_web.py
 ```
-
-Baca `NEXT_SESSION.md` untuk sejarah penuh setiap keputusan. Fail ni untuk orientasi
-pantas sahaja.
