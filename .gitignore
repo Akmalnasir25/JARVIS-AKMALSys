@@ -37,3 +37,5 @@ venv/
 ui/vendor/_build/node_modules/
 ui/vendor/_build/package-lock.json
 ui/_jcheck.js
+memory.json
+routines.json

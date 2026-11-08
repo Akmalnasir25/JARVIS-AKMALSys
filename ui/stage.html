@@ -7638,13 +7638,24 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
     window.jarvisState('speaking');
     pumpLevel();
     return new Promise(res => {
-      a.onended = () => { if (stillMine(claim)) { window.jarvisState(busy ? 'thinking' : 'idle'); api && api.set_speaking(false); } res(true); };
+      a.onended = () => { if (stillMine(claim)) { window.jarvisState(busy ? 'thinking' : 'idle'); api && api.set_speaking(false); afterSpeech(); } res(true); };
       a.onerror = a.onended;
       a.play().catch(a.onended);
     });
   }
 
   let voiceWork = 0;          // speak() yang sedang berjalan; watchdog orb tak kacau semasa ini
+  /* Mod perbualan: arahan tadi dari suara dan Jarvis dah habis menjawab -> mic dibuka ~6 s untuk
+     soalan susulan tanpa "Hey Jarvis" atau tekan mic. Senyap = tamat, tanpa mesej. */
+  function afterSpeech() {
+    if (!window.__lastVoice || busy || !api || !api.listen_followup) return;
+    setTimeout(async () => {
+      if (busy) return;
+      const r = await api.listen_followup().catch(() => null);
+      if (r && r.ok) { window.jarvisState('listening'); act('◆ Listening for a follow-up…'); }
+    }, 300);
+  }
+
   async function speak(text) {
     voiceWork++;
     let ok = false;
@@ -7689,7 +7700,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
         const a = new Audio(r.src);
         audioEl = a;
         analyser = wireAudio(a);
-        a.onended = () => { if (stillMine(my)) { window.jarvisState(busy ? 'thinking' : 'idle'); api && api.set_speaking(false); } };
+        a.onended = () => { if (stillMine(my)) { window.jarvisState(busy ? 'thinking' : 'idle'); api && api.set_speaking(false); afterSpeech(); } };
         a.onerror = a.onended;
         api.set_speaking(true);
         window.jarvisState('speaking');
@@ -8200,9 +8211,11 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
     if (kind === 'level') { if (listenMode) window.jarvisLevel(Math.min(1, .12 + d * 1.2)); }
     else if (kind === 'status') { act('◆ ' + d); }
     else if (kind === 'transcribing') { hearing = true; act('◆ Processing speech…'); window.jarvisState('thinking'); }
-    else if (kind === 'text') { listenMode = false; act('◆ Heard: "' + d + '"'); send(d, true); }
+    else if (kind === 'text') { listenMode = false; window.__lastVoice = true; act('◆ Heard: "' + d + '"'); send(d, true); }
     else if (kind === 'none') {
       listenMode = false; window.jarvisState('idle');
+      // tamat mod perbualan tanpa suara: diam sahaja, bukan mesej "Heard nothing"
+      if (d && d.quiet) { window.__lastVoice = false; act('Standby'); return; }
       /* Paras sebenar yang mic dengar lawan paras yang diperlukan. Tanpa ni
          "Heard nothing" tak beza antara mic perlahan dan Tuan tak bercakap. */
       if (d && d.peak != null && d.need) {
@@ -8851,6 +8864,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
   document.querySelector('.capsule').addEventListener('submit', e => {
     e.preventDefault();
     if (!cmd) return;
+    window.__lastVoice = false;          // ditaip: tiada mod perbualan selepas jawapan
     runCommand(cmd.value);
     cmd.value = '';
   });

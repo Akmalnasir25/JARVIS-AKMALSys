@@ -96,6 +96,7 @@ CHAT_PROMPT = PERSONA + """
 
 Dalam mod ni kamu BOLEH cari, senarai, baca dan buka fail serta folder dalam PC Tuan melalui tool find_files, list_folder, read_file dan open_item — guna terus, jangan sesekali cakap kamu tak boleh akses fail atau suruh tukar mod untuk benda ni. Untuk cari fail, guna find_files dengan 1-3 kata kunci utama (cth "survey rambu"), bukan ayat penuh; kalau tiada hasil, cuba kata kunci lain atau search_drive kalau mungkin dalam Google Drive. Hanya untuk UBAH, TULIS, PADAM fail atau jalankan/edit kod, cadangkan mod CLAUDE.
 Arahan Tuan selalunya datang dari suara (transkripsi), jadi nama dan perkataan Inggeris mungkin tersalah dengar: tafsir ikut maksud dan bunyi, cth "ppt Hafiz" = "PPKIU Hafiz", "bukan youtube" selepas pilih profile = "buka new tab", "sihat chrome" = "chrome". Kalau nama masih tak pasti, tanya Tuan dalam satu ayat.
+Tool tambahan: check_scam (Malwarebytes: pautan/nombor/e-mel selamat atau scam), canva_design (poster/slaid/kad/banner dalam Canva + eksport), remember (simpan fakta kekal), calendar (Google Calendar: lihat/cipta acara), email_draft (DRAF Gmail sahaja, tak hantar), make_document (surat/memo/minit/laporan rasmi -> Word+PDF), make_certificates (sijil berkelompok dari Excel + templat), add_routine (arahan berulang ikut hari & masa).
 Tool yang kamu ada: find_anywhere (cari fail dalam PC DAN Google Drive serentak — guna ini untuk "cari fail X" bila lokasi tak disebut), web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), chrome (buka Chrome ikut profil, url, carian Google), browser_task (klik, isi borang dan baca dalam laman web — lambat, guna bila perlu sahaja), telegram_send (draf mesej Telegram, Tuan sahkan dengan "ya"), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Tuan guna mod CLAUDE.
 DATA JADUAL: bila tool pulangkan jadual (Google Form responses, Sheet, Excel, CSV), HUD akan TERUS bina dashboard — dalam jawapan teks beri 3-5 angka/penemuan utama (jumlah, peratus, tertinggi, terendah), bukan senarai baris mentah.
 ANALISIS: bila Tuan minta analisis, kumpul data secukupnya (maksimum 3-4 langkah tool, baca fail paling penting sahaja seperti README, package.json, data), kira angka penting, kemudian jawab dengan ringkasan padat yang ada angka. HUD akan tukar jawapan kamu jadi dashboard visual.
@@ -253,6 +254,39 @@ CHAT_TOOLS = WEB_TOOLS + [
         {"chat": {"type": "string", "description": "Nama chat, orang atau kumpulan, cth: Mak, PIBG, Cikgu Ali"},
          "text": {"type": "string", "description": "Isi mesej yang akan dihantar"}},
         ["chat", "text"]),
+    _fn("remember", "Simpan fakta KEKAL yang Tuan mahu Jarvis ingat (nama/jawatan orang, keutamaan, maklumat "
+                    "tetap). Guna bila Tuan kata 'ingat', atau bila dia beritahu fakta penting tentang dirinya/orang lain.",
+        {"text": {"type": "string", "description": "Fakta dalam satu ayat, cth: PPKIU Hafiz ialah Ketua Pesuruhjaya Daerah"}},
+        ["text"]),
+    _fn("calendar", "Google Calendar Tuan: lihat jadual (hari ini, esok, minggu depan) atau CIPTA acara baru.",
+        {"request": {"type": "string", "description": "Permintaan penuh, cth: 'letak mesyuarat PIBG Khamis 3 petang di dewan'"}},
+        ["request"]),
+    _fn("email_draft", "Tulis DRAF e-mel dalam Gmail Tuan (baru atau balasan). TIDAK menghantar — Tuan hantar sendiri.",
+        {"request": {"type": "string", "description": "Cth: 'balas e-mel PPD pasal kursus, cakap saya setuju hadir'"}},
+        ["request"]),
+    _fn("make_document", "Jana dokumen rasmi BM (surat, memo, minit, laporan) sebagai Word + PDF dalam Documents\\Jarvis Dokumen.",
+        {"kind": {"type": "string", "description": "surat | memo | minit mesyuarat | laporan"},
+         "title": {"type": "string", "description": "Tajuk dokumen"},
+         "details": {"type": "string", "description": "Semua butiran: penerima, tarikh, tempat, isi penting"}},
+        ["title", "details"]),
+    _fn("make_certificates", "Jana sijil berkelompok: satu sijil PDF bagi setiap baris Excel, dari templat PowerPoint/Word "
+                             "yang ada {{Nama}}, {{Sekolah}} dsb (ikut tajuk lajur Excel). Tanpa templat, guna 'contoh'.",
+        {"excel": {"type": "string", "description": "Nama atau path fail Excel senarai peserta"},
+         "template": {"type": "string", "description": "Nama atau path templat .pptx/.docx, atau 'contoh'"}},
+        ["excel", "template"]),
+    _fn("add_routine", "Jadualkan arahan berulang, cth 'setiap Jumaat 4 petang ringkaskan kehadiran minggu ni'.",
+        {"days": {"type": "string", "description": "Hari: 'jumaat', 'isnin,rabu', 'setiap hari', 'hari kerja'"},
+         "time": {"type": "string", "description": "Masa 24 jam HH:MM, cth 16:00"},
+         "task": {"type": "string", "description": "Arahan yang akan dijalankan, dalam ayat Tuan sendiri"}},
+        ["days", "time", "task"]),
+    _fn("check_scam", "Semak sama ada pautan, nombor telefon atau e-mel selamat atau scam (Malwarebytes).",
+        {"items": {"type": "array", "items": {"type": "string"},
+                   "description": "Pautan, e-mel, atau nombor telefon format E.164 (cth +60123456789)"}},
+        ["items"]),
+    _fn("canva_design", "Cipta reka bentuk dalam Canva Tuan (poster, slaid pembentangan, kad, banner, infografik, sijil) "
+                        "dan eksport PDF/PNG ke Documents\\Jarvis Canva.",
+        {"request": {"type": "string", "description": "Butiran penuh: jenis, tajuk, tarikh, tempat, teks, gaya/warna"}},
+        ["request"]),
     _fn("find_anywhere", "Cari fail SERENTAK dalam PC (Desktop, Documents, Downloads, OneDrive) DAN Google Drive. "
                          "Guna ini untuk 'cari fail X' bila Tuan TIDAK sebut lokasi. Untuk PC sahaja guna "
                          "find_files; untuk Drive sahaja guna search_drive.",
@@ -286,6 +320,15 @@ TOOL_TRIGGERS = {
     "play_youtube": r"youtube|yt\b|lagu|muzik|music|playlist|video klip|\bmain\b|\bplay\b|putar|pasang|"
                     r"cari lagu|cari video|lagu tu|video tu",
     "set_reminder": r"ingat|remind|peringatan|minit lagi|jam lagi|alarm",
+    "remember": r"\bingat\b|remember|simpan dalam ingatan|jangan lupa",
+    "calendar": r"jadual|kalendar|calendar|mesyuarat|meeting|temujanji|appointment|acara|event|program|"
+                r"esok|lusa|minggu depan|isnin|selasa|rabu|khamis|jumaat|sabtu|ahad",
+    "email_draft": r"e-?mel|email|gmail|draf",
+    "make_document": r"surat|memo|minit|laporan|dokumen|word\b|pdf|kertas kerja",
+    "make_certificates": r"sijil|certificate",
+    "check_scam": r"scam|selamat ke|bahaya|phishing|penipuan|tipu|link ni|pautan ni|nombor ni|malware",
+    "canva_design": r"canva|poster|slaid|slide|banner|kad |infografik|flyer|risalah|bunting|reka bentuk|design",
+    "add_routine": r"setiap|tiap-tiap|tiap |rutin|routine|every|jadualkan|seminggu sekali",
     "telegram_send": r"telegram|tg\b|mesej|message|chat\b|hantar|send|balas|reply|bagi ?tahu|beritahu|whats ?app",
     "chrome": r"chrome|browser|pelayar|profile|profil|google|laman|website|web\b|\.com|\.my|url|link",
     # Sempadan perkataan penting: "isi" tanpa \b terkena "anal-ISI-s", jadi setiap analisis
@@ -674,6 +717,9 @@ class Api:
         self._tg_note_at = {}
         self._tg_auto_state = {}
         self._enroll = None          # pendaftaran cap suara {"dir", "n", "need"}
+        self._followup = False       # rakaman susulan selepas Jarvis bercakap (mod perbualan)
+        import extras
+        self._x = extras.Extras(self, ROOT, log=lambda m: _note(m))
         self._ww_rebuild = False
         self._speaking = False
         self._prayer_done = set()  # (tarikh, solat) yang dah diingatkan
@@ -2096,6 +2142,8 @@ class Api:
                 {"id": cid, "name": name, "text": text[:240], "kind": kind, "armed": armed}))
         if armed:
             threading.Thread(target=self._tg_autodraft, args=(int(cid), name), daemon=True).start()
+        if re.search(r"https?://|www\.", text, re.I):          # pautan dalam mesej: semak scam di latar
+            threading.Thread(target=self._x.scan_message, args=(name, text), daemon=True).start()
 
     def _tg_autodraft(self, cid, name):
         """Draf balasan SAHAJA. Tiada apa dihantar tanpa 'ya' Tuan (pending_tg yang sama dengan telegram_send)."""
@@ -2264,6 +2312,50 @@ class Api:
         return {"ok": True, "url": url, "svg": svg}
 
     # ════════ projek: diff + commit ════════
+    # ════════ sokongan extras.py ════════
+    def known_folder_path(self, name):
+        return str(known_folder(name) or HOME / name)
+
+    def _secrets(self):
+        return load_json(SECRETS, {})
+
+    def run_text(self, text):
+        """Jalankan ayat seolah-olah Tuan menaipnya (rutin berjadual): HUD pilih enjin & papar hasil."""
+        self._voice_emit("text", text)
+
+    def _certificates(self, excel, template):
+        place = lambda n: self._resolve_place(n) or next(
+            (Path(p) for p in (self._tool_find(n)[1] or "").splitlines() if p), None)
+        xl = place(excel)
+        if not xl or xl.suffix.lower() not in (".xlsx", ".xlsm"):
+            return f"Fail Excel «{excel}» tak dijumpai. Tanya Tuan nama fail Excel senarai peserta."
+        tp = self._x.sample_template() if str(template).strip().lower() in ("", "contoh", "sample", "default") \
+            else place(template)
+        if not tp or tp.suffix.lower() not in (".pptx", ".docx"):
+            return f"Templat «{template}» tak dijumpai (perlu .pptx atau .docx dengan {{{{Nama}}}})."
+        self._emit("tool", {"name": "Certificates", "detail": f"{xl.name} × {tp.name}", "full": ""})
+
+        def work():
+            try:
+                r = self._x.make_certificates(xl, tp, progress=lambda i, n: self._emit("note", {"text": f"🎓 Sijil {i}/{n}…"}))
+                msg = (f"✔ {r['count']} sijil siap: {r['folder']}" + (" · gabungan: SEMUA SIJIL.pdf" if r.get("merged") else "")) \
+                    if r.get("ok") else "✖ " + r.get("msg", "gagal")
+            except Exception as e:
+                msg = f"✖ Sijil gagal: {e}"
+            self._emit("note", {"text": msg})
+            self._phone_notify("Sijil", msg, "certs")
+        threading.Thread(target=work, daemon=True).start()
+        return (f"Sedang menjana sijil dari {xl.name} dengan templat {tp.name} di latar belakang. "
+                "Beritahu Tuan ia sedang berjalan dan notifikasi akan sampai bila siap. Jangan panggil tool ini lagi.")
+
+    def listen_followup(self):
+        """Mod perbualan: selepas Jarvis habis bercakap, dengar ~6 s untuk soalan susulan."""
+        if not load_json(CONFIG, {}).get("followup", True) or self._listening or self._listen_request.is_set():
+            return {"ok": False}
+        self._followup = True
+        self._listen_request.set()
+        return {"ok": True}
+
     def web_roots(self):
         """Folder yang app fon boleh layari (BACA SAHAJA): folder pengguna + projek."""
         out, seen = [], set()
@@ -2864,7 +2956,10 @@ class Api:
             return "Claude Code not found."
         if any(t.startswith("mcp__") for t in tools):
             # Sambungan Gmail/Drive dibuat di latar; tanpa ToolSearch dulu, Claude selalu kata "server masih menyambung"
-            service = "gmail" if any("Gmail" in t for t in tools) else "google drive"
+            service = ("gmail" if any("Gmail" in t for t in tools) else
+                       "google calendar" if any("Calendar" in t for t in tools) else
+                       "malwarebytes" if any("Malwarebytes" in t for t in tools) else
+                       "canva" if any("Canva" in t for t in tools) else "google drive")
             tools = ["ToolSearch"] + tools
             prompt = (f'Langkah 1: guna ToolSearch dengan query "{service}" untuk muatkan tool. Jika ia kata server '
                       f"masih menyambung, cuba ToolSearch sekali lagi.\nLangkah 2: {prompt}")
@@ -2995,6 +3090,14 @@ class Api:
                     raise RuntimeError("Gmail tak dapat dibaca")
                 return r
             jobs.append(("email", email_facts))
+            if load_json(CONFIG, {}).get("brief_calendar", True):
+                def cal_facts():
+                    ev = self._x.calendar_today_json()
+                    if ev is None:
+                        raise RuntimeError("Calendar belum disambung")
+                    return "; ".join(f"{e.get('start')} {e.get('title')}" + (f" ({e['where']})" if e.get("where") else "")
+                                     for e in ev) or "Tiada acara hari ini."
+                jobs.append(("jadual", cal_facts))
 
         threads = [threading.Thread(target=grab, args=j, daemon=True) for j in jobs]
         for t in threads:
@@ -3012,6 +3115,8 @@ class Api:
             facts.append("SOLAT: " + str(results["solat"]))
         if results.get("email"):
             facts.append("EMAIL: " + str(results["email"]))
+        if results.get("jadual"):
+            facts.append("JADUAL HARI INI: " + str(results["jadual"]))
 
         # machine and repos, read from the same cached scan the right column
         # uses — no second git walk, and the numbers cannot disagree with the
@@ -3370,6 +3475,48 @@ class Api:
             return f"Playing {res.get('name', want)} in the MEDIA panel."
         if name == "find_anywhere":
             return self._tool_find_anywhere(str(args.get("keyword", "") or "").strip())
+        if name == "remember":
+            self._emit("tool", {"name": "Memory", "detail": str(args.get("text", ""))[:80], "full": ""})
+            return self._x.remember(args.get("text", ""))
+        if name == "calendar":
+            self._emit("tool", {"name": "Calendar", "detail": str(args.get("request", ""))[:80], "full": ""})
+            r = self._x.calendar(str(args.get("request", "")))
+            if "KALENDAR_BELUM_DISAMBUNG" in r:
+                return ("Google Calendar belum disambung. Beritahu Tuan: buka claude.ai → Settings → Connectors → "
+                        "Google Calendar → Connect, kemudian cuba lagi.")
+            return r
+        if name == "email_draft":
+            self._emit("tool", {"name": "Gmail", "detail": "draft · " + str(args.get("request", ""))[:70], "full": ""})
+            return self._x.email_draft(str(args.get("request", "")))
+        if name == "make_document":
+            self._emit("tool", {"name": "Document", "detail": str(args.get("title", ""))[:80], "full": ""})
+            r = self._x.make_document(args.get("kind", "surat"), str(args.get("title", "")), str(args.get("details", "")))
+            if not r.get("ok"):
+                return r.get("msg", "Gagal")
+            self._emit("result", {"name": "Document", "text": "", "items": [{"text": Path(r["docx"]).name}]
+                                  + ([{"text": Path(r["pdf"]).name}] if r.get("pdf") else [])})
+            return (f"Dokumen siap: {r['docx']}" + (f" dan PDF {r['pdf']}" if r.get("pdf") else " (PDF gagal)") +
+                    ". Beritahu Tuan lokasinya; tempat kosong [..] perlu diisi jika ada.")
+        if name == "make_certificates":
+            return self._certificates(str(args.get("excel", "")), str(args.get("template", "")))
+        if name == "check_scam":
+            items = [str(i) for i in (args.get("items") or [])][:10]
+            self._emit("tool", {"name": "Malwarebytes", "detail": ", ".join(items)[:80], "full": ""})
+            res = self._x.scam_check(items)
+            if not res:
+                return "Semakan Malwarebytes tak berjaya — tiada keputusan."
+            return "\n".join(f"{r.get('item')}: {str(r.get('verdict', '')).upper()} — {r.get('note', '')}" for r in res)
+        if name == "canva_design":
+            req = str(args.get("request", ""))
+            self._emit("tool", {"name": "Canva", "detail": req[:80], "full": ""})
+            out, saved = self._x.canva(req)
+            if saved:
+                self._emit("result", {"name": "Canva", "text": "", "items": [{"text": Path(f).name} for f in saved]})
+                self._phone_notify("Canva siap", Path(saved[0]).name, "canva")
+            return str(out) + (("\n\nDisimpan di laptop: " + "; ".join(saved)) if saved else "")
+        if name == "add_routine":
+            self._emit("tool", {"name": "Routine", "detail": f"{args.get('days')} {args.get('time')}", "full": ""})
+            return self._x.add_routine(args.get("days", ""), args.get("time", ""), args.get("task", ""))
         if name == "play_youtube" and int(args.get("count") or 0) > 1:
             q = str(args.get("query", "") or "").strip()
             self._emit("tool", {"name": "YouTube", "detail": f"{args.get('count')} lagu · {q}", "full": ""})
@@ -4352,7 +4499,8 @@ class Api:
         self._analysis_shown = False
         self._chat_history.append({"role": "user", "content": text})
         today = time.strftime("%A, %d %B %Y, %H:%M")
-        messages = [{"role": "system", "content": CHAT_PROMPT + f"\n\nSekarang: {today} (waktu Malaysia)." + location_note() + lang_note()}] + self._chat_history[-20:]
+        messages = [{"role": "system", "content": CHAT_PROMPT + f"\n\nSekarang: {today} (waktu Malaysia)." + location_note() + lang_note()
+                     + self._x.memory_note()}] + self._chat_history[-20:]
         try:
             reply, steps, collected = "", 5, []
             tools = tools_for(text, self._chat_history)
@@ -4477,7 +4625,7 @@ class Api:
     def _run_claude(self, text):
         cfg = load_json(CONFIG, {})
         cmd = [self._claude, "-p", "--output-format", "stream-json", "--verbose",
-               "--append-system-prompt", SYSTEM_PROMPT + location_note() + lang_note()]
+               "--append-system-prompt", SYSTEM_PROMPT + location_note() + lang_note() + self._x.memory_note()]
         if cfg.get("model"):
             cmd += ["--model", cfg["model"]]
         if cfg.get("allowed_tools"):
@@ -4985,11 +5133,12 @@ class Api:
                     break
             else:
                 waited += 1
-                if waited >= (60 if from_wake else 85):  # tiada suara
+                if waited >= (60 if from_wake else 70 if self._followup else 85):  # tiada suara
                     break
         self._listening = False
+        followup, self._followup = self._followup, False
         if len(frames) <= len(preroll) + 2:
-            self._voice_emit("none", {"peak": round(peak_rms, 5),
+            self._voice_emit("none", {"peak": round(peak_rms, 5), "quiet": followup,
                                       "need": round(max(floor * 4, cfg_min), 5)})
             return
         self._voice_emit("transcribing")
@@ -5038,6 +5187,8 @@ class Api:
         # atau, lebih teruk, menghantar draf Telegram yang sedang menunggu.
         short = len(low.split()) <= 4
         if short and re.match(r"^(ya|yes|ok|okay|buat|teruskan|jalan|go|confirm|sahkan|hantar|send)\b", low):
+            if self._x.pending_deploy:
+                return {"handled": True, "label": self._x.deploy_confirmed()}
             if self._pending_tg:
                 return self._tg_send_confirmed()
             if self._pending_token:
@@ -5045,6 +5196,9 @@ class Api:
                 self._pending_cmd = None
                 return self._sys_report(self._sys.confirm(tok))
             return {"handled": False}
+        if short and re.match(r"^(tak|no|jangan|batal|cancel|stop|jangan buat)\b", low) and self._x.pending_deploy:
+            self._x.pending_deploy = None
+            return {"handled": True, "label": "✖ Deploy dibatalkan"}
         if short and re.match(r"^(tak|no|jangan|batal|cancel|stop|jangan buat)\b", low):
             if self._pending_tg:
                 self._pending_tg = None
@@ -5060,6 +5214,33 @@ class Api:
         if pr is not None:
             return pr
 
+        mm = re.match(r"^(?:tolong\s+)?(?:ingat|remember)(?:\s*,|\s*:|\s+bahawa|\s+yang|\s+that)\s*(.{3,})$", low)
+        if mm:
+            mr = re.search(r"(?:ingat|remember)(?:\s*,|\s*:|\s+bahawa|\s+yang|\s+that)\s*(.{3,})$", raw, re.I)
+            return {"handled": True, "label": self._x.remember(mr.group(1) if mr else mm.group(1))}
+        mm = re.match(r"^(?:lupakan|forget)\s+(.+)$", low)
+        if mm:
+            return {"handled": True, "label": self._x.forget(mm.group(1))}
+        if re.match(r"^(apa (yang )?(kau|awak|jarvis) ingat|senarai ingatan|what do you remember)\??$", low):
+            self._push(f"window.jarvisSay && window.jarvisSay({json.dumps(self._x.memory_list())})")
+            return {"handled": True, "label": "🧠 Ingatan dipaparkan"}
+        if re.match(r"^(senarai|list|tunjuk) rutin$", low):
+            self._push(f"window.jarvisSay && window.jarvisSay({json.dumps(self._x.routine_list())})")
+            return {"handled": True, "label": "⏰ Rutin dipaparkan"}
+        mm = re.match(r"^(?:padam|buang|delete) rutin (\d+)$", low)
+        if mm:
+            return {"handled": True, "label": self._x.routine_delete(int(mm.group(1)))}
+        if re.match(r"^(status|semak|check) (laman|website|web|site)( web)?$", low):
+            self._push(f"window.jarvisSay && window.jarvisSay({json.dumps(self._x.site_report())})")
+            return {"handled": True, "label": "🌐 Status laman dipaparkan"}
+        mm = re.match(r"^deploy\s+(.+)$", low)
+        if mm:
+            return {"handled": True, "label": self._x.deploy_request(mm.group(1).strip())}
+        if re.match(r"^(backup|sandar)( sekarang| semua| laptop)?$|^buat backup$", low):
+            threading.Thread(target=self._x.backup, daemon=True).start()
+            return {"handled": True, "label": "💾 Backup ke OneDrive bermula…"}
+        if re.match(r"^(buat )?templat sijil( contoh)?$", low):
+            return {"handled": True, "label": f"✔ Templat contoh: {self._x.sample_template()}"}
         if re.match(r"^(sesi baru|new session|mula sesi baru|buka sesi baru|reset (sesi|chat|perbualan))$", low):
             self.new_session()
             return {"handled": True, "label": "✔ New session — sesi lama disimpan dalam History"}
@@ -6161,6 +6342,8 @@ def _run():
     threading.Thread(target=api._brief_watch, daemon=True).start()    # laporan harian bila tarikh tukar
     threading.Thread(target=api._phone_start, daemon=True).start()    # bot Telegram: cakap dari fon
     threading.Thread(target=api._tg_watch, daemon=True).start()       # notifikasi Telegram + draf auto-balas
+    for _job in (api._x.calendar_watch, api._x.routine_watch, api._x.site_watch, api._x.backup_watch):
+        threading.Thread(target=_job, daemon=True).start()           # kalendar, rutin, pemantau laman, backup
     try:                                                               # app fon melalui Tailscale
         import phone_web
         _c = load_json(CONFIG, {})
