@@ -948,8 +948,7 @@ main.stage-wrap {
 
 /* satu orb sahaja pada satu masa — bila senarai wujud, orb bergeser kiri
    supaya dua-dua dapat ruang, bukan bertindih */
-.orb-box.has-tasks #orb { transform: translateX(-72px); }
-#orb { transition: transform .3s ease-out; }
+.orb-box.has-tasks #orb, .orb-box.has-tasks .orb-layer { transform: translateX(-72px); }
 /* label STANDBY/THINKING di bawah orb ikut anjakan yang sama, supaya kekal di tengah orb */
 .core-state { transition: transform .3s ease-out; }
 .core-body:has(> .orb-box.has-tasks:not(.has-trace)) > .core-state { transform: translateX(-72px); }
@@ -1049,6 +1048,11 @@ main.stage-wrap {
   margin: 4px 0 2px;
 }
 #orb { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 1; }
+.orb-layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 1; pointer-events: none;
+  transition: transform .3s ease-out, filter .8s ease; }
+/* warna orb ikut tema: dail dan sfera diputar hue berasingan = dua warna dalam satu orb */
+#orb { filter: var(--orb-dial, none); transition: transform .3s ease-out, filter .8s ease; }
+.orb-layer.sph { filter: var(--orb-core, none); }
 .core-state {
   flex: 0 0 auto;
   text-align: center; pointer-events: none;
@@ -1110,7 +1114,7 @@ main.stage-wrap {
    Ukuran cermin .orb-tasks (kanan): orb 250px, jadi 108px dari tengah = tepi orb. */
 /* Bila trace ada, orb kekal di tengah (tiada anjakan .has-tasks) dan kedua-dua senarai duduk
    di luar gelang luar orb (~135px dari tengah), satu di kiri, satu di kanan. */
-.orb-box.has-trace #orb { transform: none; }
+.orb-box.has-trace #orb, .orb-box.has-trace .orb-layer { transform: none; }
 .orb-box.has-trace .orb-tasks { left: calc(50% + 142px); width: calc(min(300px, calc(50% - 150px)) + 80px); }
 .orb-box > .trace {
   position: absolute; z-index: 2;
@@ -2471,6 +2475,281 @@ nav.rail {
 .ib-toggle input:checked { background: hsl(var(--hue) 100% 74% / .30); border-color: var(--line-hard); }
 .ib-toggle input:checked::after { transform: translateX(11px); background: var(--accent-2); }
 
+
+/* ── KEDALAMAN 3D ──────────────────────────────────────────────────
+   Panel tak lagi rata. Tiga lapis, semuanya dari satu lampu di atas-kiri:
+     1. bayang jatuh berlapis di bawah setiap panel (dekat + jauh), jadi ia
+        terapung di atas latar, bukan dicetak padanya;
+     2. bevel: tepi atas-kiri dicerahkan, bawah-kanan digelapkan, dan cahaya
+        dalam di kaki panel — itu yang buat ia nampak tebal;
+     3. dua sayap (kiri, kanan) condong sedikit ke arah tengah, macam HUD
+        yang membalut penonton. Tengah kekal rata supaya teks dan WEB tepat. */
+.hud { perspective: 1800px; perspective-origin: 50% 45%; }
+aside.left, aside.right { transform-style: preserve-3d; transition: transform .5s ease; }
+aside.left  { transform: rotateY(7deg);  transform-origin: 100% 50%; }
+aside.right { transform: rotateY(-7deg); transform-origin: 0% 50%; }
+
+.glass, .stage, .capsule {
+  box-shadow:
+    0 22px 38px -16px rgba(0, 0, 0, .88),
+    0 8px 16px -8px rgba(0, 0, 0, .65),
+    0 0 26px -8px hsl(var(--hue) 100% 62% / .22),
+    inset 1px 1px 0 rgba(255, 255, 255, .10),
+    inset -1px -1px 0 rgba(0, 0, 0, .60),
+    inset 0 -22px 34px -22px rgba(0, 0, 0, .62),
+    inset 0 18px 26px -20px hsl(var(--hue) 100% 82% / .12);
+}
+.glass {
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+.glass:hover {
+  transform: translateY(-3px) translateZ(14px);
+  box-shadow:
+    0 30px 44px -16px rgba(0, 0, 0, .92),
+    0 12px 20px -8px rgba(0, 0, 0, .70),
+    0 0 34px -6px hsl(var(--hue) 100% 64% / .32),
+    inset 1px 1px 0 rgba(255, 255, 255, .14),
+    inset -1px -1px 0 rgba(0, 0, 0, .60),
+    inset 0 -22px 34px -22px rgba(0, 0, 0, .62),
+    inset 0 18px 26px -20px hsl(var(--hue) 100% 82% / .18);
+}
+/* kilauan kaca di separuh atas setiap panel sisi */
+aside .glass::after {
+  height: 42%;
+  background:
+    linear-gradient(90deg, transparent, hsl(var(--hue) 100% 86% / .34) 18%, hsl(var(--alt) 95% 82% / .30) 72%, transparent) top / 100% 1px no-repeat,
+    linear-gradient(180deg, rgba(255, 255, 255, .055), transparent);
+}
+
+/* butang rel: timbul; yang dipilih ditekan masuk dan bercahaya */
+.stage-tab {
+  background-image: linear-gradient(155deg, rgba(255, 255, 255, .07), transparent 55%, rgba(0, 0, 0, .25));
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, .09),
+    inset -1px -1px 0 rgba(0, 0, 0, .65),
+    0 7px 12px -7px rgba(0, 0, 0, .8);
+  transition: color .14s, background .14s, border-color .14s, transform .18s, box-shadow .18s;
+}
+.stage-tab:hover { transform: translateX(2px); }
+.stage-tab[aria-selected="true"] {
+  transform: translateX(1px);
+  background-image: linear-gradient(155deg, rgba(0, 0, 0, .30), transparent 60%);
+  box-shadow:
+    inset 2px 2px 7px rgba(0, 0, 0, .65),
+    inset -1px -1px 0 rgba(255, 255, 255, .07),
+    0 0 18px -4px hsl(var(--tab-hue) 100% 64% / .60);
+}
+
+/* kad tugas di sebelah orb juga terapung */
+.orbt {
+  box-shadow:
+    0 12px 22px -10px rgba(0, 0, 0, .85),
+    inset 1px 1px 0 rgba(255, 255, 255, .08),
+    inset -1px -1px 0 rgba(0, 0, 0, .5),
+    inset 0 0 18px hsl(var(--k) 100% 60% / .08);
+}
+@media (max-width: 1180px) {
+  aside.left, aside.right { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .glass:hover, .stage-tab:hover { transform: none; }
+}
+
+
+/* ── TERAPUNG ──────────────────────────────────────────────────────
+   Setiap panel sisi naik-turun perlahan pada rentaknya sendiri (6-9 s,
+   fasa berbeza), jadi ia nampak terapung bebas, bukan satu blok bergoyang.
+   Guna sifat `translate`, bukan `transform`, supaya hover dan condong 3D
+   tak bertembung. backdrop-filter dimatikan pada panel yang bergerak: ia
+   dikira semula setiap bingkai, dan panel ini 93% legap — kaburnya tak
+   kelihatan, tapi kosnya kelihatan. */
+@keyframes floatY {
+  0%, 100% { translate: 0 0; }
+  50%      { translate: 0 -6px; }
+}
+@keyframes floatYs {
+  0%, 100% { translate: 0 0; }
+  50%      { translate: 0 -3px; }
+}
+aside .glass, .capsule {
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  animation: floatY 7s ease-in-out infinite;
+  will-change: translate;
+}
+aside.left  .glass:nth-of-type(1) { animation-duration: 7.2s; animation-delay: -1.1s; }
+aside.left  .glass:nth-of-type(2) { animation-duration: 8.4s; animation-delay: -3.7s; }
+aside.left  .glass:nth-of-type(3) { animation-duration: 6.6s; animation-delay: -5.2s; }
+aside.right .glass:nth-of-type(1) { animation-duration: 8.8s; animation-delay: -2.4s; }
+aside.right .glass:nth-of-type(2) { animation-duration: 7.6s; animation-delay: -6.1s; }
+.capsule { animation: floatYs 9s ease-in-out infinite; animation-delay: -4s; }
+/* bayang lebih jauh dari panel = lebih tinggi ia terapung */
+aside .glass {
+  box-shadow:
+    0 34px 46px -20px rgba(0, 0, 0, .90),
+    0 12px 20px -10px rgba(0, 0, 0, .60),
+    0 0 30px -8px hsl(var(--hue) 100% 62% / .26),
+    inset 1px 1px 0 rgba(255, 255, 255, .11),
+    inset -1px -1px 0 rgba(0, 0, 0, .60),
+    inset 0 -22px 34px -22px rgba(0, 0, 0, .62),
+    inset 0 18px 26px -20px hsl(var(--hue) 100% 82% / .12);
+}
+
+/* ── BAR 3D ─────────────────────────────────────────────────────────
+   Tiub telemetri jadi silinder kaca: dinding gelap di tepi, kaca cerah di
+   tengah, dan cecair di dalam berbentuk bulat (bayang kiri-kanan + jalur
+   kilauan), dengan penutup bercahaya di puncak paras. */
+.meter .tube {
+  border-radius: 5px;
+  border-color: hsl(var(--hue) 80% 80% / .16);
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, .55), rgba(255, 255, 255, .05) 35%, rgba(255, 255, 255, .02) 60%, rgba(0, 0, 0, .55)),
+    hsl(var(--hue) 100% 74% / .05);
+  box-shadow:
+    inset 0 3px 6px rgba(0, 0, 0, .7),
+    inset 0 -2px 4px rgba(0, 0, 0, .5),
+    0 1px 0 rgba(255, 255, 255, .06),
+    0 10px 16px -10px rgba(0, 0, 0, .9);
+}
+.meter .tube::before {
+  /* pantulan kaca di depan tiub, di atas cecair */
+  content: ""; position: absolute; z-index: 2; pointer-events: none;
+  top: 3px; bottom: 3px; left: 22%; width: 18%; border-radius: 4px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .22), rgba(255, 255, 255, .05) 40%, rgba(255, 255, 255, .12));
+  filter: blur(.4px);
+}
+.meter .tube::after { z-index: 1; border-radius: 5px; }
+.meter .fill {
+  border-radius: 0 0 4px 4px;
+  background-image:
+    linear-gradient(90deg, rgba(0, 0, 0, .45), rgba(255, 255, 255, .28) 32%, rgba(255, 255, 255, .06) 55%, rgba(0, 0, 0, .50)),
+    linear-gradient(to top, var(--fill-a) 0%, var(--fill-b) 62%, color-mix(in srgb, var(--fill-b) 70%, white) 100%);
+}
+.meter.hot .fill {
+  background-image:
+    linear-gradient(90deg, rgba(0, 0, 0, .45), rgba(255, 255, 255, .28) 32%, rgba(255, 255, 255, .06) 55%, rgba(0, 0, 0, .50)),
+    linear-gradient(to top, rgba(255,150,40,.92) 0%, rgba(255,196,96,.98) 62%, rgba(255,232,180,1) 100%);
+}
+.meter.crit .fill {
+  background-image:
+    linear-gradient(90deg, rgba(0, 0, 0, .45), rgba(255, 255, 255, .28) 32%, rgba(255, 255, 255, .06) 55%, rgba(0, 0, 0, .50)),
+    linear-gradient(to top, rgba(220,60,90,.94) 0%, rgba(255,110,140,.98) 62%, rgba(255,190,205,1) 100%);
+}
+.meter .fill::after {
+  /* permukaan cecair: elips bercahaya di puncak paras */
+  content: ""; position: absolute; left: 0; right: 0; top: -3px; height: 6px; border-radius: 50%;
+  background: radial-gradient(ellipse at 45% 50%, rgba(255, 255, 255, .95), color-mix(in srgb, var(--fill-b) 80%, white) 45%, transparent 75%);
+  box-shadow: 0 0 10px var(--fill-b);
+}
+.meter .v { text-shadow: 0 2px 4px rgba(0, 0, 0, .8), 0 0 10px currentColor; }
+
+/* bar Mesin di panel kanan: rel tenggelam + rod bercahaya bulat */
+.wk-row .bar {
+  height: 7px; border-radius: 4px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .55), hsl(var(--hue) 60% 40% / .22));
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, .75), 0 1px 0 rgba(255, 255, 255, .07);
+}
+.wk-row .bar i {
+  position: relative; border-radius: 4px;
+  box-shadow: 0 0 10px hsl(var(--hue) 100% 64% / .55);
+}
+.wk-row .bar i::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .55), rgba(255, 255, 255, .08) 45%, rgba(0, 0, 0, .35));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  aside .glass, .capsule { animation: none; }
+}
+
+
+/* ── TEMA ──────────────────────────────────────────────────────────
+   html[data-theme] menukar warna cangkerang: hue utama (--th-a), pasangan
+   (--th-b), tona gelap panel (--th-d1..3) dan pane COMMS. Pane lain kekal
+   dengan warna sendiri supaya 1-10 masih boleh dibezakan. Tiada atribut =
+   tema asal (ungu + rose). */
+:root {
+  /* purple: dail ungu + sfera rose. sepia() dulu memberi tona yang boleh diwarnakan
+     dengan kuat — dail asal hampir putih-cyan, jadi hue-rotate sahaja jadi pucat. */
+  --orb-dial: sepia(.55) saturate(2.4) hue-rotate(228deg);
+  --orb-core: hue-rotate(-62deg) saturate(1.6);
+}
+html[data-theme="stark"] { --orb-dial: none; --orb-core: none; }
+html[data-theme="inferno"] { --orb-dial: sepia(.7) saturate(2.8) hue-rotate(-12deg); --orb-core: sepia(.5) saturate(3.6) hue-rotate(-50deg); }
+html[data-theme="mark"] { --orb-dial: sepia(.7) saturate(3.4) hue-rotate(-55deg); --orb-core: saturate(1.35); }
+html[data-theme="stark"] {
+  --th-a: 196; --th-b: 38;
+  --th-d1: 8 22 36; --th-d2: 5 13 24; --th-d3: 3 8 16;
+  --bg: #07121c; --bg-deep: #030a12;
+  --lift-top: 16 40 58; --lift-bot: 7 18 30; --inset: 6 18 30;
+  --hue: 196; --hue-deep: 196; --hue-comms: 194; --alt-comms: 34;
+}
+html[data-theme="inferno"] {
+  --th-a: 26; --th-b: 356;
+  --th-d1: 34 14 8; --th-d2: 22 8 5; --th-d3: 12 4 3;
+  --bg: #1a0b06; --bg-deep: #0e0503;
+  --lift-top: 58 26 14; --lift-bot: 28 11 7; --inset: 30 12 7;
+  --hue: 28; --hue-deep: 24; --hue-comms: 28; --alt-comms: 356;
+}
+html[data-theme="mark"] {
+  --th-a: 354; --th-b: 42;
+  --th-d1: 34 8 14; --th-d2: 22 5 9; --th-d3: 12 3 6;
+  --bg: #1a060c; --bg-deep: #0e0306;
+  --lift-top: 56 14 24; --lift-bot: 26 6 12; --inset: 30 8 14;
+  --hue: 354; --hue-deep: 350; --hue-comms: 354; --alt-comms: 42;
+}
+html[data-theme] {
+  --grad-shell:
+    radial-gradient(120% 90% at 12% -10%, hsl(var(--th-a) 100% 66% / .18), transparent 62%),
+    radial-gradient(100% 70% at 88% 110%, hsl(var(--th-b) 95% 60% / .15), transparent 60%),
+    linear-gradient(158deg, rgb(var(--th-d1) / .92) 0%, rgb(var(--th-d2) / .86) 46%, rgb(var(--th-d3) / .94) 100%);
+  --grad-panel:
+    radial-gradient(92% 66% at 50% -6%, hsl(var(--hue) 100% 70% / .17), transparent 70%),
+    radial-gradient(76% 56% at 102% 104%, hsl(var(--alt) 98% 62% / .15), transparent 68%),
+    linear-gradient(168deg, rgb(var(--th-d1) / .74) 0%, rgb(var(--th-d2) / .66) 55%, rgb(var(--th-d3) / .80) 100%);
+}
+html[data-theme] header {
+  background:
+    radial-gradient(80% 220% at 30% -60%, hsl(var(--th-a) 100% 70% / .16), transparent 70%),
+    linear-gradient(180deg, rgb(var(--th-d1) / .66), transparent);
+}
+html[data-theme] nav.rail {
+  background: linear-gradient(180deg,
+    hsl(var(--th-a) 100% 66% / .08) 0%, hsl(var(--th-b) 95% 60% / .035) 42%,
+    hsl(var(--th-a) 100% 66% / .01) 72%, transparent 100%);
+}
+html[data-theme] .stage-tab { background-color: rgb(var(--th-d1) / .55); }
+html[data-theme] .orbt {
+  background:
+    linear-gradient(100deg, hsl(var(--k) 90% 55% / .16), hsl(var(--k) 90% 40% / .04) 55%, rgb(var(--th-d3) / .55)),
+    rgb(var(--th-d3) / .78);
+}
+html[data-theme] .brand b { color: hsl(var(--th-a) 100% 78%); text-shadow: 0 0 16px hsl(var(--th-b) 100% 55% / .55); }
+html[data-theme] h2 { color: hsl(var(--th-a) 100% 74%); }
+html[data-theme] .core-state b { color: hsl(var(--th-b) 100% 68%); text-shadow: 0 0 18px hsl(var(--th-b) 100% 55% / .7); }
+/* peralihan lembut bila tema bertukar */
+body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-color .5s, background .5s, color .5s; }
+
+/* pemilih tema */
+.theme-pop {
+  position: absolute; top: 46px; right: 70px; z-index: 300;
+  display: grid; gap: 6px; padding: 10px; width: 228px;
+  background: rgb(var(--lift-bot) / .97); border: 1px solid var(--line);
+  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, .9);
+}
+.theme-pop[hidden] { display: none; }
+.theme-pop h3 { margin: 0 0 2px; font: 600 8px/1 var(--font-mono); letter-spacing: .24em; text-transform: uppercase; color: var(--ink-faint); }
+.iconbar .theme-pop .theme-opt, .theme-opt {
+  width: auto; height: auto; place-items: initial; color: var(--ink);
+  display: grid; grid-template-columns: 46px 1fr; align-items: center; gap: 9px;
+  padding: 6px 7px; cursor: pointer; text-align: left;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--line-soft); color: var(--ink);
+  font: 500 10.5px/1.3 var(--font-display);
+}
+.theme-opt small { display: block; font: 400 8px/1.3 var(--font-mono); color: var(--ink-faint); }
+.iconbar .theme-pop .theme-opt:hover, .theme-opt:hover { border-color: var(--line-hard); background: rgba(255, 255, 255, .06); }
+.theme-opt[aria-pressed="true"] { border-color: hsl(var(--hue) 100% 70% / .7); box-shadow: 0 0 14px -4px hsl(var(--hue) 100% 60% / .8); }
+.theme-sw { height: 22px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .15), 0 4px 8px -4px #000; }
+
 /* ── SKRIN PERMULAAN: akmalsys.com ──────────────────────────────────
    Muncul pada cat pertama, sebelum jambatan Python sedia. Bar kemajuan
    ikut langkah boot() yang sebenar, bukan pemasa palsu. Hilang sendiri
@@ -2620,6 +2899,19 @@ nav.rail {
       <span id="today">—</span>
     </div>
     <div class="iconbar">
+      <button type="button" id="btnTheme" title="Tema warna">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.9 1.5-1.9-.3-1 .4-2.1 1.5-2.1H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10z"/>
+          <circle cx="7.5" cy="11" r="1.2"/><circle cx="10.5" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/>
+        </svg>
+      </button>
+      <div class="theme-pop" id="themePop" hidden>
+        <h3>Tema warna</h3>
+        <button type="button" class="theme-opt" data-theme="asal"><span class="theme-sw" style="background:linear-gradient(90deg,hsl(272 100% 70%),hsl(318 95% 66%),#140d26)"></span><span>Purple<small>ungu · rose</small></span></button>
+        <button type="button" class="theme-opt" data-theme="stark"><span class="theme-sw" style="background:linear-gradient(90deg,hsl(196 100% 62%),hsl(38 100% 58%),#07121c)"></span><span>Stark<small>JARVIS cyan · emas oren</small></span></button>
+        <button type="button" class="theme-opt" data-theme="inferno"><span class="theme-sw" style="background:linear-gradient(90deg,hsl(28 100% 58%),hsl(356 95% 56%),#1a0b06)"></span><span>Inferno<small>oren · merah, garang</small></span></button>
+        <button type="button" class="theme-opt" data-theme="mark"><span class="theme-sw" style="background:linear-gradient(90deg,hsl(354 95% 56%),hsl(42 100% 58%),#1a060c)"></span><span>Mark<small>merah · emas, Iron Man</small></span></button>
+      </div>
       <button type="button" id="btnSettings" title="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <circle cx="12" cy="12" r="3"/>
@@ -3908,7 +4200,21 @@ nav.rail {
      ───────────────────────────────────────────────────────────── */
   const orb = document.getElementById('orb');
   if (orb) {
-    const g = orb.getContext('2d');
+    /* Tiga lapisan, supaya tema boleh mewarnakan dail dan sfera BERASINGAN
+       dengan CSS hue-rotate (murah, di GPU) tanpa menyentuh logo:
+         #orb            dail, tick, bezel      -> --orb-dial
+         .orb-layer.sph  sfera emas di tengah   -> --orb-core
+         .orb-layer.top  logo, manik, kaca      -> tiada penapis */
+    const mkLayer = (cls) => {
+      const c = document.createElement('canvas');
+      c.className = 'orb-layer ' + cls;
+      c.setAttribute('aria-hidden', 'true');
+      orb.insertAdjacentElement(cls === 'sph' ? 'afterend' : 'afterend', c);
+      return c;
+    };
+    const orbTop = mkLayer('top'), orbSph = mkLayer('sph');   // susunan DOM: #orb, sph, top
+    const G1 = orb.getContext('2d'), G2 = orbSph.getContext('2d'), G3 = orbTop.getContext('2d');
+    let g = G1;
     const dpr = Math.min(devicePixelRatio || 1, 2);
     let t = 0, w = 0, h = 0, cx = 0, cy = 0, R = 0;
 
@@ -3948,9 +4254,11 @@ nav.rail {
     function size() {
       w = orb.clientWidth  || 300;
       h = orb.clientHeight || 300;
-      orb.width  = Math.round(w * dpr);
-      orb.height = Math.round(h * dpr);
-      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+      for (const [c, x] of [[orb, G1], [orbSph, G2], [orbTop, G3]]) {
+        c.width  = Math.round(w * dpr);
+        c.height = Math.round(h * dpr);
+        x.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
       cx = w / 2; cy = h / 2;
       R  = Math.min(w, h) * 0.415;
     }
@@ -3982,7 +4290,8 @@ nav.rail {
       SP.ox = (SP.ox || 0) + ((thinking ? 1 : 0) - (SP.ox || 0)) * (thinking ? 0.045 : 0.03);
       const OX = SP.ox * SP.ox * (3 - 2 * SP.ox);
 
-      g.clearRect(0, 0, w, h);
+      g = G1;
+      G1.clearRect(0, 0, w, h); G2.clearRect(0, 0, w, h); G3.clearRect(0, 0, w, h);
 
       /* the voice enters the dial: a tick's brightness is lifted by the
          spectrum band at its angle, so a vowel lights a whole sector instead
@@ -4467,6 +4776,7 @@ nav.rail {
       g.fillStyle = seat;
       g.beginPath(); g.arc(cx, cy, seatR, 0, TAU); g.fill();
 
+      g = G2;                       // sfera -> lapisan sendiri (warna tema --orb-core)
       /* ── 10b · sfera minda JARVIS (ala Age of Ultron) ────────────────────
              Sfera emas 3D daripada jalur cahaya melengkung pada paksi rawak,
              garis data pendek di permukaan, dan pusaran terang di tengah.
@@ -4597,6 +4907,7 @@ nav.rail {
         g.restore();
       }
 
+      g = G3;                       // logo, manik dan kaca -> lapisan atas tanpa penapis
       /* the mark itself. Its rim is cold and its body is blue, so it reads as
          part of the instrument; the warm states lift it only slightly, because
          a logo that changes colour stops being a logo. */
@@ -4702,7 +5013,8 @@ nav.rail {
        backdrop-filter (one fillRect each, composited once per frame) and
        they are the reason a screenshot now shows a gradient rather than a
        fill — the hue genuinely varies across the screen. */
-    const HUES = [272, 318, 200, 44];   // violet, rose, sky, gold
+    let HUES = (window.__themeHues || [272, 318, 200, 44]).slice();   // violet, rose, sky, gold
+    window.jarvisThemeBg = (arr) => { HUES = arr.slice(); blooms.forEach((b, k) => { b.h = HUES[k]; }); };
     const sizeBg = () => {
       W = innerWidth; H = innerHeight;
       bg.width = Math.round(W * dpr); bg.height = Math.round(H * dpr);
@@ -8190,6 +8502,32 @@ nav.rail {
     addEventListener('keydown', e => { if (e.key === 'Escape' && !wrap.hidden) { e.stopPropagation(); close(); } });
   })();
 
+  /* ── tema warna ── */
+  const THEME_BG = { asal: [272, 318, 200, 44], stark: [196, 38, 210, 24],
+                     inferno: [24, 356, 36, 8], mark: [354, 42, 340, 20] };
+  window.jarvisTheme = function (name, save) {
+    const t = THEME_BG[name] ? name : 'asal';
+    if (t === 'asal') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = t;
+    window.__themeHues = THEME_BG[t];
+    if (window.jarvisThemeBg) window.jarvisThemeBg(THEME_BG[t]);
+    document.querySelectorAll('.theme-opt').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.theme === t)));
+    if (save && api && api.set_setting) api.set_setting('theme', t).catch(() => {});
+    return t;
+  };
+  (() => {
+    const btn = $('btnTheme'), pop = $('themePop');
+    if (!btn || !pop) return;
+    btn.addEventListener('click', e => { e.stopPropagation(); pop.hidden = !pop.hidden; });
+    pop.addEventListener('click', e => {
+      const o = e.target.closest('.theme-opt');
+      if (o) { window.jarvisTheme(o.dataset.theme, true); }
+      e.stopPropagation();
+    });
+    document.addEventListener('click', () => { pop.hidden = true; });
+    addEventListener('keydown', e => { if (e.key === 'Escape') pop.hidden = true; });
+  })();
+
   /* ── input wiring ── */
   const cmd = $('cmd');
   const modeBtns = [...document.querySelectorAll('.capsule .mode button')];
@@ -8447,6 +8785,7 @@ nav.rail {
     step(36, 'Mikrofon & wake word');
     try {
       const cfg = await api.get_settings_core();
+      window.jarvisTheme && window.jarvisTheme(cfg && cfg.theme, false);
       window.stageSettings(cfg);
       restoreTalk(cfg && cfg.history);
     } catch (e) {}

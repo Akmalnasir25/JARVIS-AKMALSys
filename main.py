@@ -362,6 +362,16 @@ def tools_for(text, history):
 
 
 # Model chat rootsys (ujian 3 Nov 2026: masa satu langkah dengan tool)
+THEMES = ("asal", "stark", "inferno", "mark")
+THEME_NAMES = {"asal": "PURPLE", "stark": "STARK", "inferno": "INFERNO", "mark": "MARK"}
+# nama yang Tuan mungkin sebut -> tema
+THEME_WORDS = {"asal": "asal", "default": "asal", "ungu": "asal", "biasa": "asal", "original": "asal",
+               "purple": "asal", "violet": "asal",
+               "stark": "stark", "jarvis": "stark", "cyan": "stark", "biru": "stark", "kuning": "stark",
+               "emas": "stark", "gold": "stark",
+               "inferno": "inferno", "api": "inferno", "oren": "inferno", "orange": "inferno", "garang": "inferno",
+               "mark": "mark", "merah": "mark", "red": "mark", "iron man": "mark", "ironman": "mark"}
+
 CHAT_MODELS = [
     {"id": "deepseek-v4.1-flash", "group": "DeepSeek", "note": "2-3 s · recommended"},
     {"id": "deepseek-v4.1-flash-mod", "group": "DeepSeek", "note": ""},
@@ -699,6 +709,7 @@ class Api:
                 "chat_model": self._chat_model(load_json(SECRETS, {})),
                 "reply_language": cfg.get("reply_language", "ms"),
                 "speak_replies": cfg.get("speak_replies", True),
+                "theme": cfg.get("theme", "asal"),
                 "history": self._chat_history[-40:]}
 
     # ---------- Stage: media ----------
@@ -4283,7 +4294,8 @@ class Api:
                    "speak_replies": lambda v: isinstance(v, bool),
                    "reply_language": lambda v: v in ("ms", "en"),
                    "voice_en": lambda v: v in [x["id"] for x in EN_VOICES],
-                   "chat_model": lambda v: v in [m["id"] for m in CHAT_MODELS]}
+                   "chat_model": lambda v: v in [m["id"] for m in CHAT_MODELS],
+                   "theme": lambda v: v in THEMES}
         if key not in allowed or not allowed[key](value):
             return {"ok": False, "msg": f"Invalid setting {key}={value}"}
         cfg = load_json(CONFIG, {})
@@ -4559,6 +4571,16 @@ class Api:
         pr = self._project_command(low, raw)
         if pr is not None:
             return pr
+
+        tm = re.match(r"^(?:tukar|tukarkan|guna|pakai|set|switch)?\s*(?:ke\s+)?(?:tema|theme|warna)\s+"
+                      r"(?:jarvis\s+)?(?:ke\s+)?(.+?)$", low)
+        if tm and len(low.split()) <= 6:
+            want = tm.group(1).strip()
+            theme = THEME_WORDS.get(want) or next((v for k, v in THEME_WORDS.items() if k in want), None)
+            if theme:
+                self.set_setting("theme", theme)
+                self._push(f"window.jarvisTheme && window.jarvisTheme({json.dumps(theme)}, false)")
+                return {"handled": True, "label": f"🎨 Tema {THEME_NAMES[theme]}"}
 
         yq = self._yt_command(low)
         if yq:
