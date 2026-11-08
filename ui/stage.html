@@ -650,11 +650,16 @@ main.stage-wrap {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hist-item .w { font: 500 8px/1 var(--font-mono); letter-spacing: .08em; color: hsl(var(--alt) 60% 70% / .85);
   display: block; margin-top: 4px; }
+/* butang padam mesti nampak: dulu ✕ pudar tanpa bingkai, Tuan tak perasan ia wujud */
 .hist-del {
-  position: absolute; top: 7px; right: 8px; width: 20px; height: 20px;
-  background: transparent; border: 1px solid transparent; color: var(--ink-faint); cursor: pointer;
+  position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
+  min-width: 26px; height: 24px; padding: 0 6px; display: grid; place-items: center;
+  background: rgba(255, 95, 112, .10); border: 1px solid rgba(255, 95, 112, .45); border-radius: 4px;
+  color: #ff8a96; cursor: pointer; font: 600 10px/1 var(--font-mono);
 }
-.hist-del:hover { color: var(--amber, #ffb340); border-color: hsl(var(--alt) 80% 70% / .4); }
+.hist-del svg { width: 12px; height: 12px; }
+.hist-del:hover { background: rgba(255, 95, 112, .25); color: #fff; }
+.hist-del[data-armed="1"] { background: #d9283e; color: #fff; border-color: #ff5f70; }
 .hist-empty { padding: 18px 12px; font-size: 10.5px; color: var(--ink-faint); text-align: center; }
 
 /* ── Mod projek: chip + senarai folder ── */
@@ -7702,7 +7707,13 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
   // ---------- routing ----------
   const PC_TASK = /\b(kod|code|coding|skrip|script|run|jalankan|install|pasang|uninstall|padam|delete|buang|hapus|ubah|edit|tulis|susun|pindah|move|copy|salin|rename|tukar nama|zip|unzip|compress|convert|tukar jadi|python|powershell|cmd|terminal|git|npm|node|projek|project|bina|build|debug|error|bug|fix|betulkan|setting|tetapan)\b|buat (fail|folder|skrip|app|website|laman)/i;
 
+  /* Mesej Telegram hanya boleh dihantar oleh enjin chat (tool telegram_send). Claude Code
+     tiada akses ke akaun Telegram Tuan — "hantar ke X di telegram, TULIS ..." dulu jatuh ke
+     Claude kerana "tulis" ada dalam PC_TASK, dan Claude menjawab "saya takde tool Telegram". */
+  const MSG_TASK = /\b(telegram|tg|whatsapp|wasap)\b|\b(hantar|send|balas|reply)\b.*\b(mesej|message|chat|pesanan)\b/i;
+
   function pickEngine(q) {
+    if (MSG_TASK.test(q)) return 'chat';
     if (engine !== 'auto') return engine;
     return PC_TASK.test(q) ? 'claude' : 'chat';
   }
@@ -7825,7 +7836,10 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
   }
 
   async function newSession() {
-    if (api) await api.new_session();
+    if (api) await api.new_session();     // Python memanggil jarvisSessionReset untuk semua skrin
+    resetTalkUI();
+  }
+  function resetTalkUI() {
     if (talk) talk.innerHTML = '<div class="talk-empty"><b>New session.</b>History cleared. Carry on when ready, Tuan.</div>';
     msgCount = 0;
     if (talkMeta) talkMeta.textContent = 'new session';
@@ -7835,6 +7849,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
     window.jarvisState('idle');
     if (histPop && !histPop.hidden) loadHistory();
   }
+  window.jarvisSessionReset = resetTalkUI;   // "new session" dari fon atau suara
 
   /* ── History: New session mengarkib sesi lama ke chat_history.json ──
      Klik satu baris = sambung sesi itu (sesi semasa diarkib dulu, tiada yang
@@ -7872,13 +7887,14 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
       const w = document.createElement('span'); w.className = 'w';
       w.textContent = histWhen(s.updated) + ' · ' + s.count + ' mesej' + (s.project ? ' · ' + s.project : '');
       const del = document.createElement('span');
-      del.className = 'hist-del'; del.textContent = '✕'; del.title = 'Padam sesi ni';
+      const BIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>';
+      del.className = 'hist-del'; del.innerHTML = BIN; del.title = 'Padam sesi ni';
       del.setAttribute('role', 'button');
       del.addEventListener('click', async (ev) => {
         ev.stopPropagation();
         if (del.dataset.armed !== '1') {         // klik kedua baru padam: tiada dialog confirm()
-          del.dataset.armed = '1'; del.textContent = 'padam?'; del.style.width = 'auto';
-          setTimeout(() => { if (del.isConnected) { del.dataset.armed = ''; del.textContent = '✕'; del.style.width = ''; } }, 2500);
+          del.dataset.armed = '1'; del.textContent = 'Padam?';
+          setTimeout(() => { if (del.isConnected) { del.dataset.armed = ''; del.innerHTML = BIN; } }, 2500);
           return;
         }
         try { await api.delete_session(s.id); } catch (e) {}
@@ -7894,14 +7910,16 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
     let r = null;
     try { r = await api.open_session(id); } catch (e) {}
     if (!r || !r.ok) { sysNote('✖ ' + ((r && r.msg) || 'Tak dapat buka sesi')); return; }
+    toggleHistory(false);          // paparan dipulihkan oleh jarvisSessionOpen (Python), sama untuk fon
+  }
+  window.jarvisSessionOpen = function (r) {
     liveBubble = null;
     traceEnd();
     orbTasks.clear();
     if (talk) talk.innerHTML = '';
     restoreTalk(r.history);
     if (talkMeta) talkMeta.textContent = 'sesi lama · ' + (r.title || '').slice(0, 28);
-    toggleHistory(false);
-  }
+  };
 
   function toggleHistory(show) {
     if (!histPop) return;

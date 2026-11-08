@@ -1753,6 +1753,10 @@ class Api:
         self._chat_history = []
         self._chat_started = time.time()
         self._save_session()
+        # dari mana pun ia datang (butang HUD, fon, suara), semua skrin bermula bersih
+        self._push("window.jarvisSessionReset && window.jarvisSessionReset()")
+        if self._web:
+            self._web.reset()
         return {"ok": True}
 
     # ---------- Sejarah sesi ----------
@@ -1821,7 +1825,12 @@ class Api:
         self._project = Path(pj) if pj and Path(pj).is_dir() else None
         self._save_session()
         self._push_project()
-        return {"ok": True, "title": rec.get("title", ""), "history": self._chat_history[-40:]}
+        out = {"ok": True, "title": rec.get("title", ""), "history": self._chat_history[-40:]}
+        # dibuka dari fon atau laptop: kedua-dua skrin tunjuk perbualan yang sama
+        self._push(f"window.jarvisSessionOpen && window.jarvisSessionOpen({json.dumps(out)})")
+        if self._web:
+            self._web.load_history(out["history"])
+        return out
 
     def delete_session(self, sid):
         rows = self._archive_load()
@@ -5017,6 +5026,9 @@ class Api:
         if pr is not None:
             return pr
 
+        if re.match(r"^(sesi baru|new session|mula sesi baru|buka sesi baru|reset (sesi|chat|perbualan))$", low):
+            self.new_session()
+            return {"handled": True, "label": "✔ New session — sesi lama disimpan dalam History"}
         if re.match(r"^(mula|mulakan|start|rekod|rakam)\s+(rekod\s+|rakam\s+)?(mesyuarat|meeting|kelas|kuliah)\b", low):
             r = self.meeting_start()
             return {"handled": True, "label": "⏺ Merakam mesyuarat (mic + bunyi laptop). Cakap «tamat mesyuarat» bila siap."
@@ -5935,7 +5947,12 @@ def _reap(pids):
 
 
 def main():
-    _note("start")
+    # --ensure: dari tugas berjadual (log masuk, buka kunci, bangun dari sleep). Jika Jarvis
+    # sudah hidup, keluar SENYAP — tanpa ini setiap kali laptop dibuka HUD melompat ke depan.
+    ensure = "--ensure" in sys.argv
+    if ensure and _lock_owner():
+        return
+    _note("start" + (" (ensure)" if ensure else ""))
     if already_running():
         return
 
@@ -6115,7 +6132,8 @@ def _run():
         _c = load_json(CONFIG, {})
         api._web = phone_web.PhoneWeb(api, SECRETS, ROOT / "ui", port=int(_c.get("phone_web_port", 8765)),
                                       log=_note, domain=_c.get("phone_web_domain", ""),
-                                      email=_c.get("phone_web_email", ""))
+                                      email=_c.get("phone_web_email", ""),
+                                      team=_c.get("phone_web_team", ""))
         api._web.start()
         threading.Thread(target=_start_tunnel, daemon=True).start()   # https://jarvis.akmalsys.com
     except Exception as e:
