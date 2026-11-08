@@ -96,7 +96,8 @@ CHAT_PROMPT = PERSONA + """
 
 Dalam mod ni kamu BOLEH cari, senarai, baca dan buka fail serta folder dalam PC Tuan melalui tool find_files, list_folder, read_file dan open_item — guna terus, jangan sesekali cakap kamu tak boleh akses fail atau suruh tukar mod untuk benda ni. Untuk cari fail, guna find_files dengan 1-3 kata kunci utama (cth "survey rambu"), bukan ayat penuh; kalau tiada hasil, cuba kata kunci lain atau search_drive kalau mungkin dalam Google Drive. Hanya untuk UBAH, TULIS, PADAM fail atau jalankan/edit kod, cadangkan mod CLAUDE.
 Arahan Tuan selalunya datang dari suara (transkripsi), jadi nama dan perkataan Inggeris mungkin tersalah dengar: tafsir ikut maksud dan bunyi, cth "ppt Hafiz" = "PPKIU Hafiz", "bukan youtube" selepas pilih profile = "buka new tab", "sihat chrome" = "chrome". Kalau nama masih tak pasti, tanya Tuan dalam satu ayat.
-Tool yang kamu ada: web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), chrome (buka Chrome ikut profil, url, carian Google), browser_task (klik, isi borang dan baca dalam laman web — lambat, guna bila perlu sahaja), telegram_send (draf mesej Telegram, Tuan sahkan dengan "ya"), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Tuan guna mod CLAUDE.
+Tool yang kamu ada: find_anywhere (cari fail dalam PC DAN Google Drive serentak — guna ini untuk "cari fail X" bila lokasi tak disebut), web_search, open_item (buka app/folder/fail), system_status, list_folder, find_files, read_file (teks/PDF/Word), set_reminder, weather, prayer_times, check_email (Gmail), search_drive (Google Drive), look_at_screen (tengok skrin), control_pc (slide, volume, media), chrome (buka Chrome ikut profil, url, carian Google), browser_task (klik, isi borang dan baca dalam laman web — lambat, guna bila perlu sahaja), telegram_send (draf mesej Telegram, Tuan sahkan dengan "ya"), system (volume/kecerahan bernombor, tutup app, fokus tetingkap, clipboard, kunci/sleep/restart, senarai proses). Guna terus bila sesuai, jangan tanya dulu untuk benda selamat macam buka folder atau check status. Untuk padam, ubah atau tulis fail, suruh Tuan guna mod CLAUDE.
+DATA JADUAL: bila tool pulangkan jadual (Google Form responses, Sheet, Excel, CSV), HUD akan TERUS bina dashboard — dalam jawapan teks beri 3-5 angka/penemuan utama (jumlah, peratus, tertinggi, terendah), bukan senarai baris mentah.
 ANALISIS: bila Tuan minta analisis, kumpul data secukupnya (maksimum 3-4 langkah tool, baca fail paling penting sahaja seperti README, package.json, data), kira angka penting, kemudian jawab dengan ringkasan padat yang ada angka. HUD akan tukar jawapan kamu jadi dashboard visual.
 Kamu ADA akses internet melalui tool web_search. Biasanya SATU carian dah cukup; cari lagi hanya kalau hasil pertama memang tak menjawab. Guna bila soalan perlukan maklumat terkini atau fakta yang kamu tak pasti (harga, berita, cuaca, jadual, skor, release terbaru). Jangan cakap kamu takde internet. Lepas cari, jawab ringkas dan sebut sumber secara santai (contoh: "ikut Bernama semalam...")."""
 
@@ -220,6 +221,9 @@ CHAT_TOOLS = WEB_TOOLS + [
                         "Jangan guna open_media untuk YouTube.",
         {"query": {"type": "string",
                    "description": "Nama lagu dan artis, contoh: Hindia Secukupnya, atau judul video"},
+         "count": {"type": "integer",
+                   "description": "Bilangan lagu untuk senarai main (cth 'main 5 lagu Siti'): 2-10. "
+                                  "Kosongkan untuk satu lagu."},
          "mode": {"type": "string",
                   "description": "Biarkan kosong. \"embed\" untuk benamkan terus tanpa muat turun. "
                                  "\"browser\" hanya jika muat turun gagal dan embed ditolak — ia buka "
@@ -249,11 +253,16 @@ CHAT_TOOLS = WEB_TOOLS + [
         {"chat": {"type": "string", "description": "Nama chat, orang atau kumpulan, cth: Mak, PIBG, Cikgu Ali"},
          "text": {"type": "string", "description": "Isi mesej yang akan dihantar"}},
         ["chat", "text"]),
+    _fn("find_anywhere", "Cari fail SERENTAK dalam PC (Desktop, Documents, Downloads, OneDrive) DAN Google Drive. "
+                         "Guna ini untuk 'cari fail X' bila Tuan TIDAK sebut lokasi. Untuk PC sahaja guna "
+                         "find_files; untuk Drive sahaja guna search_drive.",
+        {"keyword": {"type": "string", "description": "1-3 kata kunci utama nama fail, cth: survey rambu"}},
+        ["keyword"]),
 ]
 
 # Setiap tool tambahan melambatkan API rootsys (18 tool ≈ 19 s walaupun soalan mudah),
 # jadi hantar hanya tool yang berkaitan dengan soalan. Tool asas sentiasa dihantar.
-BASE_TOOLS = {"web_search", "list_folder", "find_files", "read_file"}
+BASE_TOOLS = {"web_search", "list_folder", "find_files", "read_file", "find_anywhere"}
 TOOL_TRIGGERS = {
     "open_item": r"\b(buka|bukakan|open|lancar|launch|run)\b",
     "system_status": r"status|cpu|ram|bateri|battery|disk|memori|memory|perlahan|slow|lag|panas|storage",
@@ -322,6 +331,17 @@ NUM_SIGNAL = [
     r"\b\d+(?:\.\d+)?\s?(?:line|commit|repo|fail|file|minggu|week|hari|day|jam|hour|min|kB|MB|GB|KB|s)\b",
 ]
 DATA_STOP = re.compile(r"^(okay|ok|done|siap|baik|noted|faham|understood)[.,!]?$", re.I)
+
+
+def looks_tabular(text):
+    """Hasil tool yang berupa jadual (Form responses, Sheet, CSV): >= 6 baris dengan >= 3 pemisah."""
+    rows = [ln for ln in str(text or "").splitlines() if ln.count("|") >= 3 or ln.count(",") >= 3 or ln.count("\t") >= 3]
+    return len(rows) >= 6
+
+
+NUM_WORDS = {"dua": 2, "tiga": 3, "empat": 4, "lima": 5, "enam": 6, "tujuh": 7, "lapan": 8,
+             "sembilan": 9, "sepuluh": 10}
+VOICEPRINT = Path(__file__).resolve().parent / "runtime" / "voiceprint"
 
 
 def carries_data(text):
@@ -646,6 +666,15 @@ class Api:
         self._wake_ready = False
         self._ww_model = None        # model openWakeWord, dimuat sekali (~10 s)
         self._phone = None           # phone.PhoneLink bila telegram_bot_token ada
+        self._web = None             # phone_web.PhoneWeb (app fon melalui Tailscale)
+        self._meeting = None         # meeting.Meeting
+        self._ytq = None             # senarai main YouTube {"items", "pos", "q"}
+        self._yt_locks = {}
+        self._tg_watched = None
+        self._tg_note_at = {}
+        self._tg_auto_state = {}
+        self._enroll = None          # pendaftaran cap suara {"dir", "n", "need"}
+        self._ww_rebuild = False
         self._speaking = False
         self._prayer_done = set()  # (tarikh, solat) yang dah diingatkan
         self._stt_used = 0.0
@@ -1898,6 +1927,372 @@ class Api:
         except Exception:
             pass
 
+    # ════════ cari di PC + Drive serentak ════════
+    def _tool_find_anywhere(self, kw):
+        if not kw:
+            return "Empty keyword."
+        out = {}
+
+        def pc():
+            try:
+                out["pc"] = self._tool_find(kw)
+            except Exception as e:
+                out["pc"] = (f"PC search failed: {e}", "", [])
+
+        def drv():
+            try:
+                out["drive"] = self._claude_quick(
+                    f"Guna Google Drive, BACA SAHAJA. Cari fail yang namanya padan dengan: {kw} "
+                    "(nama boleh tersalah eja — guna kata kunci utama, cuba juga sebahagian kata). "
+                    "Jawab senarai ringkas sahaja, maksimum 8 baris: nama fail — jenis — tarikh ubah — link. "
+                    "Jika tiada langsung, tulis TIADA.", DRIVE_READ, timeout=150)
+            except Exception as e:
+                out["drive"] = f"Drive search failed: {e}"
+
+        self._emit("tool", {"name": "Find", "detail": kw, "full": ""})
+        tp, td = threading.Thread(target=pc, daemon=True), threading.Thread(target=drv, daemon=True)
+        tp.start()
+        td.start()
+        tp.join(25)
+        pcmsg, _, items = out.get("pc") or ("PC search timed out.", "", [])
+        self._emit("result", {"name": "Find", "text": "", "items": items})
+        self._emit("tool", {"name": "Drive", "detail": kw, "full": ""})
+        td.join(170)
+        self._emit("result", {"name": "Drive", "text": ""})
+        dmsg = out.get("drive") or "Drive search timed out."
+        return (f"== PC (Desktop/Documents/Downloads/OneDrive) ==\n{pcmsg}\n\n"
+                f"== Google Drive ==\n{dmsg}\n\nBeritahu Tuan di mana fail dijumpai (PC, Drive atau kedua-dua).")
+
+    # ════════ senarai main YouTube ════════
+    def _yt_list_command(self, low):
+        """'main 5 lagu siti nurhaliza' -> ('siti nurhaliza', 5). None = bukan senarai main."""
+        m = re.match(r"^(?:main(?:kan)?|play|pasang(?:kan)?|putar(?:kan)?)\s+"
+                     r"(?P<n>\d{1,2}|dua|tiga|empat|lima|enam|tujuh|lapan|sembilan|sepuluh)\s+(?:buah\s+)?"
+                     r"(?:lagu|lagi|video|muzik|music)\s+(?:(?:dari|daripada|oleh|by)\s+)?(?P<q>.+?)"
+                     r"(?:\s+(?:dalam|di|kat|dekat|on)\s+(?:youtube|yt|jarvis|media))?$", low)
+        if m:
+            n = m.group("n")
+            n = int(n) if n.isdigit() else NUM_WORDS[n]
+            q = m.group("q").strip(" ,.")
+            return (q, max(2, min(n, 10))) if q else None
+        m = re.match(r"^(?:main(?:kan)?\s+|play\s+|pasang\s+)?(?:senarai main|playlist)\s+(?P<q>.+?)$", low)
+        if m and m.group("q").strip():
+            return m.group("q").strip(" ,."), 5
+        return None
+
+    def _fetch_cached(self, cand):
+        """Muat turun sekali sahaja walaupun dua thread (main + pra-muat) minta serentak."""
+        lock = self._yt_locks.setdefault(cand["id"], threading.Lock())
+        with lock:
+            for p in MEDIA.glob(cand["id"] + ".*"):
+                if p.suffix.lower() in self.MEDIA_EXT and not p.name.endswith(".part"):
+                    return {"ok": True, "name": p.name, "size": p.stat().st_size}
+            return self._fetch_local(cand)
+
+    def play_youtube_list(self, q, n=5):
+        cands = self._yt_find(q)
+        if not cands:
+            return {"ok": False, "msg": f'YouTube: nothing playable found for "{q}".'}
+        seen, picks = set(), []
+        for c in cands:
+            key = re.sub(r"\W+", " ", (c.get("title") or "").lower()).strip()[:32]
+            if key in seen:
+                continue
+            seen.add(key)
+            picks.append(c)
+            if len(picks) >= n:
+                break
+        self._ytq = {"items": picks, "pos": -1, "q": q}
+        r = self._yt_play_at(0)
+        return {"ok": bool(r.get("ok")), "count": len(picks), "titles": [p.get("title") for p in picks],
+                "msg": r.get("msg", "")}
+
+    def _yt_push_queue(self):
+        qd = self._ytq
+        st = {"on": bool(qd), "pos": qd["pos"] if qd else -1, "q": qd["q"] if qd else "",
+              "items": [p.get("title") for p in qd["items"]] if qd else []}
+        self._push(f"window.jarvisQueue && window.jarvisQueue({json.dumps(st)})")
+
+    def _yt_play_at(self, i):
+        qd = self._ytq
+        if not qd or not (0 <= i < len(qd["items"])):
+            self._ytq = None
+            self._yt_push_queue()
+            return {"ok": False, "msg": "Senarai main tamat."}
+        qd["pos"] = i
+        self._yt_push_queue()
+        cand = qd["items"][i]
+        self._last_yt = cand
+        r = self._fetch_cached(cand)
+        if not r.get("ok"):
+            return self._yt_play_at(i + 1)          # lagu gagal dimuat turun: langkau
+        self._emit("media", {"items": self.media_index(), "play": r["name"]})
+        if i + 1 < len(qd["items"]):                # pra-muat lagu seterusnya supaya tiada jeda
+            threading.Thread(target=self._fetch_cached, args=(qd["items"][i + 1],), daemon=True).start()
+        return {"ok": True, "title": cand.get("title")}
+
+    def yt_next(self):
+        pos = (self._ytq or {}).get("pos", -1)
+        threading.Thread(target=self._yt_play_at, args=(pos + 1,), daemon=True).start()
+        return {"ok": True}
+
+    def yt_prev(self):
+        pos = (self._ytq or {}).get("pos", 0)
+        threading.Thread(target=self._yt_play_at, args=(max(0, pos - 1),), daemon=True).start()
+        return {"ok": True}
+
+    def yt_jump(self, i):
+        threading.Thread(target=self._yt_play_at, args=(int(i),), daemon=True).start()
+        return {"ok": True}
+
+    def yt_clear(self):
+        self._ytq = None
+        self._yt_push_queue()
+        return {"ok": True}
+
+    # ════════ Telegram: notifikasi masuk + draf auto-balas ════════
+    def _tg_watch(self):
+        """Pasang pendengar mesej masuk pada akaun Telegram Tuan; pasang semula bila sambungan baru."""
+        time.sleep(20)
+        while True:
+            try:
+                acc = self._tg_account()
+                if acc and acc is not self._tg_watched:
+                    acc.on_message = self._tg_incoming
+                    acc.listen()
+                    self._tg_watched = acc
+                    _note("telegram watch on")
+            except Exception as e:
+                _note(f"telegram watch gagal: {e}")
+            time.sleep(60)
+
+    def _tg_auto_ids(self):
+        return {str(x) for x in load_json(CONFIG, {}).get("tg_autodraft", [])}
+
+    def _tg_incoming(self, m):
+        chat = m.get("chat") or {}
+        cid, name, kind = str(chat.get("id")), chat.get("name", "?"), chat.get("type")
+        if chat.get("bot"):
+            return                                   # bot (termasuk bot Jarvis sendiri) tak perlu notifikasi
+        text = (m.get("text") or "").strip() or "[media]"
+        cfg = load_json(CONFIG, {})
+        armed = cid in self._tg_auto_ids()
+        notify = cfg.get("tg_notify", True) and (
+            kind == "user" or cid in {str(x) for x in cfg.get("tg_notify_ids", [])}
+            or name in cfg.get("tg_notify_chats", []))
+        now = time.time()
+        if (notify or armed) and now - self._tg_note_at.get(cid, 0) > 6:
+            self._tg_note_at[cid] = now
+            self._push("window.jarvisTgNote && window.jarvisTgNote(%s)" % json.dumps(
+                {"id": cid, "name": name, "text": text[:240], "kind": kind, "armed": armed}))
+        if armed:
+            threading.Thread(target=self._tg_autodraft, args=(int(cid), name), daemon=True).start()
+
+    def _tg_autodraft(self, cid, name):
+        """Draf balasan SAHAJA. Tiada apa dihantar tanpa 'ya' Tuan (pending_tg yang sama dengan telegram_send)."""
+        now = time.time()
+        st = self._tg_auto_state.setdefault(cid, {"last": 0, "hour": []})
+        st["hour"] = [t for t in st["hour"] if now - t < 3600]
+        if now - st["last"] < 45 or len(st["hour"]) >= 6:     # jarak 45 s, siling 6 draf sejam per chat
+            return
+        st["last"] = now
+        st["hour"].append(now)
+        time.sleep(5)                                          # tunggu mesej berturut-turut
+        acc = self._tg_account()
+        if not acc:
+            return
+        try:
+            msgs = acc.thread(cid, 12).get("msgs") or []
+        except Exception:
+            return
+        if not msgs or msgs[-1].get("out"):
+            return                                             # Tuan dah balas sendiri
+        convo = "\n".join(("Tuan" if x.get("out") else name) + ": " + (x.get("text") or f"[{x.get('kind')}]")
+                          for x in msgs[-12:])
+        prompt = ("Tulis DRAF balasan Telegram bagi pihak Akmal ('Tuan') untuk perbualan di bawah. Gaya: Bahasa "
+                  "Melayu santai, sama nada dengan mesej Tuan sebelum ini, 1-2 ayat. Jangan janji, jangan reka "
+                  "fakta, jangan setuju bagi pihak Tuan; jika perlukan keputusan atau maklumat yang hanya Tuan "
+                  "tahu, tulis balasan sopan yang menangguh (cth 'Nanti saya semak dan balas'). Jika mesej "
+                  "terakhir tak perlu dibalas (sticker, 'ok', terima kasih), tulis tepat: SKIP. "
+                  "Keluarkan teks draf SAHAJA.\n\nPerbualan:\n" + convo)
+        try:
+            out = self._chat_call(load_json(SECRETS, {}), [
+                {"role": "system", "content": "Kamu menulis draf mesej. Tiada markup, tiada petikan."},
+                {"role": "user", "content": prompt}])["content"] or ""
+        except Exception as e:
+            _note(f"autodraft gagal: {e}")
+            return
+        draft = strip_tool_markup(out).strip().strip('"\u201c\u201d')
+        if not draft or draft.upper().startswith("SKIP"):
+            return
+        self._offer_tg_draft(cid, name, draft, ttl=900, auto=True)
+
+    def _offer_tg_draft(self, cid, name, text, ttl=None, auto=False):
+        tok = "tg" + os.urandom(4).hex()
+        self._pending_tg = {"token": tok, "id": cid, "name": name, "text": text,
+                            "until": time.time() + (ttl or self.TG_SEND_TTL)}
+        ask = (f'Draf balasan untuk {name}: \u201c{text}\u201d — hantar?' if auto
+               else f'Hantar ke {name}: \u201c{text}\u201d?')
+        self._push(f"window.jarvisConfirm && window.jarvisConfirm({json.dumps({'need_confirm': True, 'token': tok, 'ask': ask})})")
+        ph = self._phone
+        try:
+            if ph and ph.bot and ph.owner():
+                ph._reply(ph.owner(), f"✉ {ask}\nBalas «ya» untuk hantar, «tak» untuk batal.")
+        except Exception:
+            pass
+
+    # ════════ pembantu mesyuarat ════════
+    def meeting_start(self):
+        import meeting
+        if not self._meeting:
+            self._meeting = meeting.Meeting(ROOT / "runtime" / "meetings", log=_note)
+        r = self._meeting.start()
+        if r.get("ok"):
+            def tick():
+                while self._meeting and self._meeting.on:
+                    self._push(f"window.jarvisMeeting && window.jarvisMeeting({json.dumps(self._meeting.status())})")
+                    time.sleep(1)
+                self._push("window.jarvisMeeting && window.jarvisMeeting({\"on\": false})")
+            threading.Thread(target=tick, daemon=True).start()
+        return r
+
+    def meeting_stop(self):
+        if not self._meeting or not self._meeting.on:
+            return {"ok": False, "msg": "Tiada mesyuarat sedang dirakam."}
+        r = self._meeting.stop()
+        threading.Thread(target=self._meeting_process, args=(Path(r["dir"]), r["secs"]), daemon=True).start()
+        return r
+
+    def meeting_status(self):
+        return self._meeting.status() if self._meeting else {"on": False}
+
+    def _meeting_process(self, d, secs):
+        self._emit("note", {"text": f"Memproses mesyuarat ({secs // 60} min {secs % 60} s) — Gemini sedang transkrip…"})
+        key = load_json(SECRETS, {}).get("gemini_api_key")
+        if not key:
+            self._emit("note", {"text": "✖ gemini_api_key tiada dalam secrets.json — rakaman disimpan di " + str(d)})
+            return
+        try:
+            model = load_json(CONFIG, {}).get("gemini_notes_model") or self._gemini_model(key)
+            notes = self._meeting.notes(d, key, model)
+        except Exception as e:
+            self._emit("note", {"text": f"✖ Nota mesyuarat gagal: {e}. Rakaman disimpan di {d}"})
+            return
+        # nota masuk ke sejarah chat, jadi "hantar nota tu ke PPKIU Hafiz" terus berfungsi
+        self._chat_history.append({"role": "assistant", "content": notes})
+        self._chat_history = self._chat_history[-40:]
+        self._save_session()
+        self._push(f"window.jarvisSay && window.jarvisSay({json.dumps(notes)})")
+        self._emit("note", {"text": f"✔ Nota mesyuarat disimpan: {d / 'notes.md'}"})
+
+    # ════════ cap suara "Hey Jarvis" ════════
+    def _enroll_start(self):
+        if not load_json(CONFIG, {}).get("wake_word", True):
+            return {"handled": True, "label": "✖ Hidupkan 'Hey Jarvis' dulu (chip di header), kemudian cakap «daftar suara»."}
+        d = VOICEPRINT / "pos"
+        if d.exists():
+            shutil.rmtree(d, ignore_errors=True)
+        d.mkdir(parents=True, exist_ok=True)
+        self._enroll = {"dir": d, "n": 0, "need": 6}
+        self._ww_rebuild = True                     # bina semula model TANPA pengesah semasa mendaftar
+        return {"handled": True, "label": "🎙 Daftar suara: sebut «Hey Jarvis» 6 kali, berhenti sekejap antara setiap satu."}
+
+    def _enroll_clip(self, x):
+        import voiceprint as vp
+        e = self._enroll
+        if not e:
+            return
+        e["n"] += 1
+        vp.write_wav(e["dir"] / f"tuan_{e['n']}.wav", vp.pad(x))
+        self._emit("note", {"text": f"🎙 Cap suara {e['n']}/{e['need']}"})
+        if e["n"] >= e["need"]:
+            self._enroll = None
+            threading.Thread(target=self._enroll_train, daemon=True).start()
+
+    def _enroll_train(self):
+        import phone
+        import voiceprint as vp
+        self._emit("note", {"text": "Melatih cap suara… (~1 minit)"})
+        try:
+            neg = VOICEPRINT / "neg"
+            if len(list(neg.glob("*.wav"))) < 30:
+                vp.make_negatives(neg, phone.decode_16k)
+            out = vp.train(sorted((VOICEPRINT / "pos").glob("*.wav")), sorted(neg.glob("*.wav")),
+                           VOICEPRINT / "hey_jarvis_tuan.pkl")
+            cfg = load_json(CONFIG, {})
+            cfg["wake_verify"] = True
+            CONFIG.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+            self._ww_model = None
+            self._ww_rebuild = True
+            self._emit("note", {"text": f"✔ Cap suara siap — 'Hey Jarvis' kini hanya untuk suara Tuan ({out.name})"})
+        except Exception as e:
+            self._emit("note", {"text": f"✖ Latihan cap suara gagal: {e}"})
+
+    def _verify_off(self):
+        cfg = load_json(CONFIG, {})
+        cfg["wake_verify"] = False
+        CONFIG.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+        self._ww_model = None
+        self._ww_rebuild = True
+        return {"handled": True, "label": "✔ Kenal suara dimatikan — 'Hey Jarvis' terima semua suara."}
+
+    # ════════ app fon (Tailscale) ════════
+    def phone_web_link(self):
+        w = self._web
+        if not w or not (w.ip or w.domain):
+            return {"ok": False, "msg": "App fon belum disediakan (tiada domain atau Tailscale)."}
+        url = w.url()
+        svg = ""
+        try:
+            import qrcode
+            import qrcode.image.svg
+            svg = qrcode.make(url, image_factory=qrcode.image.svg.SvgPathImage, box_size=8).to_string(encoding="unicode")
+        except Exception:
+            pass
+        return {"ok": True, "url": url, "svg": svg}
+
+    # ════════ projek: diff + commit ════════
+    def _pgit(self, *args, timeout=25):
+        p = self._project
+        return subprocess.run(["git", "-C", str(p), *args], capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", creationflags=NO_WINDOW, timeout=timeout)
+
+    def project_diff(self):
+        p = self._project
+        if not p:
+            return {"ok": False, "msg": "Tiada projek aktif."}
+        if not (p / ".git").exists():
+            return {"ok": False, "msg": "Projek ini bukan repo git."}
+        files = []
+        for ln in self._pgit("status", "--porcelain").stdout.splitlines():
+            if ln.strip():
+                files.append({"st": ln[:2].strip() or "M", "path": ln[3:].strip().strip('"')})
+        d = self._pgit("diff", "HEAD", "--no-color")
+        diff = d.stdout if d.returncode == 0 else self._pgit("diff", "--no-color").stdout
+        for f in files:                              # fail baru: tunjuk isinya sebagai tambahan
+            if f["st"] == "??":
+                fp = p / f["path"]
+                if fp.is_file() and fp.stat().st_size < 200_000:
+                    try:
+                        body = fp.read_text(encoding="utf-8", errors="replace").splitlines()[:300]
+                        diff += f"\ndiff --git a/{f['path']} b/{f['path']}\nnew file\n" + "\n".join("+" + x for x in body) + "\n"
+                    except Exception:
+                        pass
+        branch = self._pgit("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+        return {"ok": True, "name": p.name, "branch": branch, "files": files, "diff": diff[:400_000]}
+
+    def project_commit(self, msg):
+        if not self._project:
+            return {"ok": False, "msg": "Tiada projek aktif."}
+        msg = (msg or "").strip() or "Update from Jarvis"
+        a = self._pgit("add", "-A")
+        if a.returncode != 0:
+            return {"ok": False, "msg": a.stderr[:300]}
+        c = self._pgit("commit", "-m", msg)
+        if c.returncode != 0:
+            return {"ok": False, "msg": (c.stdout + c.stderr)[:300]}
+        return {"ok": True, "msg": c.stdout.splitlines()[0] if c.stdout else "Committed."}
+
     def _yt_command(self, low):
         """'main lagu siti nurhaliza cindai' -> 'siti nurhaliza cindai'. None = bukan arahan main lagu.
 
@@ -2930,6 +3325,16 @@ class Api:
                         "For YouTube, use play_youtube instead."
                         % (len(items), ", ".join(i["name"] for i in items[:20])))
             return f"Playing {res.get('name', want)} in the MEDIA panel."
+        if name == "find_anywhere":
+            return self._tool_find_anywhere(str(args.get("keyword", "") or "").strip())
+        if name == "play_youtube" and int(args.get("count") or 0) > 1:
+            q = str(args.get("query", "") or "").strip()
+            self._emit("tool", {"name": "YouTube", "detail": f"{args.get('count')} lagu · {q}", "full": ""})
+            r = self.play_youtube_list(q, int(args.get("count")))
+            if not r.get("ok"):
+                return r.get("msg") or "YouTube search failed."
+            return ("Senarai main dimulakan dalam panel MEDIA (%d lagu): %s. Lagu pertama sedang dimainkan; "
+                    "yang lain menyusul sendiri. Jangan panggil tool ini lagi." % (r["count"], "; ".join(r["titles"])))
         if name == "play_youtube":
             q = str(args.get("query", "") or "").strip()
             mode = str(args.get("mode", "") or "").strip().lower()
@@ -3337,13 +3742,17 @@ class Api:
         """Auto-reply flag, per chat. Off unless explicitly switched on: an
         assistant that answers your friends unasked is a liability, not a
         feature."""
-        if not hasattr(self, "_ib_auto"):
-            self._ib_auto = {}
+        # Simpan dalam config supaya kekal selepas restart. Hanya DRAF: setiap balasan
+        # masih perlu "ya" Tuan sebelum dihantar (_tg_autodraft -> _offer_tg_draft).
         k = str(key)
+        ids = self._tg_auto_ids()
         if on is None:
-            return {"ok": True, "on": bool(self._ib_auto.get(k))}
-        self._ib_auto[k] = bool(on)
-        return {"ok": True, "on": self._ib_auto[k]}
+            return {"ok": True, "on": k in ids}
+        ids = (ids | {k}) if on else (ids - {k})
+        cfg = load_json(CONFIG, {})
+        cfg["tg_autodraft"] = sorted(ids)
+        CONFIG.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+        return {"ok": True, "on": k in ids}
 
     # ---------- Telegram (user account, not a bot) ----------
     # A bot sees only what is sent to it, from the day it was created. These
@@ -3923,6 +4332,8 @@ class Api:
                     except Exception as e:
                         result = f"Tool gagal: {e}"
                     collected.append(f"[{fn.get('name')} {json.dumps(args, ensure_ascii=False)[:120]}]\n{result[:3000]}")
+                    if fn.get("name") in ("search_drive", "read_file", "find_anywhere") and looks_tabular(result):
+                        wants_analysis = True      # Form/Sheet dibaca: dashboard tanpa perlu diminta
                     messages.append({"role": "tool", "tool_call_id": c.get("id"), "content": result[:14000]})
             reply = strip_tool_markup(reply)
             if not reply:
@@ -3953,6 +4364,11 @@ class Api:
     def _emit(self, kind, data):
         if kind == "done" and self._phone:
             self._phone.turn_done(data)   # arahan dari fon: beritahu fon giliran dah tamat
+        if self._web:
+            try:
+                self._web.on_emit(kind, data)
+            except Exception:
+                pass
         try:
             self._window.evaluate_js(f"window.onClaude && window.onClaude({json.dumps(kind)}, {json.dumps(data)})")
         except Exception:
@@ -4387,7 +4803,15 @@ class Api:
             try:
                 self._voice_emit("wake_loading", True)
                 from openwakeword.model import Model
-                self._ww_model = Model(wakeword_models=["hey_jarvis"], inference_framework="onnx")
+                cfg = load_json(CONFIG, {})
+                vpf = VOICEPRINT / "hey_jarvis_tuan.pkl"
+                kw = {}
+                if cfg.get("wake_verify") and vpf.exists() and not self._enroll:
+                    # hanya suara Tuan: regresi logistik atas ciri hey_jarvis (voiceprint.py)
+                    kw = {"custom_verifier_models": {"hey_jarvis": str(vpf)},
+                          "custom_verifier_threshold": float(cfg.get("wake_verify_threshold", 0.3))}
+                self._ww_model = Model(wakeword_models=["hey_jarvis"], inference_framework="onnx", **kw)
+                self._ww_verified = bool(kw)
                 return self._ww_model
             except Exception as e:
                 self._voice_emit("status", f"Hey Jarvis unavailable: {e}")
@@ -4395,6 +4819,7 @@ class Api:
 
         ww = build()
         ring = collections.deque(maxlen=15)  # ~1.2 s audio terakhir
+        long_ring = collections.deque(maxlen=30)  # ~2.4 s — klip pendaftaran cap suara
         noise = None
         while True:
             if ww is None:  # tanpa wake word: buka mic hanya bila butang ditekan
@@ -4440,12 +4865,32 @@ class Api:
                         if not load_json(CONFIG, {}).get("wake_word", True):
                             ww = None
                             break
+                        if self._ww_rebuild:            # cap suara dilatih / didaftar: muat model semula
+                            self._ww_rebuild = False
+                            self._ww_model = None
+                            ww = build()
+                            if ww is None:
+                                break
                         data, _ = st.read(1280)
                         x = data[:, 0].copy()
                         ring.append(x)
+                        long_ring.append(x)
+                        if self._enroll and not self._speaking:
+                            if ww.predict(x).get("hey_jarvis", 0) >= 0.3:
+                                sv.beep("wake")
+                                time.sleep(0)
+                                tail = [st.read(1280)[0][:, 0].copy() for _ in range(4)]   # ~0.3 s selepas frasa
+                                clip = np.concatenate(list(long_ring) + tail).astype(np.float32) / 32768.0
+                                self._enroll_clip(clip)
+                                long_ring.clear()
+                                ww.reset()
+                            continue
                         rms = float(np.sqrt(np.mean((x / 32768.0) ** 2)))
                         noise = rms if noise is None else noise * 0.97 + rms * 0.03
-                        if not self._speaking and ww.predict(x).get("hey_jarvis", 0) >= thr:
+                        # dengan cap suara, ambang dinaikkan: diukur, suara lain yang menyebut "Hey Jarvis"
+                        # masih dapat 0.26-0.45 selepas pengesah, suara Tuan ~0.89
+                        need = max(thr, float(load_json(CONFIG, {}).get("wake_verify_min", 0.6)))                             if getattr(self, "_ww_verified", False) else thr
+                        if not self._speaking and ww.predict(x).get("hey_jarvis", 0) >= need:
                             sv.beep("wake")
                             self._voice_emit("wake")
                             self._capture(st, list(ring)[-8:], noise, from_wake=True)
@@ -4572,6 +5017,28 @@ class Api:
         if pr is not None:
             return pr
 
+        if re.match(r"^(mula|mulakan|start|rekod|rakam)\s+(rekod\s+|rakam\s+)?(mesyuarat|meeting|kelas|kuliah)\b", low):
+            r = self.meeting_start()
+            return {"handled": True, "label": "⏺ Merakam mesyuarat (mic + bunyi laptop). Cakap «tamat mesyuarat» bila siap."
+                    if r.get("ok") else "✖ " + r.get("msg", "gagal")}
+        if re.match(r"^(tamat|habis|stop|berhenti|hentikan|tutup|selesai)\s+(rekod\s+|rakam\s+)?(mesyuarat|meeting|kelas|kuliah)\b", low):
+            r = self.meeting_stop()
+            return {"handled": True, "label": f"⏹ Rakaman tamat ({r['secs'] // 60} min). Nota sedang disediakan…"
+                    if r.get("ok") else "✖ " + r.get("msg", "gagal")}
+        if re.match(r"^(daftar|rekod|ajar)\s+(cap\s+)?suara(\s+(saya|aku|tuan))?$", low):
+            return self._enroll_start()
+        if re.match(r"^(padam|matikan|buang|off)\s+(cap\s+suara|kenal\s+suara|daftar\s+suara)$", low):
+            return self._verify_off()
+        if re.match(r"^(pautan|link|app|aplikasi|sambung)\s+(fon|phone|telefon|hp)$", low):
+            r = self.phone_web_link()
+            if r.get("ok"):
+                self._push(f"window.jarvisPhoneLink && window.jarvisPhoneLink({json.dumps(r)})")
+                return {"handled": True, "label": "📱 Imbas QR di HUD dengan fon (Tailscale mesti hidup di fon)."}
+            return {"handled": True, "label": "✖ " + r["msg"]}
+        if re.match(r"^(lagu|track)\s+(seterusnya|lepas|next)$|^next\s+(lagu|song)$", low) and self._ytq:
+            self.yt_next()
+            return {"handled": True, "label": "⏭ Lagu seterusnya"}
+
         tm = re.match(r"^(?:tukar|tukarkan|guna|pakai|set|switch)?\s*(?:ke\s+)?(?:tema|theme|warna)\s+"
                       r"(?:jarvis\s+)?(?:ke\s+)?(.+?)$", low)
         if tm and len(low.split()) <= 6:
@@ -4582,6 +5049,10 @@ class Api:
                 self._push(f"window.jarvisTheme && window.jarvisTheme({json.dumps(theme)}, false)")
                 return {"handled": True, "label": f"🎨 Tema {THEME_NAMES[theme]}"}
 
+        yl = self._yt_list_command(low)
+        if yl:
+            threading.Thread(target=self.play_youtube_list, args=yl, daemon=True).start()
+            return {"handled": True, "label": f"▶ Senarai main YouTube: {yl[1]} lagu «{yl[0]}» — dalam MEDIA"}
         yq = self._yt_command(low)
         if yq:
             # Terus ke MEDIA tanpa model: model chat kadang-kadang memilih tool chrome dan hanya
@@ -4909,6 +5380,12 @@ class Api:
         ("lagu", "muzik", "slide") dikecualikan, supaya "main lagu" masih
         jatuh ke services.py dan bukan ditelan resolver.
         """
+        low0 = sv.clean_command(str(text or "")).lower()
+        if self._yt_list_command(low0) or self._yt_command(low0) or re.match(
+                r"^(lagu|track)\s+(seterusnya|lepas|next)$|^next\s+(lagu|song)$", low0):
+            r = self.resolve_system(text)
+            if r.get("handled"):
+                return r
         if not re.search(r"\b(lagu|muzik|music|track|song|slide|slideshow|pembentangan|"
                          r"presentation|scroll)\b", str(text or "").lower()):
             sysr = self.resolve_system(text)
@@ -5517,6 +5994,28 @@ def main():
         _note("exit")
 
 
+def _start_tunnel():
+    """Jalankan Cloudflare Tunnel `jarvis` (~/.cloudflared/jarvis.yml) jika ada, tanpa tetingkap.
+    Tunnel lain (cth sipeng) tidak disentuh. Satu proses sahaja: yang sedia hidup dibiarkan."""
+    cfg = HOME / ".cloudflared" / "jarvis.yml"
+    exe = shutil.which("cloudflared") or r"C:\Program Files (x86)\cloudflared\cloudflared.exe"
+    if not cfg.exists() or not Path(exe).exists() or not load_json(CONFIG, {}).get("phone_web_domain"):
+        return
+    for p in psutil.process_iter(["name", "cmdline"]):
+        try:
+            if "cloudflared" in (p.info["name"] or "").lower() and str(cfg) in " ".join(p.info["cmdline"] or []):
+                _note("tunnel jarvis sudah hidup")
+                return
+        except Exception:
+            pass
+    try:
+        subprocess.Popen([exe, "tunnel", "--config", str(cfg), "--no-autoupdate", "run"],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=NO_WINDOW)
+        _note("tunnel jarvis dimulakan")
+    except Exception as e:
+        _note(f"tunnel jarvis gagal: {e}")
+
+
 def _taskbar_identity():
     """Taskbar menunjukkan ikon python kerana Windows menganggap tetingkap ini milik
     pythonw.exe. AppUserModelID sendiri memisahkan Jarvis daripada kumpulan Python,
@@ -5596,9 +6095,11 @@ def _run():
     os.environ.setdefault(
         "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
         "--autoplay-policy=no-user-gesture-required")
+    # tema dihantar dalam URL supaya skrin permulaan sudah berwarna betul pada cat pertama
+    _theme = load_json(CONFIG, {}).get("theme", "asal")
     api._window = webview.create_window(
         "Jarvis",
-        api._media.stage_url,
+        api._media.stage_url + ("&" if "?" in api._media.stage_url else "?") + "theme=" + quote_plus(_theme),
         js_api=api,
         fullscreen=True,
         background_color="#140d26",
@@ -5608,6 +6109,17 @@ def _run():
     threading.Thread(target=api._prayer_watch, daemon=True).start()   # peringatan waktu solat
     threading.Thread(target=api._brief_watch, daemon=True).start()    # laporan harian bila tarikh tukar
     threading.Thread(target=api._phone_start, daemon=True).start()    # bot Telegram: cakap dari fon
+    threading.Thread(target=api._tg_watch, daemon=True).start()       # notifikasi Telegram + draf auto-balas
+    try:                                                               # app fon melalui Tailscale
+        import phone_web
+        _c = load_json(CONFIG, {})
+        api._web = phone_web.PhoneWeb(api, SECRETS, ROOT / "ui", port=int(_c.get("phone_web_port", 8765)),
+                                      log=_note, domain=_c.get("phone_web_domain", ""),
+                                      email=_c.get("phone_web_email", ""))
+        api._web.start()
+        threading.Thread(target=_start_tunnel, daemon=True).start()   # https://jarvis.akmalsys.com
+    except Exception as e:
+        _note(f"phone web tak dapat dimulakan: {e}")
     sv.prayer_today(api._cfg_place()[2])                               # ambil waktu solat sebulan jika belum ada
     threading.Thread(target=_apply_window_icon, daemon=True).start()  # logo Jarvis di taskbar
     _note("webview.start")

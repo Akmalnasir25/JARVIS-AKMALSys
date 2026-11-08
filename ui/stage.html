@@ -1051,8 +1051,12 @@ main.stage-wrap {
 .orb-layer { position: absolute; inset: 0; width: 100%; height: 100%; display: block; z-index: 1; pointer-events: none;
   transition: transform .3s ease-out, filter .8s ease; }
 /* warna orb ikut tema: dail dan sfera diputar hue berasingan = dua warna dalam satu orb */
-#orb { filter: var(--orb-dial, none); transition: transform .3s ease-out, filter .8s ease; }
+#orb { transition: transform .3s ease-out, filter .8s ease; }
 .orb-layer.sph { filter: var(--orb-core, none); }
+/* sut Iron Man, untuk SEMUA tema: cincin berselang merah hot-rod dan emas.
+   Dail asal cyan-putih, jadi sepia() dulu memberi tona yang boleh diwarnakan kuat. */
+/* warna merah/emas cincin dibuat dalam kanvas (tint() — multiply), bukan penapis CSS:
+   penapis mengekalkan kecerahan, jadi garis hampir putih hanya jadi merah jambu. */
 .core-state {
   flex: 0 0 auto;
   text-align: center; pointer-events: none;
@@ -2670,12 +2674,11 @@ aside .glass {
 :root {
   /* purple: dail ungu + sfera rose. sepia() dulu memberi tona yang boleh diwarnakan
      dengan kuat — dail asal hampir putih-cyan, jadi hue-rotate sahaja jadi pucat. */
-  --orb-dial: sepia(.55) saturate(2.4) hue-rotate(228deg);
   --orb-core: hue-rotate(-62deg) saturate(1.6);
 }
-html[data-theme="stark"] { --orb-dial: none; --orb-core: none; }
-html[data-theme="inferno"] { --orb-dial: sepia(.7) saturate(2.8) hue-rotate(-12deg); --orb-core: sepia(.5) saturate(3.6) hue-rotate(-50deg); }
-html[data-theme="mark"] { --orb-dial: sepia(.7) saturate(3.4) hue-rotate(-55deg); --orb-core: saturate(1.35); }
+html[data-theme="stark"] { --orb-core: none; }
+html[data-theme="inferno"] { --orb-core: sepia(.5) saturate(3.6) hue-rotate(-50deg); }
+html[data-theme="mark"] { --orb-core: hue-rotate(155deg) saturate(1.3) brightness(1.15); }   /* teras arc reactor cyan-putih */
 html[data-theme="stark"] {
   --th-a: 196; --th-b: 38;
   --th-d1: 8 22 36; --th-d2: 5 13 24; --th-d3: 3 8 16;
@@ -2691,12 +2694,18 @@ html[data-theme="inferno"] {
   --hue: 28; --hue-deep: 24; --hue-comms: 28; --alt-comms: 356;
 }
 html[data-theme="mark"] {
-  --th-a: 354; --th-b: 42;
-  --th-d1: 34 8 14; --th-d2: 22 5 9; --th-d3: 12 3 6;
-  --bg: #1a060c; --bg-deep: #0e0306;
-  --lift-top: 56 14 24; --lift-bot: 26 6 12; --inset: 30 8 14;
-  --hue: 354; --hue-deep: 350; --hue-comms: 354; --alt-comms: 42;
+  /* sut Iron Man: badan merah hot-rod, aksen emas, cahaya arc reactor cyan */
+  --th-a: 356; --th-b: 44;
+  --th-d1: 44 6 10; --th-d2: 26 4 7; --th-d3: 12 2 4;
+  --bg: #1c0508; --bg-deep: #0d0204;
+  --lift-top: 74 12 18; --lift-bot: 34 5 9; --inset: 36 6 10;
+  --hue: 356; --hue-deep: 352; --hue-comms: 356; --alt-comms: 44;
 }
+html[data-theme="mark"] h2,
+html[data-theme="mark"] .brand b { color: hsl(44 100% 64%); text-shadow: 0 0 14px hsl(44 100% 50% / .5); }
+html[data-theme="mark"] .glass::before,
+html[data-theme="mark"] .stage::before { filter: sepia(1) saturate(4) hue-rotate(5deg) brightness(1.2); }   /* sudut panel emas */
+html[data-theme="mark"] .core-state span { color: hsl(190 100% 78%); text-shadow: 0 0 10px hsl(190 100% 60% / .7); }
 html[data-theme] {
   --grad-shell:
     radial-gradient(120% 90% at 12% -10%, hsl(var(--th-a) 100% 66% / .18), transparent 62%),
@@ -2749,6 +2758,77 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
 .iconbar .theme-pop .theme-opt:hover, .theme-opt:hover { border-color: var(--line-hard); background: rgba(255, 255, 255, .06); }
 .theme-opt[aria-pressed="true"] { border-color: hsl(var(--hue) 100% 70% / .7); box-shadow: 0 0 14px -4px hsl(var(--hue) 100% 60% / .8); }
 .theme-sw { height: 22px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .15), 0 4px 8px -4px #000; }
+
+
+/* ── senarai main YouTube (panel MEDIA) ── */
+.yt-queue { flex: none; margin: 6px 0 0; padding: 7px 9px; border: 1px solid var(--line); background: rgb(var(--inset) / .45); }
+.yt-queue[hidden] { display: none; }
+.yt-queue h4 { margin: 0 0 5px; display: flex; gap: 8px; align-items: center;
+  font: 600 8px/1 var(--font-mono); letter-spacing: .22em; text-transform: uppercase; color: var(--cyan); }
+.yt-queue h4 button { margin-left: auto; background: none; border: 1px solid var(--line-soft); color: var(--ink-faint);
+  font: 500 8px/1 var(--font-mono); padding: 3px 6px; cursor: pointer; }
+.yt-queue ol { margin: 0; padding: 0 0 0 18px; height: 96px; overflow-y: auto; }
+.yt-queue li { font: 400 9.5px/1.7 var(--font-mono); color: var(--ink-dim); cursor: pointer; }
+.yt-queue li.on { color: hsl(var(--hue) 100% 82%); font-weight: 600; }
+.yt-queue li.on::marker { content: "▶ "; }
+.yt-queue li:hover { color: var(--ink); }
+
+/* ── notifikasi Telegram ── */
+.tg-notes { position: fixed; right: 18px; top: 64px; z-index: 380; display: flex; flex-direction: column; gap: 8px;
+  width: 300px; pointer-events: none; }
+.tg-note { pointer-events: auto; cursor: pointer; display: grid; grid-template-columns: 30px 1fr; gap: 9px;
+  padding: 9px 11px; background: rgb(var(--lift-bot) / .96); border: 1px solid hsl(200 90% 60% / .35);
+  box-shadow: 0 16px 30px -12px #000, 0 0 18px -6px hsl(200 100% 60% / .5);
+  animation: tgIn .35s cubic-bezier(.2,.9,.25,1.15); transition: opacity .4s, transform .4s; }
+.tg-note.out { opacity: 0; transform: translateX(30px); }
+.tg-note img { width: 30px; height: 30px; border-radius: 50%; }
+.tg-note b { display: block; font: 600 11px/1.3 var(--font-display); color: var(--ink); }
+.tg-note b small { font: 500 8px/1 var(--font-mono); color: hsl(38 100% 64%); margin-left: 6px; letter-spacing: .1em; }
+.tg-note span { display: block; font: 400 10px/1.45 var(--font-mono); color: var(--ink-dim);
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+@keyframes tgIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
+
+/* ── rakaman mesyuarat ── */
+.chip.rec { color: #ff6b78; border-color: rgba(255, 95, 112, .5); cursor: pointer; }
+.chip.rec[hidden] { display: none; }
+.chip.rec .dot { background: #ff3b4e; box-shadow: 0 0 10px #ff3b4e; animation: recBlink 1s steps(2) infinite; }
+.chip.rec i { display: inline-block; width: 22px; height: 6px; margin-left: 4px;
+  background: linear-gradient(90deg, #ff6b78 var(--lv, 0%), rgba(255,255,255,.12) var(--lv, 0%)); }
+@keyframes recBlink { 50% { opacity: .2; } }
+
+/* ── pautan app fon (QR) ── */
+.qr-card { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: center; }
+.qr-card .qr { background: #fff; padding: 8px; border-radius: 6px; }
+.qr-card .qr svg { width: 100%; height: auto; display: block; }
+.qr-card code { font: 400 9px/1.5 var(--font-mono); color: var(--ink-faint); word-break: break-all; }
+
+/* ── diff projek ── */
+.btn.diff-btn { color: hsl(38 100% 70%); border-color: hsl(38 100% 60% / .45); }
+.btn.diff-btn[hidden] { display: none; }
+.diff-wrap { --alt: var(--alt-comms); position: fixed; inset: 0; z-index: 420; display: grid; place-items: center; background: rgba(2, 1, 6, .78); }
+.diff-wrap[hidden] { display: none; }
+.diff-box { width: min(1180px, 94vw); height: min(780px, 90vh); display: grid; grid-template-rows: auto 1fr auto;
+  background: rgb(var(--lift-bot) / .98); border: 1px solid var(--line); box-shadow: 0 30px 60px -20px #000; }
+.diff-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line-soft);
+  font: 600 10px/1 var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--cyan); }
+.diff-head .grow { flex: 1; }
+.diff-body { display: grid; grid-template-columns: 240px 1fr; min-height: 0; }
+.diff-files { overflow-y: auto; border-right: 1px solid var(--line-soft); padding: 6px 0; }
+.diff-files div { padding: 4px 12px; font: 400 10px/1.5 var(--font-mono); color: var(--ink-dim); cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.diff-files div:hover { background: rgba(255,255,255,.05); color: var(--ink); }
+.diff-files b { display: inline-block; width: 22px; color: hsl(38 100% 66%); }
+.diff-code { margin: 0; overflow: auto; padding: 10px 14px; font: 400 10.5px/1.55 var(--font-mono); color: var(--ink-dim);
+  white-space: pre; user-select: text; }
+.diff-code span { display: block; }
+.diff-wrap .diff-foot .btn { flex: none; min-width: 90px; height: 30px; }
+.diff-code .a { color: #5ee6a0; background: rgba(56, 230, 160, .07); display: block; }
+.diff-code .d { color: #ff7d8a; background: rgba(255, 95, 112, .08); display: block; }
+.diff-code .h { color: hsl(200 100% 72%); display: block; margin-top: 10px; font-weight: 600; }
+.diff-code .at { color: hsl(272 90% 76%); display: block; }
+.diff-foot { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line-soft); }
+.diff-foot input { flex: 1; background: rgb(var(--inset) / .6); border: 1px solid var(--line); color: var(--ink);
+  font: 400 11px/1 var(--font-mono); padding: 7px 10px; outline: none; }
 
 /* ── SKRIN PERMULAAN: akmalsys.com ──────────────────────────────────
    Muncul pada cat pertama, sebelum jambatan Python sedia. Bar kemajuan
@@ -2857,12 +2937,27 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
       }, Math.max(350, 1200 - (Date.now() - t0)));
     }
   };
+  try {   // tema dari URL (Python) supaya skrin permulaan sudah berwarna betul
+    const th = new URLSearchParams(location.search).get('theme');
+    if (th && th !== 'asal') document.documentElement.dataset.theme = th;
+  } catch (e) {}
   bootStep(8, 'Memulakan antara muka');
   // jaring keselamatan: jangan sesekali halang HUD
   setTimeout(() => window.bootStep(100, 'Sedia'), 15000);
 })();
 </script>
 
+<div class="tg-notes" id="tgNotes" aria-live="polite"></div>
+<div class="diff-wrap" id="diffWrap" hidden>
+  <div class="diff-box">
+    <div class="diff-head"><span id="diffTitle">Perubahan</span><span class="grow"></span>
+      <button type="button" class="btn" id="diffRefresh">Muat semula</button>
+      <button type="button" class="btn" id="diffClose">Tutup</button></div>
+    <div class="diff-body"><div class="diff-files" id="diffFiles"></div><pre class="diff-code" id="diffCode"></pre></div>
+    <div class="diff-foot"><input id="diffMsg" placeholder="Mesej commit (cth: Betulkan validasi login)">
+      <button type="button" class="btn solid" id="diffCommit">Commit</button></div>
+  </div>
+</div>
 <canvas id="bg" aria-hidden="true"></canvas>
 <div class="floor" aria-hidden="true"></div>
 <div class="vignette" aria-hidden="true"></div>
@@ -2890,6 +2985,9 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
          title="Click to turn the wake word off. Off means the microphone is closed — nothing is heard until you press the mic button.">
       <span class="dot" id="wakeDot"></span><span id="wakeChipLbl">Hey Jarvis</span>
     </div>
+    <div class="chip rec" id="recChip" hidden title="Merakam mesyuarat — klik untuk tamat">
+      <span class="dot"></span><span id="recLbl">REC 00:00</span><i id="recLv"></i>
+    </div>
     <div class="chip warn" title="Prayer times">
       <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 3a9 9 0 1 0 0 18a11 11 0 0 1 0-18z"/></svg>
       <span>Asar · 16:42</span>
@@ -2910,7 +3008,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
         <button type="button" class="theme-opt" data-theme="asal"><span class="theme-sw" style="background:linear-gradient(90deg,hsl(272 100% 70%),hsl(318 95% 66%),#140d26)"></span><span>Purple<small>ungu · rose</small></span></button>
         <button type="button" class="theme-opt" data-theme="stark"><span class="theme-sw" style="background:linear-gradient(90deg,hsl(196 100% 62%),hsl(38 100% 58%),#07121c)"></span><span>Stark<small>JARVIS cyan · emas oren</small></span></button>
         <button type="button" class="theme-opt" data-theme="inferno"><span class="theme-sw" style="background:linear-gradient(90deg,hsl(28 100% 58%),hsl(356 95% 56%),#1a0b06)"></span><span>Inferno<small>oren · merah, garang</small></span></button>
-        <button type="button" class="theme-opt" data-theme="mark"><span class="theme-sw" style="background:linear-gradient(90deg,hsl(354 95% 56%),hsl(42 100% 58%),#1a060c)"></span><span>Mark<small>merah · emas, Iron Man</small></span></button>
+        <button type="button" class="theme-opt" data-theme="mark"><span class="theme-sw" style="background:linear-gradient(90deg,#c8101e 0 45%,#ffc93a 45% 80%,#7fe4ff 80%)"></span><span>Mark<small>sut Iron Man · merah emas arc</small></span></button>
       </div>
       <button type="button" id="btnSettings" title="Settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -3010,6 +3108,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
           <span class="grow"></span>
           <button type="button" class="btn proj-chip" id="btnProject" aria-expanded="false"
                   title="Mod projek: arahan coding dijalankan oleh Claude Code dalam folder ini">Projek · —</button>
+          <button type="button" class="btn diff-btn" id="btnDiff" hidden title="Perubahan kod dalam projek">Δ</button>
           <button type="button" class="btn" id="btnHistory" aria-expanded="false">History</button>
           <button type="button" class="btn" id="btnNewSession">New session</button>
         </div>
@@ -3082,6 +3181,10 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
             <span class="tc" id="mediaCur">00:00</span>
             <div class="track" id="mediaTrack"><i id="mediaHead" style="left:0"></i></div>
             <span class="tc" id="mediaDur">--:--</span>
+          </div>
+          <div class="yt-queue" id="ytQueue" hidden>
+            <h4><span>Senarai main</span><span id="ytQ" style="color:var(--ink-faint);letter-spacing:.05em;text-transform:none"></span><button type="button" id="ytClear">Tamat</button></h4>
+            <ol id="ytList"></ol>
           </div>
           <div class="media-list" id="mediaList">
             <div class="media-row active"><span class="tag">—</span><span class="n">media/ folder is empty</span><span class="d">—</span></div>
@@ -3282,8 +3385,8 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
           <span class="title">Inbox</span>
           <span class="meta" id="ibMeta">belum disambung</span>
           <span class="grow"></span>
-          <label class="ib-toggle" title="Jarvis jawab sendiri thread ini">
-            <input type="checkbox" id="ibAuto"> auto-reply
+          <label class="ib-toggle" title="Jarvis tulis draf balasan bila mesej masuk dalam chat ini — Tuan sahkan 'ya' sebelum dihantar">
+            <input type="checkbox" id="ibAuto"> auto-draf
           </label>
           <button type="button" class="btn" id="ibReload">Muat semula</button>
         </div>
@@ -3719,6 +3822,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
     async function openThread(d) {
       if (!api) return;
       open = d;
+      if (auto && api.ib_auto) api.ib_auto(String(d.id)).then(r => { auto.checked = !!(r && r.on); }).catch(() => {});
       oldest = 0; more = false; paging = false;
       paintList();
       who.textContent = d.name;
@@ -3978,8 +4082,8 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
       await api.ib_auto(String(open.id), auto.checked).catch(() => null);
       note.hidden = !auto.checked;
       if (auto.checked) {
-        note.innerHTML = '<b>Auto-reply hidup</b> untuk chat ini. Jarvis akan jawab '
-          + 'setiap mesej masuk sendiri. Tutup bila tak perlu.';
+        note.innerHTML = '<b>Auto-draf hidup</b> untuk chat ini. Bila mesej masuk, Jarvis tulis draf '
+          + 'balasan di HUD (dan di fon). Tiada apa dihantar sehingga Tuan jawab «ya».';
       }
     });
 
@@ -4212,8 +4316,39 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
       orb.insertAdjacentElement(cls === 'sph' ? 'afterend' : 'afterend', c);
       return c;
     };
-    const orbTop = mkLayer('top'), orbSph = mkLayer('sph');   // susunan DOM: #orb, sph, top
+    // dicipta terbalik kerana setiap satu masuk terus selepas #orb:
+    // susunan akhir DOM = #orb, red, gold, sph, top
+    const orbTop = mkLayer('top'), orbSph = mkLayer('sph'), orbGold = mkLayer('gold'), orbRed = mkLayer('red');
     const G1 = orb.getContext('2d'), G2 = orbSph.getContext('2d'), G3 = orbTop.getContext('2d');
+    const GR = orbRed.getContext('2d'), GG = orbGold.getContext('2d');
+    /* Sut Iron Man: merah hot-rod dan emas. multiply = putih jadi warna penuh,
+       bayang gelap kekal gelap; kemudian destination-in memulangkan alfa asal
+       supaya kawasan kosong tak dicat. Cahaya dari atas-kiri (kilauan cat). */
+    const RED_STOPS  = [[0, '#ff8070'], [0.38, '#ff2436'], [0.72, '#d0101f'], [1, '#8a0712']];
+    const GOLD_STOPS = [[0, '#fff0a8'], [0.40, '#ffc93a'], [0.75, '#d99a14'], [1, '#8c600a']];
+    const tintBuf = new Map();
+    function tint(x, c, stops) {
+      if (!c.width) return;
+      let o = tintBuf.get(c);
+      if (!o || o.width !== c.width || o.height !== c.height) {
+        o = document.createElement('canvas');
+        o.width = c.width; o.height = c.height;
+        tintBuf.set(c, o);
+      }
+      const ox = o.getContext('2d');
+      ox.clearRect(0, 0, o.width, o.height);
+      ox.drawImage(c, 0, 0);
+      x.save();
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      const gr = x.createLinearGradient(0, 0, c.width, c.height);
+      for (const [p, col] of stops) gr.addColorStop(p, col);
+      x.globalCompositeOperation = 'multiply';
+      x.fillStyle = gr;
+      x.fillRect(0, 0, c.width, c.height);
+      x.globalCompositeOperation = 'destination-in';
+      x.drawImage(o, 0, 0);
+      x.restore();
+    }
     let g = G1;
     const dpr = Math.min(devicePixelRatio || 1, 2);
     let t = 0, w = 0, h = 0, cx = 0, cy = 0, R = 0;
@@ -4254,7 +4389,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
     function size() {
       w = orb.clientWidth  || 300;
       h = orb.clientHeight || 300;
-      for (const [c, x] of [[orb, G1], [orbSph, G2], [orbTop, G3]]) {
+      for (const [c, x] of [[orb, G1], [orbRed, GR], [orbGold, GG], [orbSph, G2], [orbTop, G3]]) {
         c.width  = Math.round(w * dpr);
         c.height = Math.round(h * dpr);
         x.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -4291,7 +4426,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
       const OX = SP.ox * SP.ox * (3 - 2 * SP.ox);
 
       g = G1;
-      G1.clearRect(0, 0, w, h); G2.clearRect(0, 0, w, h); G3.clearRect(0, 0, w, h);
+      for (const x of [G1, GR, GG, G2, G3]) x.clearRect(0, 0, w, h);
 
       /* the voice enters the dial: a tick's brightness is lifted by the
          spectrum band at its angle, so a vowel lights a whole sector instead
@@ -4437,6 +4572,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
       g.beginPath(); g.arc(cx + clx * 0.6, cy + cly * 0.6, innerR, 0, TAU);
       g.strokeStyle = 'rgba(0,6,11,0.42)'; g.lineWidth = 0.7; g.stroke();
 
+      g = GR;                       // bezel -> merah sut Iron Man
       /* ── 3 · the bezel: turned metal ──────────────────────────────────
             96 arc segments whose brightness is the surface's angle to the lamp
             raised to a power. That is what a machined collar does: it throws a
@@ -4484,6 +4620,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
       g.beginPath(); g.arc(cx + clx * 0.8, cy + cly * 0.8, bezIn, 0, TAU);
       g.strokeStyle = 'rgba(0,6,11,0.52)'; g.lineWidth = 1.0; g.stroke();
 
+      g = GG;                       // scale band + arka amber -> emas
       /* ── 4 · the channel and the scale band ───────────────────────────
             A real groove: a dark well, then the band standing in it, then a
             bright lip on the lamp side and shadow on the far side. */
@@ -4606,6 +4743,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
         g.lineWidth = 1.4; g.stroke();
       }
 
+      g = GR;                       // crown -> merah
       /* ── 6 · the crown ─────────────────────────────────────────────────
             The outer tick ring, tallest thing on the face: a batched shadow
             pass under a batched lit pass, then the two rims. */
@@ -4652,6 +4790,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
       g.beginPath(); g.arc(cx - clx * 0.7, cy - cly * 0.7, cOut, 0, TAU);
       g.strokeStyle = 'rgba(220,250,255,' + (0.30 * (1 - OX * 0.8)) + ')'; g.lineWidth = 0.8; g.stroke();
 
+      g = GG;                       // spectrum, listening, thinking, teras -> emas (di atas merah)
       /* ── 7 · speaking: the spectrum ────────────────────────────────────
             Each bar runs from a dim root to a bright tip. Nothing added over
             the top — the gradient carries the whole falloff. */
@@ -4990,6 +5129,8 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
       g.fillStyle = halo;
       g.beginPath(); g.arc(cx, cy, haloR, 0, TAU); g.fill();
 
+      tint(GR, orbRed, RED_STOPS);
+      tint(GG, orbGold, GOLD_STOPS);
       requestAnimationFrame(frame);
     }
 
@@ -5123,6 +5264,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
       media.addEventListener('pause', () => screen.classList.remove('playing'));
       media.addEventListener('ended', () => {
         screen.classList.remove('playing');
+        if (window.__ytq && window.__ytq.on && api && api.yt_next) { api.yt_next(); return; }
         if (index + 1 < items.length) playAt(index + 1);
       });
       media.addEventListener('error', () => {
@@ -5212,8 +5354,9 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
 
     const btn = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
     btn('mediaPlay',    () => media ? (media.paused ? media.play() : media.pause()) : playAt(index < 0 ? 0 : index));
-    btn('mediaPrev',    () => playAt(index - 1));
-    btn('mediaNext',    () => playAt(index + 1));
+    const inQ = () => window.__ytq && window.__ytq.on && api;
+    btn('mediaPrev',    () => inQ() ? api.yt_prev() : playAt(index - 1));
+    btn('mediaNext',    () => inQ() ? api.yt_next() : playAt(index + 1));
     if (track) track.addEventListener('click', e => {
       if (!media || !media.duration) return;
       const r = track.getBoundingClientRect();
@@ -7783,6 +7926,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
   let projCur = null;
 
   window.jarvisProject = function (d) {
+    setTimeout(() => window.jarvisDiffCheck && window.jarvisDiffCheck(), 200);
     projCur = d && d.name ? d : null;
     if (!btnProj) return;
     btnProj.textContent = projCur ? 'Projek · ' + projCur.name + (projCur.vscode ? ' ↺' : '') : 'Projek · —';
@@ -7988,6 +8132,7 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
       stream(d.text);
       window.jarvisState('speaking');
     } else if (kind === 'done') {
+      setTimeout(() => window.jarvisDiffCheck && window.jarvisDiffCheck(), 400);
       busy = false;
       document.body.dataset.busy = '';
       traceEnd();
@@ -8502,9 +8647,152 @@ body, header, .glass, .stage, .stage-tab, nav.rail { transition: background-colo
     addEventListener('keydown', e => { if (e.key === 'Escape' && !wrap.hidden) { e.stopPropagation(); close(); } });
   })();
 
+
+  /* ── senarai main YouTube ── */
+  window.jarvisQueue = function (q) {
+    window.__ytq = q;
+    const box = $('ytQueue'), ol = $('ytList');
+    if (!box || !ol) return;
+    box.hidden = !q.on;
+    if (!q.on) return;
+    $('ytQ').textContent = '«' + q.q + '» · ' + (q.pos + 1) + '/' + q.items.length;
+    ol.textContent = '';
+    q.items.forEach((t, i) => {
+      const li = document.createElement('li');
+      li.textContent = t;
+      if (i === q.pos) li.className = 'on';
+      li.addEventListener('click', () => api && api.yt_jump(i));
+      ol.appendChild(li);
+    });
+  };
+  (() => { const c = $('ytClear'); if (c) c.addEventListener('click', () => api && api.yt_clear()); })();
+
+  /* ── notifikasi Telegram masuk ── */
+  window.jarvisTgNote = function (n) {
+    const box = $('tgNotes');
+    if (!box) return;
+    const el = document.createElement('div');
+    el.className = 'tg-note';
+    const im = document.createElement('img');
+    im.alt = '';
+    im.src = 'https://www.google.com/s2/favicons?sz=64&domain=telegram.org';
+    const tx = document.createElement('div');
+    const b = document.createElement('b');
+    b.textContent = n.name;
+    if (n.armed) { const sm = document.createElement('small'); sm.textContent = 'AUTO-DRAF'; b.appendChild(sm); }
+    const sp = document.createElement('span');
+    sp.textContent = n.text;
+    tx.append(b, sp);
+    el.append(im, tx);
+    const gone = () => { el.classList.add('out'); setTimeout(() => el.remove(), 450); };
+    el.addEventListener('click', () => {
+      gone();
+      if (window.stageShow) window.stageShow('inbox');
+      setTimeout(() => window.stageInbox && window.stageInbox.open(Number(n.id)), 400);
+    });
+    box.prepend(el);
+    while (box.children.length > 4) box.lastElementChild.remove();
+    setTimeout(gone, 14000);
+  };
+
+  /* ── rakaman mesyuarat ── */
+  window.jarvisMeeting = function (st) {
+    const c = $('recChip');
+    if (!c) return;
+    c.hidden = !st.on;
+    if (!st.on) return;
+    const s = st.secs || 0;
+    $('recLbl').textContent = 'REC ' + String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+    const lv = Math.min(100, Math.round(Math.max(st.mic || 0, st.sys || 0) * 900));
+    $('recLv').style.setProperty('--lv', lv + '%');
+  };
+  (() => {
+    const c = $('recChip');
+    if (c) c.addEventListener('click', async () => {
+      if (!api) return;
+      const r = await api.meeting_stop().catch(() => null);
+      if (r && r.ok) sysNote('⏹ Rakaman tamat — nota sedang disediakan…');
+    });
+  })();
+
+  /* nota mesyuarat dan teks panjang lain dari Python */
+  window.jarvisSay = function (text) { word('Jarvis', text, 'jarvis'); };
+
+  /* ── pautan app fon: QR ── */
+  window.jarvisPhoneLink = function (r) {
+    if (!talk) return;
+    dropEmpty();
+    const el = document.createElement('div');
+    el.className = 'msg jarvis';
+    const b = document.createElement('div');
+    b.className = 'bubble qr-card';
+    const q = document.createElement('div');
+    q.className = 'qr';
+    q.innerHTML = r.svg || '';
+    const t = document.createElement('div');
+    t.innerHTML = '<b>App fon Jarvis</b><br>1. Pasang <b>Tailscale</b> di fon, log masuk akaun yang sama.<br>'
+      + '2. Imbas QR ini dengan kamera fon.<br>3. Chrome → ⋮ → <i>Add to Home screen</i>.<br><br>';
+    const code = document.createElement('code');
+    code.textContent = r.url;
+    t.appendChild(code);
+    b.append(q, t);
+    el.appendChild(b);
+    talk.appendChild(el);
+    scrollTalk();
+  };
+
+  /* ── diff projek ── */
+  (() => {
+    const btn = $('btnDiff'), wrap = $('diffWrap');
+    if (!btn || !wrap) return;
+    let last = null;
+    const esc = (s) => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    function paint(r) {
+      last = r;
+      $('diffTitle').textContent = 'Perubahan · ' + r.name + (r.branch ? ' · ' + r.branch : '') + ' · ' + r.files.length + ' fail';
+      const files = $('diffFiles');
+      files.textContent = '';
+      r.files.forEach(f => {
+        const d = document.createElement('div');
+        d.innerHTML = '<b>' + esc(f.st) + '</b>' + esc(f.path);
+        d.addEventListener('click', () => {
+          const hs = [...$('diffCode').querySelectorAll('.h')];
+          const hit = hs.find(x => x.textContent.includes(f.path));
+          if (hit) hit.scrollIntoView({ block: 'start' });
+        });
+        files.appendChild(d);
+      });
+      // satu span blok setiap baris, dicantum tanpa '\n' (blok + baris baru = jarak berganda)
+      $('diffCode').innerHTML = esc(r.diff || '(tiada perubahan)').split('\n').map(l =>
+        '<span class="' + (l.startsWith('diff --git') ? 'h'
+          : l.startsWith('@@') ? 'at'
+          : (l.startsWith('+') && !l.startsWith('+++')) ? 'a'
+          : (l.startsWith('-') && !l.startsWith('---')) ? 'd' : 'p') + '">' + (l || ' ') + '</span>').join('');
+    }
+    window.jarvisDiffCheck = async function () {
+      if (!api || !api.project_diff) return;
+      const r = await api.project_diff().catch(() => null);
+      const n = r && r.ok ? r.files.length : 0;
+      btn.hidden = !n;
+      btn.textContent = 'Δ ' + n + ' fail';
+      if (n) last = r;
+    };
+    btn.addEventListener('click', async () => { await window.jarvisDiffCheck(); if (last) paint(last); wrap.hidden = false; });
+    $('diffClose').addEventListener('click', () => { wrap.hidden = true; });
+    $('diffRefresh').addEventListener('click', async () => { await window.jarvisDiffCheck(); if (last) paint(last); });
+    wrap.addEventListener('mousedown', e => { if (e.target === wrap) wrap.hidden = true; });
+    $('diffCommit').addEventListener('click', async () => {
+      const m = $('diffMsg').value.trim();
+      const r = await api.project_commit(m).catch(e => ({ ok: false, msg: String(e) }));
+      sysNote((r.ok ? '✔ Commit: ' : '✖ Commit gagal: ') + (r.msg || ''), !r.ok);
+      if (r.ok) { $('diffMsg').value = ''; wrap.hidden = true; }
+      window.jarvisDiffCheck();
+    });
+  })();
+
   /* ── tema warna ── */
   const THEME_BG = { asal: [272, 318, 200, 44], stark: [196, 38, 210, 24],
-                     inferno: [24, 356, 36, 8], mark: [354, 42, 340, 20] };
+                     inferno: [24, 356, 36, 8], mark: [356, 44, 192, 14] };   // merah, emas, cahaya arc reactor, bara
   window.jarvisTheme = function (name, save) {
     const t = THEME_BG[name] ? name : 'asal';
     if (t === 'asal') delete document.documentElement.dataset.theme;

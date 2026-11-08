@@ -521,8 +521,10 @@ class TgAccount:
                     return
                 try:
                     ch = await ev.get_chat()
+                    chat = _r(ch)
+                    chat["bot"] = bool(getattr(ch, "bot", False))   # bot (cth bot Jarvis) tak perlu notifikasi
                     self.on_message({
-                        "net": "tguser", "chat": _r(ch),
+                        "net": "tguser", "chat": chat,
                         "text": (ev.raw_text or "")[:4000],
                         "at": int(ev.message.date.timestamp()) if ev.message.date else 0,
                         "id": ev.message.id,
